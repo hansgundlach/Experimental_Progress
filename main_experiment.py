@@ -484,15 +484,25 @@ class TransformerModel(nn.Module):
         return output
 
 
-def train(gpu_id=0):
+def get_device(gpu_id=None):
+    """Get appropriate device based on available hardware."""
+    if gpu_id is not None and torch.cuda.is_available():
+        torch.cuda.set_device(gpu_id)
+        return torch.device(f"cuda:{gpu_id}")
+    elif torch.backends.mps.is_available():
+        return torch.device("mps")
+    else:
+        return torch.device("cpu")
+
+
+def train(gpu_id=None):
     # Initialize wandb
     wandb.init(mode="offline")
     config = wandb.config
 
-    # Set specific GPU
-    torch.cuda.set_device(gpu_id)
-    device = torch.device(f"cuda:{gpu_id}")
-    print(f"Training on GPU {gpu_id}")
+    # Get appropriate device
+    device = get_device(gpu_id)
+    print(f"Training on device: {device}")
 
     # Simplified dataset handling - only wikitext
     wikitext_data = get_wikitext_data(limit=config.wikitext_limit)
@@ -682,112 +692,9 @@ if __name__ == "__main__":
     timestamp = datetime.datetime.now().strftime("%m%d_%H%M")
     project_name = f"transformer_experiments_{timestamp}"
 
-    # Define sweep configuration with dataset options
-    # longer more accurate benchmark
-    # sweep_config = {
-    #     "method": "grid",
-    #     "parameters": {
-    #         "dataset": {"values": ["wikitext"]},
-    #         "optimizer": {"values": ["adam"]},
-    #         "activation": {"values": ["relu", "gelu", "swish"]},
-    #         "batch_size": {"value": 64},
-    #         "learning_rate": {"value": 0.001},
-    #         "weight_decay": {"value": 0.01},  # Only used for AdamW
-    #         "hidden_dim": {"value": 256},
-    #         "num_heads": {"value": 8},
-    #         "num_layers": {"value": 4},
-    #         "dropout": {"value": 0.2},
-    #         "epochs": {"value": 30},
-    #         "seq_length": {"value": 64},
-    #         "shakespeare_limit": {"value": 10000},  # Limit Shakespeare dataset size
-    #     },
-    # }
-
-    # Configuration for small models/datasets for quick testing
-    sweep_config = {
-        "method": "grid",
-        "parameters": {
-            "dataset": {"values": ["wikitext"]},
-            "optimizer": {"values": ["adam"]},
-            "activation": {"values": ["gelu"]},
-            "pos_encoding": {"values": ["sinusoidal", "rotary"]},
-            "batch_size": {"value": 32},  # Smaller batch size
-            "learning_rate": {"value": 0.001},
-            "init_scheme": {
-                "values": [
-                    "default",
-                    "xavier_normal",
-                    "kaiming_normal",
-                    "orthogonal",
-                ]
-            },
-            "min_lr": {"value": 0.0001},
-            "lr_schedule": {"values": ["cosine", "cosine_warmup"]},
-            "warmup_epochs": {"value": 5},
-            "weight_decay": {"value": 0.01},
-            "hidden_dim": {"value": 64},  # Much smaller hidden dimension
-            "num_heads": {"value": 2},  # Fewer attention heads
-            "num_layers": {"value": 8},  # Fewer transformer layers
-            "dropout": {"value": 0.1},
-            "epochs": {"value": 30},  # Just 5 epochs for testing
-            "seq_length": {"value": 32},  # Shorter sequences
-            "wikitext_limit": {
-                "value": 10000
-            },  # Limit text size to 5000 chars for testing
-        },
-    }
-
-    # # Initialize sweep
-    # sweep_id = wandb.sweep(sweep_config, project="transformer_new_activation_test")
-
-    # # Start sweep agent
-    # wandb.agent(sweep_id, train)
-
-    # Define specific experiment variations as diffs from the base config
-    # Define a proper base config as a dictionary
-    # large base config
-    # base_config = {
-    #     "dataset": "wikitext",
-    #     "batch_size": 128,
-    #     "learning_rate": 0.001,
-    #     "min_lr": 0.0001,
-    #     "lr_schedule": "default",
-    #     "warmup_epochs": 0,
-    #     "weight_decay": 0.01,
-    #     "hidden_dim": 128,
-    #     "num_heads": 4,
-    #     "num_layers": 8,
-    #     "dropout": 0.1,
-    #     "epochs": 30,
-    #     "seq_length": 128,
-    #     "wikitext_limit": 10000,
-    #     "pos_encoding": "sinusoidal",
-    #     "init_scheme": "xavier_normal",
-    #     # Add any missing parameters from your sweep config
-    #     "shakespeare_limit": 10000,  # In case you need this
-    # }
-    # medium size base configbase_config = {
-
-    # small size base config
-    # base_config = {
-    #     "dataset": "wikitext",
-    #     "batch_size": 64,
-    #     "learning_rate": 0.001,
-    #     "min_lr": 0.0001,
-    #     "lr_schedule": "default",
-    #     "warmup_epochs": 0,
-    #     "weight_decay": 0.01,
-    #     "hidden_dim": 64,
-    #     "num_heads": 4,
-    #     "num_layers": 4,
-    #     "dropout": 0.1,
-    #     "epochs": 15,
-    #     "seq_length": 64,
-    #     "wikitext_limit": 10000,
-    #     "pos_encoding": "sinusoidal",
-    #     "init_scheme": "default",
-    #     "optimizer": "adamw",
-    # }
+    # Detect available compute resources
+    use_multi_gpu = torch.cuda.device_count() > 1
+    use_mps = torch.backends.mps.is_available()
     base_config = {
         "dataset": "wikitext",
         "batch_size": 128,
@@ -809,171 +716,47 @@ if __name__ == "__main__":
         "optimizer": "adamw",
     }
 
-    # experiments = [
-    #     {
-    #         # Experiment 1: Adam with ReLU
-    #         "optimizer": "adam",
-    #         "activation": "gelu",
-    #         "pos_encoding": "rotary",
-    #         # All other parameters inherited from base_config
-    #     },
-    #     # You can add more variants easily:
-    #     {
-    #         "activation": "gelu",
-    #         "pos_encoding": "rotary",  # Override the scheduling method
-    #     },
-    # ]
-
-    # Run each experiment, this for chronological experiment order experiments
-    depths = [2, 4, 6, 8, 10]  # Example depths
-    experiments = []
-
-    for depth in depths:
-        # Without GELU
-        experiments.append(
-            {
-                "num_layers": depth,
-                "optimizer": "adam",
-            }
-        )
-        # With GELU
-        experiments.append(
-            {
-                "num_layers": depth,
-                "optimizer": "adamw",
-            }
-        )
-    # Assuming final_losses is already populated with the results
-    final_losses = {depth: {"adam": None, "adamw": None} for depth in depths}
-
-    # updates as gpt to speed this up for mac os
-    # update so that intermediate results are saved to csv
-
-    # Run experiments and populate final_losses
-    for exp in experiments:
-        # Merge with base config
-        config = {**base_config, **exp}
-
-        # Initialize wandb run
-        with wandb.init(project=project_name, config=config):
-            train()  # Run the training with this config
-
-            # Record the final loss
-            final_loss = wandb.run.summary["train_loss"]
-            # Use optimizer as the key instead of activation
-            final_losses[config["num_layers"]][config["optimizer"]] = final_loss
-
-    # Prepare data for CSV
-    csv_data = [["Depth", "Final Loss with Adam", "Final Loss with AdamW"]]
-    for depth in depths:
-        adam_loss = final_losses[depth]["adam"]
-        adamw_loss = final_losses[depth]["adamw"]
-        csv_data.append([depth, adam_loss, adamw_loss])
-
-    # Write to CSV
-    csv_file_path = "experiment_results.csv"
-    with open(csv_file_path, mode="w", newline="") as file:
-        writer = csv.writer(file)
-        writer.writerows(csv_data)
-
-    print(f"Results saved to {csv_file_path}")
-
-    # for exp_idx, exp_diff in enumerate(experiments):
-    #     # Create a full config by merging the base config with experiment-specific diffs
-    #     full_config = {**base_config, **exp_diff}
-
-    #     # Add a descriptive name
-    #     full_config_str = (
-    #         f"Exp{exp_idx+1}_{exp_diff['optimizer']}_{exp_diff['activation']}"
-    #     )
-    #     print(f"Running experiment: {full_config_str}")
-
-    #     # Initialize a wandb run for this experiment
-    #     with wandb.init(
-    #         project=project_name,
-    #         config=full_config,
-    #         name=full_config_str,
-    #     ):
-    #         train()  # Run the training with this config
-
-    #     print(f"Completed experiment: {full_config_str}\n")
-
-    # experiments = [
-    #     {
-    #         "dataset": "wikitext",
-    #         "optimizer": "adam",
-    #         "activation": "relu",
-    #         "batch_size": 32,
-    #         "learning_rate": 0.001,
-    #         "weight_decay": 0.01,
-    #         "hidden_dim": 64,
-    #         "num_heads": 2,
-    #         "num_layers": 8,
-    #         "dropout": 0.1,
-    #         "epochs": 30,
-    #         "seq_length": 32,
-    #         "wikitext_limit": 10000,
-    #         "pos_encoding": "sinusoidal",
-    #     },
-    #     {
-    #         "dataset": "wikitext",
-    #         "optimizer": "adam",
-    #         "activation": "gelu",
-    #         # ... rest of the config same as above ...
-    #     },
-    #     {
-    #         "dataset": "wikitext",
-    #         "optimizer": "adamw",
-    #         "activation": "gelu",
-    #         # ... rest of the config same as above ...
-    #     },
-    # ]
-
-    # running through configurations in historical order
-
-    # Split experiments between GPUs
     depths = [2, 4, 6, 8, 10]
     experiments = []
     for depth in depths:
         experiments.append({"num_layers": depth, "optimizer": "adam"})
         experiments.append({"num_layers": depth, "optimizer": "adamw"})
 
-    # Split experiments into two groups
-    n_gpus = torch.cuda.device_count()
-    experiments_per_gpu = len(experiments) // n_gpus
+    final_losses = {depth: {"adam": None, "adamw": None} for depth in depths}
 
-    # Create process pool for parallel execution
-    def run_experiments_on_gpu(gpu_id, exps):
-        final_losses = {}
-        for exp in exps:
+    if use_multi_gpu:
+        # Multi-GPU setup
+        n_gpus = torch.cuda.device_count()
+        experiments_per_gpu = len(experiments) // n_gpus
+
+        with mp.Pool(n_gpus) as pool:
+            gpu_assignments = []
+            for i in range(n_gpus):
+                start_idx = i * experiments_per_gpu
+                end_idx = (
+                    start_idx + experiments_per_gpu
+                    if i < n_gpus - 1
+                    else len(experiments)
+                )
+                gpu_assignments.append((i, experiments[start_idx:end_idx]))
+
+            results = pool.starmap(run_experiments_on_gpu, gpu_assignments)
+
+        # Combine results
+        for gpu_results in results:
+            for (depth, optimizer), loss in gpu_results.items():
+                final_losses[depth][optimizer] = loss
+
+    else:
+        # Single device setup (CPU or MPS)
+        for exp in experiments:
             config = {**base_config, **exp}
             with wandb.init(project=project_name, config=config):
-                train(gpu_id=gpu_id)
+                train()  # No gpu_id needed for CPU/MPS
                 final_loss = wandb.run.summary["train_loss"]
-                key = (exp["num_layers"], exp["optimizer"])
-                final_losses[key] = final_loss
-        return final_losses
+                final_losses[exp["num_layers"]][exp["optimizer"]] = final_loss
 
-    # Start processes for each GPU
-    with mp.Pool(n_gpus) as pool:
-        gpu_assignments = []
-        for i in range(n_gpus):
-            start_idx = i * experiments_per_gpu
-            end_idx = (
-                start_idx + experiments_per_gpu if i < n_gpus - 1 else len(experiments)
-            )
-            gpu_assignments.append((i, experiments[start_idx:end_idx]))
-
-        # Run experiments in parallel
-        results = pool.starmap(run_experiments_on_gpu, gpu_assignments)
-
-    # Combine results from all GPUs
-    final_losses = {depth: {"adam": None, "adamw": None} for depth in depths}
-    for gpu_results in results:
-        for (depth, optimizer), loss in gpu_results.items():
-            final_losses[depth][optimizer] = loss
-
-    # Write results to CSV as before
+    # Save results to CSV
     csv_data = [["Depth", "Final Loss with Adam", "Final Loss with AdamW"]]
     for depth in depths:
         adam_loss = final_losses[depth]["adam"]
