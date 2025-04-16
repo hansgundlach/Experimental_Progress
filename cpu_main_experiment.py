@@ -12,7 +12,6 @@ import os
 import datetime
 import wandb
 import csv
-import multiprocessing as mp
 
 os.environ["WANDB_MODE"] = "offline"
 
@@ -484,15 +483,10 @@ class TransformerModel(nn.Module):
         return output
 
 
-def train(gpu_id=0):
+def train():
     # Initialize wandb
     wandb.init(mode="offline")
     config = wandb.config
-
-    # Set specific GPU
-    torch.cuda.set_device(gpu_id)
-    device = torch.device(f"cuda:{gpu_id}")
-    print(f"Training on GPU {gpu_id}")
 
     # Simplified dataset handling - only wikitext
     wikitext_data = get_wikitext_data(limit=config.wikitext_limit)
@@ -517,6 +511,15 @@ def train(gpu_id=0):
         max_seq_length=seq_length,
         weight_init=config.init_scheme,
     )
+
+    if torch.cuda.is_available():
+        device = torch.device("cuda")
+    elif torch.backends.mps.is_available():
+        device = torch.device("mps")
+        print("MPS available, using MPS")
+    else:
+        print("No GPU available or MPS not available, using CPU")
+        device = torch.device("cpu")
 
     model.to(device)
 
@@ -790,7 +793,7 @@ if __name__ == "__main__":
     # }
     base_config = {
         "dataset": "wikitext",
-        "batch_size": 128,
+        "batch_size": 64,
         "learning_rate": 0.001,
         "min_lr": 0.0001,
         "lr_schedule": "default",
@@ -803,7 +806,7 @@ if __name__ == "__main__":
         "dropout": 0.1,
         "epochs": 15,
         "seq_length": 64,
-        "wikitext_limit": 40000,
+        "wikitext_limit": 20000,
         "pos_encoding": "rotary",
         "init_scheme": "default",
         "optimizer": "adamw",
@@ -930,59 +933,3 @@ if __name__ == "__main__":
     # ]
 
     # running through configurations in historical order
-
-    # Split experiments between GPUs
-    depths = [2, 4, 6, 8, 10]
-    experiments = []
-    for depth in depths:
-        experiments.append({"num_layers": depth, "optimizer": "adam"})
-        experiments.append({"num_layers": depth, "optimizer": "adamw"})
-
-    # Split experiments into two groups
-    n_gpus = torch.cuda.device_count()
-    experiments_per_gpu = len(experiments) // n_gpus
-
-    # Create process pool for parallel execution
-    def run_experiments_on_gpu(gpu_id, exps):
-        final_losses = {}
-        for exp in exps:
-            config = {**base_config, **exp}
-            with wandb.init(project=project_name, config=config):
-                train(gpu_id=gpu_id)
-                final_loss = wandb.run.summary["train_loss"]
-                key = (exp["num_layers"], exp["optimizer"])
-                final_losses[key] = final_loss
-        return final_losses
-
-    # Start processes for each GPU
-    with mp.Pool(n_gpus) as pool:
-        gpu_assignments = []
-        for i in range(n_gpus):
-            start_idx = i * experiments_per_gpu
-            end_idx = (
-                start_idx + experiments_per_gpu if i < n_gpus - 1 else len(experiments)
-            )
-            gpu_assignments.append((i, experiments[start_idx:end_idx]))
-
-        # Run experiments in parallel
-        results = pool.starmap(run_experiments_on_gpu, gpu_assignments)
-
-    # Combine results from all GPUs
-    final_losses = {depth: {"adam": None, "adamw": None} for depth in depths}
-    for gpu_results in results:
-        for (depth, optimizer), loss in gpu_results.items():
-            final_losses[depth][optimizer] = loss
-
-    # Write results to CSV as before
-    csv_data = [["Depth", "Final Loss with Adam", "Final Loss with AdamW"]]
-    for depth in depths:
-        adam_loss = final_losses[depth]["adam"]
-        adamw_loss = final_losses[depth]["adamw"]
-        csv_data.append([depth, adam_loss, adamw_loss])
-
-    csv_file_path = "experiment_results.csv"
-    with open(csv_file_path, mode="w", newline="") as file:
-        writer = csv.writer(file)
-        writer.writerows(csv_data)
-
-    print(f"Results saved to {csv_file_path}")
