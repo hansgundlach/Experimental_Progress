@@ -211,96 +211,6 @@ def evaluate_perplexity(model, dataloader, criterion, device):
     return perplexity
 
 
-# class TransformerModel(nn.Module):
-#     def __init__(
-#         self,
-#         vocab_size,
-#         hidden_dim,
-#         num_heads,
-#         num_layers,
-#         dropout,
-#         activation="gelu",
-#         pos_encoding="rotary",
-#         max_seq_length=1000,
-#     ):
-#         super(TransformerModel, self).__init__()
-#         self.embedding = nn.Embedding(vocab_size, hidden_dim)
-#         self.pos_encoding_type = pos_encoding
-
-#         # Positional encoding setup
-#         if pos_encoding == "sinusoidal":
-#             # Standard sinusoidal positional encoding
-#             position = torch.arange(max_seq_length).unsqueeze(1)
-#             div_term = torch.exp(
-#                 torch.arange(0, hidden_dim, 2) * (-math.log(10000.0) / hidden_dim)
-#             )
-#             pe = torch.zeros(max_seq_length, hidden_dim)
-#             pe[:, 0::2] = torch.sin(position * div_term)
-#             pe[:, 1::2] = torch.cos(position * div_term)
-#             self.register_buffer("pe", pe)
-#             self.use_rotary = False
-#         elif pos_encoding == "rotary":
-#             # Rotary positional encoding
-#             self.rotary_emb = RotaryEmbedding(hidden_dim, max_seq_length)
-#             self.use_rotary = True
-#         else:
-#             raise ValueError(f"Unsupported positional encoding: {pos_encoding}")
-
-#         self.dropout = nn.Dropout(dropout)
-
-
-#         # Custom positional encoding
-#         position = torch.arange(max_seq_length).unsqueeze(1)
-#         div_term = torch.exp(
-#             torch.arange(0, hidden_dim, 2) * (-math.log(10000.0) / hidden_dim)
-#         )
-#         pe = torch.zeros(max_seq_length, hidden_dim)
-#         pe[:, 0::2] = torch.sin(position * div_term)
-#         pe[:, 1::2] = torch.cos(position * div_term)
-#         self.register_buffer("pe", pe)
-
-
-#         # Use GELU as default activation
-#         if activation == "gelu":
-#             activation = nn.GELU()
-#         elif activation == "relu":
-#             activation = nn.ReLU()
-#         elif activation == "swish":
-#             activation = nn.SiLU()
-#         else:
-#             raise ValueError(f"Unsupported activation: {activation}")
-
-#         encoder_layers = nn.TransformerEncoderLayer(
-#             hidden_dim,
-#             num_heads,
-#             hidden_dim * 4,
-#             dropout,
-#             activation=activation,
-#         )
-#         self.transformer_encoder = nn.TransformerEncoder(encoder_layers, num_layers)
-#         self.fc = nn.Linear(hidden_dim, vocab_size)
-
-#     def forward(self, src):
-#         # Embed the input and add positional encoding
-#         src = self.embedding(src) * math.sqrt(self.embedding.embedding_dim)
-#         src = src + self.pe[: src.size(1), :]
-#         src = self.dropout(src)
-
-#         # Transform for transformer (seq_len, batch, hidden_dim)
-#         src = src.transpose(0, 1)
-
-#         # Pass through transformer
-#         output = self.transformer_encoder(src)
-
-#         # Transform back (batch, seq_len, hidden_dim)
-#         output = output.transpose(0, 1)
-
-#         # Project to vocabulary size
-#         output = self.fc(output)
-
-#         return output
-
-
 class TransformerModel(nn.Module):
     def __init__(
         self,
@@ -541,6 +451,13 @@ def train(gpu_id=None):
             lr=config.learning_rate,
             weight_decay=config.weight_decay,
         )
+    elif config.optimizer == "sgd":
+        optimizer = optim.SGD(
+            model.parameters(),
+            lr=config.learning_rate,
+            momentum=0.9,  # Standard momentum value
+            weight_decay=config.weight_decay,
+        )
     else:
         raise ValueError(f"Unsupported optimizer: {config.optimizer}")
 
@@ -570,7 +487,7 @@ def train(gpu_id=None):
     # Create a descriptive name with timestamp
 
     timestamp = datetime.datetime.now().strftime("%m%d_%H%M")
-    run_name = f"{config.activation}-{config.pos_encoding}-{config.hidden_dim}d-{config.optimizer}-{config.lr_schedule}-{timestamp}"
+    run_name = f"{config.num_layers}L-{config.activation}-{config.pos_encoding}-{config.hidden_dim}d-{config.optimizer}-{config.lr_schedule}-{timestamp}"
 
     # Set the run name
     wandb.run.name = run_name
@@ -687,6 +604,19 @@ def train(gpu_id=None):
     # wandb.save(model_path)
 
 
+def run_experiments_on_gpu(gpu_id, experiments):
+    """Run a subset of experiments on a specific GPU"""
+    final_losses = {}
+    for exp in experiments:
+        config = {**base_config, **exp}
+        with wandb.init(project=project_name, config=config):
+            train(gpu_id=gpu_id)  # Pass the GPU ID to the train function
+            final_loss = wandb.run.summary["train_loss"]
+            key = (exp["num_layers"], exp["optimizer"])
+            final_losses[key] = final_loss
+    return final_losses
+
+
 if __name__ == "__main__":
     wandb.login()
     timestamp = datetime.datetime.now().strftime("%m%d_%H%M")
@@ -719,7 +649,7 @@ if __name__ == "__main__":
     depths = [2, 4, 6, 8, 10]
     experiments = []
     for depth in depths:
-        experiments.append({"num_layers": depth, "optimizer": "adam"})
+        experiments.append({"num_layers": depth, "optimizer": "sgd"})
         experiments.append({"num_layers": depth, "optimizer": "adamw"})
 
     final_losses = {depth: {"adam": None, "adamw": None} for depth in depths}

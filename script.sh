@@ -2,7 +2,7 @@
 
 #SBATCH -o log-%j
 #SBATCH --partition=xeon-g6-volta 
-#SBATCH --gres=gpu:volta:1
+#SBATCH --gres=gpu:volta:2
 
 # Loading the required module
 
