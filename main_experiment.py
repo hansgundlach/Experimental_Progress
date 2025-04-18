@@ -14,6 +14,7 @@ import wandb
 import csv
 import multiprocessing as mp
 from torch.cuda.amp import autocast, GradScaler
+import copy
 
 os.environ["WANDB_MODE"] = "offline"
 
@@ -437,12 +438,21 @@ def train(gpu_id=None):
     scaler = GradScaler() if use_amp else None
 
     # Load dataset using new HF-style loading
-    train_dataset, primary_tokenizer, primary_text = get_dataset(config)
+    train_dataset, val_dataset, primary_tokenizer, primary_text = get_dataset(config)
 
     train_dataloader = DataLoader(
         train_dataset,
         batch_size=config.batch_size,
         shuffle=True,
+        num_workers=config.num_workers,
+        pin_memory=config.pin_memory,
+        collate_fn=TextDataset.collate_fn,
+    )
+
+    val_dataloader = DataLoader(
+        val_dataset,
+        batch_size=config.batch_size,
+        shuffle=False,
         num_workers=config.num_workers,
         pin_memory=config.pin_memory,
         collate_fn=TextDataset.collate_fn,
@@ -515,7 +525,15 @@ def train(gpu_id=None):
     wandb.run.name = run_name
     wandb.run.save()
 
+    best_val_loss = float("inf")
+    best_model_state = None
+    patience = 15  # Increased patience
+    patience_counter = 0
+    min_delta = 1e-4  # Minimum improvement threshold
+    min_epochs = 20  # Minimum number of epochs before early stopping
+
     for epoch in range(config.epochs):
+        # Training phase
         model.train()
         total_loss = 0
 
@@ -583,6 +601,41 @@ def train(gpu_id=None):
         avg_loss = total_loss / len(train_dataloader)
         metrics.update({"train_loss": avg_loss})
 
+        # Validation phase
+        model.eval()
+        val_loss = 0
+        with torch.no_grad():
+            for data, target in val_dataloader:
+                data, target = data.to(device), target.to(device)
+                output = model(data)
+                output = (
+                    output[:, :-1, :]
+                    .contiguous()
+                    .view(-1, primary_tokenizer.vocab_size)
+                )
+                target = target[:, :-1].contiguous().view(-1)
+                val_loss += criterion(output, target).item()
+
+        val_loss /= len(val_dataloader)
+
+        # Early stopping check
+        if epoch >= min_epochs:  # Only start checking after min_epochs
+            if val_loss < (best_val_loss - min_delta):  # Meaningful improvement
+                best_val_loss = val_loss
+                best_model_state = copy.deepcopy(model.state_dict())
+                patience_counter = 0
+            else:
+                patience_counter += 1
+
+            if patience_counter >= patience:
+                print(f"Early stopping triggered at epoch {epoch}")
+                print(f"Best validation loss: {best_val_loss:.4f}")
+                # Restore best model
+                if best_model_state is not None:
+                    model.load_state_dict(best_model_state)
+                break
+
+        metrics.update({"val_loss": val_loss, "best_val_loss": best_val_loss})
         wandb.log(metrics)
 
         # Generate sample text
@@ -618,7 +671,8 @@ def train(gpu_id=None):
                 wandb.log({"generated_text": generated_text})
                 print(f"\nGenerated text (epoch {epoch}):\n{generated_text}\n")
 
-        print(f"Epoch {epoch}: Loss = {avg_loss:.4f}")
+        # Update print statement to include validation loss
+        print(f"Epoch {epoch}: Train Loss = {avg_loss:.4f}, Val Loss = {val_loss:.4f}")
 
     # Save model #not necesary for experiments
     # model_path = (
@@ -649,14 +703,21 @@ def run_experiments_on_gpu(gpu_id, experiments):
         config = {**base_config, **exp}
         with wandb.init(project=project_name, config=config):
             train(gpu_id=gpu_id)  # Pass the GPU ID to the train function
-            final_loss = wandb.run.summary["train_loss"]
+            # Change this to use validation loss instead of training loss
+            final_loss = wandb.run.summary["val_loss"]  # Changed from train_loss
+            best_val_loss = wandb.run.summary[
+                "best_val_loss"
+            ]  # Also track best validation loss
             depth = exp["num_layers"]
             optimizer = exp["optimizer"]
             seed = exp["seed"]
 
             if depth not in final_losses:
                 final_losses[depth] = {"adam": {}, "adamw": {}}
-            final_losses[depth][optimizer][seed] = final_loss
+            final_losses[depth][optimizer][seed] = {
+                "final_loss": final_loss,
+                "best_loss": best_val_loss,
+            }
 
     return final_losses
 
@@ -713,19 +774,32 @@ def get_dataset(config):
     # Get the text data
     text = get_wikitext_data(limit=config.wikitext_limit)
 
-    # Create tokenizer
+    # Split into train/val (90/10)
+    split_point = int(len(text) * 0.9)
+    train_text = text[:split_point]
+    val_text = text[split_point:]
+
+    # Create tokenizer (on full text to ensure same vocabulary)
     tokenizer = CharacterTokenizer(text)
 
-    # Create dataset
+    # Create datasets
     train_dataset = TextDataset(
-        text=text,
+        text=train_text,
         seq_length=config.seq_length,
         tokenizer=tokenizer,
         stride=config.stride,
         random_offset=True,
     )
 
-    return train_dataset, tokenizer, text  # Return text as well
+    val_dataset = TextDataset(
+        text=val_text,
+        seq_length=config.seq_length,
+        tokenizer=tokenizer,
+        stride=config.seq_length,  # Non-overlapping for validation
+        random_offset=False,
+    )
+
+    return train_dataset, val_dataset, tokenizer, text
 
 
 if __name__ == "__main__":
@@ -786,18 +860,18 @@ if __name__ == "__main__":
         "min_lr": 0.0001,
         "lr_schedule": "cosine_warmup",  # More sophisticated schedule
         "activation": "gelu",
-        "warmup_epochs": 2,  # Add proper warmup
-        "weight_decay": 0.2,  # Increase weight decay to make difference more visible
-        "hidden_dim": 64,  # Larger model
+        "warmup_epochs": 5,  # Add proper warmup
+        "weight_decay": 0.01,  # Increase weight decay to make difference more visible
+        "hidden_dim": 128,  # Larger model
         "num_heads": 4,
         "num_layers": 4,  # More layers
         "dropout": 0.2,
-        "epochs": 16 * 32,  # Train longer
+        "epochs": 200,  # Train longer
         "seq_length": 128,  # Longer sequences
-        "wikitext_limit": 100000,  # More data
+        "wikitext_limit": 1000000,  # More data
         "pos_encoding": "rotary",
         "init_scheme": "xavier_normal",  # Better initialization
-        "stride": 32,
+        "stride": 16,
         "num_workers": 4,  # Adjust based on CPU cores
         "pin_memory": True,
     }
@@ -836,8 +910,8 @@ if __name__ == "__main__":
         for gpu_results in results:
             for depth, optimizer_results in gpu_results.items():
                 for optimizer, results in optimizer_results.items():
-                    for seed, loss in results.items():
-                        final_losses[depth][optimizer][seed] = loss
+                    for seed, result in results.items():
+                        final_losses[depth][optimizer][seed] = result
 
     elif torch.cuda.is_available():
         # Single GPU setup
@@ -846,10 +920,12 @@ if __name__ == "__main__":
             config = {**base_config, **exp}
             with wandb.init(project=project_name, config=config):
                 train(gpu_id=0)  # Use first GPU
-                final_loss = wandb.run.summary["train_loss"]
-                final_losses[exp["num_layers"]][exp["optimizer"]][
-                    exp["seed"]
-                ] = final_loss
+                final_loss = wandb.run.summary["val_loss"]
+                best_val_loss = wandb.run.summary["best_val_loss"]
+                final_losses[exp["num_layers"]][exp["optimizer"]][exp["seed"]] = {
+                    "final_loss": final_loss,
+                    "best_loss": best_val_loss,
+                }
 
     else:
         # Single device setup (CPU or MPS)
@@ -857,38 +933,55 @@ if __name__ == "__main__":
             config = {**base_config, **exp}
             with wandb.init(project=project_name, config=config):
                 train()  # No gpu_id needed for CPU/MPS
-                final_loss = wandb.run.summary["train_loss"]
-                final_losses[exp["num_layers"]][exp["optimizer"]][
-                    exp["seed"]
-                ] = final_loss
+                final_loss = wandb.run.summary["val_loss"]
+                best_val_loss = wandb.run.summary["best_val_loss"]
+                final_losses[exp["num_layers"]][exp["optimizer"]][exp["seed"]] = {
+                    "final_loss": final_loss,
+                    "best_loss": best_val_loss,
+                }
 
     # Save detailed results to CSV
-    csv_data = [["Depth", "Optimizer", "Seed", "Loss"]]
+    csv_data = [["Depth", "Optimizer", "Seed", "Final Val Loss", "Best Val Loss"]]
 
     for depth in depths:
-        optimizer_losses = {"adam": [], "adamw": []}
+        optimizer_losses = {
+            "adam": {"final": [], "best": []},
+            "adamw": {"final": [], "best": []},
+        }
 
         for optimizer in ["adam", "adamw"]:
             for seed in seeds:
-                loss = final_losses[depth][optimizer].get(seed)
-                if loss is not None:
-                    optimizer_losses[optimizer].append(loss)
-                    csv_data.append([depth, optimizer, seed, f"{loss:.4f}"])
+                result = final_losses[depth][optimizer].get(seed)
+                if result is not None:
+                    final_loss = result["final_loss"]
+                    best_loss = result["best_loss"]
+                    optimizer_losses[optimizer]["final"].append(final_loss)
+                    optimizer_losses[optimizer]["best"].append(best_loss)
+                    csv_data.append(
+                        [
+                            depth,
+                            optimizer,
+                            seed,
+                            f"{final_loss:.4f}",
+                            f"{best_loss:.4f}",
+                        ]
+                    )
 
         # Add summary statistics for each optimizer
-        for optimizer in ["adam", "adamw"]:
-            losses = optimizer_losses[optimizer]
-            if losses:
-                mean_loss = np.mean(losses)
-                std_loss = np.std(losses)
-                csv_data.append(
-                    [
-                        depth,
-                        f"{optimizer}_summary",
-                        "N/A",
-                        f"{mean_loss:.4f} ± {std_loss:.4f}",
-                    ]
-                )
+        if optimizer_losses[optimizer]["final"]:
+            mean_final = np.mean(optimizer_losses[optimizer]["final"])
+            std_final = np.std(optimizer_losses[optimizer]["final"])
+            mean_best = np.mean(optimizer_losses[optimizer]["best"])
+            std_best = np.std(optimizer_losses[optimizer]["best"])
+            csv_data.append(
+                [
+                    depth,
+                    f"{optimizer}_summary",
+                    "N/A",
+                    f"{mean_final:.4f} ± {std_final:.4f}",
+                    f"{mean_best:.4f} ± {std_best:.4f}",
+                ]
+            )
 
     # Save to CSV
     timestamp = datetime.datetime.now().strftime("%m%d_%H%M")
@@ -904,8 +997,21 @@ if __name__ == "__main__":
     for depth in depths:
         print(f"\nDepth {depth}:")
         for optimizer in ["adam", "adamw"]:
-            losses = [loss for loss in final_losses[depth][optimizer].values()]
-            if losses:
-                mean_loss = np.mean(losses)
-                std_loss = np.std(losses)
-                print(f"{optimizer.upper()}: {mean_loss:.4f} ± {std_loss:.4f}")
+            # Change variable names to avoid conflict
+            final_loss_values = [
+                result["final_loss"]
+                for result in final_losses[depth][optimizer].values()
+            ]
+            best_loss_values = [
+                result["best_loss"]
+                for result in final_losses[depth][optimizer].values()
+            ]
+
+            if final_loss_values:  # Check if we have any values
+                mean_final = np.mean(final_loss_values)
+                std_final = np.std(final_loss_values)
+                mean_best = np.mean(best_loss_values)
+                std_best = np.std(best_loss_values)
+                print(f"{optimizer.upper()}:")
+                print(f"  Final: {mean_final:.4f} ± {std_final:.4f}")
+                print(f"  Best:  {mean_best:.4f} ± {std_best:.4f}")
