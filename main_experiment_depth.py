@@ -13,9 +13,44 @@ import datetime
 import wandb
 import csv
 import multiprocessing as mp
-from torch.cuda.amp import autocast, GradScaler
 
 os.environ["WANDB_MODE"] = "offline"
+
+# Add WikiText download and processing functions
+# def get_wikitext_data():
+#     """Download and prepare WikiText-2 dataset"""
+#     file_path = Path("Datasets/wikitext-2-raw-v1/wiki.train.raw")
+
+#     if not file_path.exists():
+#         # Create directory if it doesn't exist
+#         file_path.parent.mkdir(parents=True, exist_ok=True)
+
+#         # Download WikiText-2 data
+#         url = "https://s3.amazonaws.com/research.metamind.io/wikitext/wikitext-2-raw-v1.zip"
+#         print(f"Downloading WikiText-2 dataset from {url}")
+
+#         import requests
+#         import zipfile
+#         import io
+
+#         response = requests.get(url)
+#         z = zipfile.ZipFile(io.BytesIO(response.content))
+#         z.extractall("Datasets/")
+
+#         print("Downloaded and extracted WikiText-2 dataset")
+
+#     # Load the data
+#     text = file_path.read_text(encoding='utf-8')
+
+#     # Limit to a reasonable sample size for quick testing
+#     sample_size = min(100000, len(text))  # Use at most 100k characters
+
+#     # Start from a random position for variety
+#     if len(text) > sample_size:
+#         start_idx = random.randint(0, len(text) - sample_size - 1)
+#         sampled_text = text[start_idx:start_idx + sample_size]
+#     else:
+#         sampled_text = text
 
 
 #     return sampled_text
@@ -127,72 +162,19 @@ def get_wikitext_data(limit=100000):
 
 
 class TextDataset(Dataset):
-    def __init__(self, text, seq_length, tokenizer, stride=1, random_offset=True):
-        """
-        Improved TextDataset with concatenation, chunking, and random offsets.
-
-        Args:
-            text (str): Input text
-            seq_length (int): Length of each sequence
-            tokenizer: Tokenizer object with encode/decode methods
-            stride (int): Stride length for sliding window (default=1)
-            random_offset (bool): Whether to use random offset at start (default=True)
-        """
-        # Encode all text at once
-        tokens = torch.tensor(tokenizer.encode(text), dtype=torch.long)
-
-        # Calculate effective length that's divisible by (seq_length + 1)
-        total_length = tokens.size(0)
-        chunk_size = seq_length + 1  # +1 for target shift
-        n_chunks = (
-            total_length - 1
-        ) // chunk_size  # -1 to ensure we have room for target
-
-        # Trim to make evenly divisible
-        effective_length = n_chunks * chunk_size
-
-        # Apply random offset if requested
-        if random_offset and total_length > effective_length:
-            max_offset = total_length - effective_length
-            offset = random.randint(0, max_offset)
-            tokens = tokens[offset : offset + effective_length]
-        else:
-            tokens = tokens[:effective_length]
-
-        # Reshape into chunks
-        self.data = tokens.view(-1, chunk_size)
-
-        # Calculate number of sequences based on stride
-        self.stride = stride
+    def __init__(self, text, seq_length, tokenizer):
+        self.text = text
         self.seq_length = seq_length
-        self.n_sequences = (self.data.size(0) - 1) // stride + 1
+        self.tokenizer = tokenizer
+        self.data = torch.tensor(tokenizer.encode(text), dtype=torch.long)
 
     def __len__(self):
-        return self.n_sequences
+        return len(self.data) - self.seq_length - 1
 
     def __getitem__(self, idx):
-        # Calculate starting chunk and position
-        chunk_idx = (idx * self.stride) // (self.seq_length + 1)
-
-        # Get sequence and target
-        sequence = self.data[chunk_idx, :-1]  # all but last token
-        target = self.data[chunk_idx, 1:]  # all but first token
-
-        return sequence, target
-
-    @staticmethod
-    def collate_fn(batch):
-        """
-        Custom collate function for DataLoader that pads sequences to same length.
-        """
-        # Separate sequences and targets
-        sequences, targets = zip(*batch)
-
-        # Stack into tensors
-        sequences = torch.stack(sequences)
-        targets = torch.stack(targets)
-
-        return sequences, targets
+        x = self.data[idx : idx + self.seq_length]
+        y = self.data[idx + 1 : idx + self.seq_length + 1]
+        return x, y
 
 
 def evaluate_perplexity(model, dataloader, criterion, device):
@@ -201,7 +183,7 @@ def evaluate_perplexity(model, dataloader, criterion, device):
     total_loss = 0
     total_tokens = 0
 
-    with torch.no_grad(), autocast():
+    with torch.no_grad():
         for data, target in dataloader:
             data, target = data.to(device), target.to(device)
 
@@ -432,20 +414,16 @@ def train(gpu_id=None):
     device = get_device(gpu_id)
     print(f"Training on device: {device}")
 
-    # Only use GradScaler when using CUDA
-    use_amp = device.type == "cuda"
-    scaler = GradScaler() if use_amp else None
+    # Simplified dataset handling - only wikitext
+    wikitext_data = get_wikitext_data(limit=config.wikitext_limit)
+    primary_tokenizer = CharacterTokenizer(wikitext_data)
+    primary_text = wikitext_data
 
-    # Load dataset using new HF-style loading
-    train_dataset, primary_tokenizer, primary_text = get_dataset(config)
-
+    # Create dataset for training
+    seq_length = config.seq_length
+    train_dataset = TextDataset(primary_text, seq_length, primary_tokenizer)
     train_dataloader = DataLoader(
-        train_dataset,
-        batch_size=config.batch_size,
-        shuffle=True,
-        num_workers=config.num_workers,
-        pin_memory=config.pin_memory,
-        collate_fn=TextDataset.collate_fn,
+        train_dataset, batch_size=config.batch_size, shuffle=True
     )
 
     # Initialize model
@@ -456,7 +434,7 @@ def train(gpu_id=None):
         num_layers=config.num_layers,
         dropout=config.dropout,
         activation=config.activation,
-        max_seq_length=config.seq_length,
+        max_seq_length=seq_length,
         weight_init=config.init_scheme,
     )
 
@@ -537,35 +515,21 @@ def train(gpu_id=None):
             data, target = data.to(device), target.to(device)
             optimizer.zero_grad()
 
-            # Conditional AMP usage
-            if use_amp:
-                with autocast():
-                    output = model(data)
-                    output = output[:, :-1, :]
-                    target = target[:, :-1]
-                    output = output.contiguous().view(-1, primary_tokenizer.vocab_size)
-                    target = target.contiguous().view(-1)
-                    loss = criterion(output, target)
+            # Forward pass
+            output = model(data)
 
-                # Use scaled versions
-                scaler.scale(loss).backward()
-                scaler.unscale_(optimizer)
-                torch.nn.utils.clip_grad_norm_(model.parameters(), 1.0)
-                scaler.step(optimizer)
-                scaler.update()
-            else:
-                # Standard training path for CPU/MPS
-                output = model(data)
-                output = output[:, :-1, :]
-                target = target[:, :-1]
-                output = output.contiguous().view(-1, primary_tokenizer.vocab_size)
-                target = target.contiguous().view(-1)
-                loss = criterion(output, target)
+            # Reshape output and target for loss calculation
+            output = output[:, :-1, :]  # Remove last prediction
+            target = target[:, :-1]  # Remove last target token
 
-                # Standard backward pass
-                loss.backward()
-                torch.nn.utils.clip_grad_norm_(model.parameters(), 1.0)
-                optimizer.step()
+            output = output.contiguous().view(-1, primary_tokenizer.vocab_size)
+            target = target.contiguous().view(-1)
+
+            # Calculate loss
+            loss = criterion(output, target)
+            loss.backward()
+            torch.nn.utils.clip_grad_norm_(model.parameters(), 1.0)
+            optimizer.step()
 
             total_loss += loss.item()
 
@@ -588,9 +552,8 @@ def train(gpu_id=None):
         # Generate sample text
         if epoch % 2 == 0:
             model.eval()
-            with torch.no_grad(), autocast():
-                # Use a sample from the training data instead of hardcoded text
-                start_text = primary_text[:20]
+            with torch.no_grad():
+                start_text = "The article discusses "
                 input_ids = (
                     torch.tensor(primary_tokenizer.encode(start_text))
                     .unsqueeze(0)
@@ -599,11 +562,10 @@ def train(gpu_id=None):
                 generated_text = start_text
 
                 # Limit input sequence length during generation
-                max_gen_length = (
-                    config.seq_length
-                )  # Use same length as training sequences
+                max_gen_length = seq_length  # Use same length as training sequences
 
                 for _ in range(100):
+                    # Trim input_ids if it gets too long
                     if input_ids.size(1) > max_gen_length:
                         input_ids = input_ids[:, -max_gen_length:]
 
@@ -650,82 +612,9 @@ def run_experiments_on_gpu(gpu_id, experiments):
         with wandb.init(project=project_name, config=config):
             train(gpu_id=gpu_id)  # Pass the GPU ID to the train function
             final_loss = wandb.run.summary["train_loss"]
-            depth = exp["num_layers"]
-            optimizer = exp["optimizer"]
-            seed = exp["seed"]
-
-            if depth not in final_losses:
-                final_losses[depth] = {"adam": {}, "adamw": {}}
-            final_losses[depth][optimizer][seed] = final_loss
-
+            key = (exp["num_layers"], exp["optimizer"])
+            final_losses[key] = final_loss
     return final_losses
-
-
-def create_dataset_from_local_file(file_path, seq_length, stride=1):
-    """Create sequences and targets from local text file"""
-    # Read the text file
-    with open(file_path, "r", encoding="utf-8") as f:
-        text = f.read()
-
-    # Create initial tokenization
-    tokenizer = CharacterTokenizer(text)
-
-    # Convert text to token ids
-    tokens = tokenizer.encode(text)
-
-    # Create sequences with stride
-    sequences = []
-    targets = []
-
-    for i in range(0, len(tokens) - seq_length, stride):
-        sequences.append(tokens[i : i + seq_length])
-        targets.append(tokens[i + 1 : i + seq_length + 1])
-
-    # Convert to torch tensors directly
-    sequences = torch.tensor(sequences, dtype=torch.long)
-    targets = torch.tensor(targets, dtype=torch.long)
-
-    return sequences, targets, tokenizer
-
-
-class TransformerDataset(Dataset):
-    def __init__(self, sequences, targets):
-        """
-        Args:
-            sequences: Tensor of input sequences
-            targets: Tensor of target sequences
-        """
-        self.sequences = sequences
-        self.targets = targets
-
-    def __len__(self):
-        return len(self.sequences)
-
-    def __getitem__(self, idx):
-        # Ensure idx is an integer
-        if isinstance(idx, torch.Tensor):
-            idx = idx.item()
-        return self.sequences[idx], self.targets[idx]
-
-
-def get_dataset(config):
-    """Load and prepare dataset using PyTorch Dataset"""
-    # Get the text data
-    text = get_wikitext_data(limit=config.wikitext_limit)
-
-    # Create tokenizer
-    tokenizer = CharacterTokenizer(text)
-
-    # Create dataset
-    train_dataset = TextDataset(
-        text=text,
-        seq_length=config.seq_length,
-        tokenizer=tokenizer,
-        stride=config.stride,
-        random_offset=True,
-    )
-
-    return train_dataset, tokenizer, text  # Return text as well
 
 
 if __name__ == "__main__":
@@ -758,27 +647,6 @@ if __name__ == "__main__":
     #     "init_scheme": "default",
     #     "optimizer": "adamw",
     # }
-
-    # base_config = {
-    #     "dataset": "wikitext",
-    #     "batch_size": 128,
-    #     "learning_rate": 0.001,
-    #     "min_lr": 0.0001,
-    #     "lr_schedule": "cosine_warmup",  # More sophisticated schedule
-    #     "activation": "gelu",
-    #     "warmup_epochs": 2,  # Add proper warmup
-    #     "weight_decay": 0.1,  # Increase weight decay to make difference more visible
-    #     "hidden_dim": 128,  # Larger model
-    #     "num_heads": 4,
-    #     "num_layers": 4,  # More layers
-    #     "dropout": 0.1,
-    #     "epochs": 15,  # Train longer
-    #     "seq_length": 256,  # Longer sequences
-    #     "wikitext_limit": 100000,  # More data
-    #     "pos_encoding": "rotary",
-    #     "init_scheme": "xavier_normal",  # Better initialization
-    # }
-    # config for fast testing
     base_config = {
         "dataset": "wikitext",
         "batch_size": 128,
@@ -786,33 +654,26 @@ if __name__ == "__main__":
         "min_lr": 0.0001,
         "lr_schedule": "cosine_warmup",  # More sophisticated schedule
         "activation": "gelu",
-        "warmup_epochs": 2,  # Add proper warmup
-        "weight_decay": 0.2,  # Increase weight decay to make difference more visible
-        "hidden_dim": 64,  # Larger model
-        "num_heads": 4,
-        "num_layers": 4,  # More layers
-        "dropout": 0.2,
-        "epochs": 16 * 32,  # Train longer
+        "warmup_epochs": 5,  # Add proper warmup
+        "weight_decay": 0.1,  # Increase weight decay to make difference more visible
+        "hidden_dim": 16,  # Larger model
+        "num_heads": 8,
+        "num_layers": 6,  # More layers
+        "dropout": 0.1,
+        "epochs": 2,  # Train longer
         "seq_length": 128,  # Longer sequences
-        "wikitext_limit": 100000,  # More data
+        "wikitext_limit": 1000,  # More data
         "pos_encoding": "rotary",
         "init_scheme": "xavier_normal",  # Better initialization
-        "stride": 32,
-        "num_workers": 4,  # Adjust based on CPU cores
-        "pin_memory": True,
     }
 
-    depths = [6]
-    seeds = [42, 123, 456]
+    depths = [2, 4, 6, 8, 10]
     experiments = []
     for depth in depths:
-        for seed in seeds:
-            experiments.append({"num_layers": depth, "optimizer": "adam", "seed": seed})
-            experiments.append(
-                {"num_layers": depth, "optimizer": "adamw", "seed": seed}
-            )
+        experiments.append({"num_layers": depth, "optimizer": "sgd"})
+        experiments.append({"num_layers": depth, "optimizer": "adamw"})
 
-    final_losses = {depth: {"adam": {}, "adamw": {}} for depth in depths}
+    final_losses = {depth: {"adam": None, "adamw": None} for depth in depths}
 
     if use_multi_gpu:
         # Multi-GPU setup
@@ -834,22 +695,8 @@ if __name__ == "__main__":
 
         # Combine results
         for gpu_results in results:
-            for depth, optimizer_results in gpu_results.items():
-                for optimizer, results in optimizer_results.items():
-                    for seed, loss in results.items():
-                        final_losses[depth][optimizer][seed] = loss
-
-    elif torch.cuda.is_available():
-        # Single GPU setup
-        device = torch.device("cuda:0")
-        for exp in experiments:
-            config = {**base_config, **exp}
-            with wandb.init(project=project_name, config=config):
-                train(gpu_id=0)  # Use first GPU
-                final_loss = wandb.run.summary["train_loss"]
-                final_losses[exp["num_layers"]][exp["optimizer"]][
-                    exp["seed"]
-                ] = final_loss
+            for (depth, optimizer), loss in gpu_results.items():
+                final_losses[depth][optimizer] = loss
 
     else:
         # Single device setup (CPU or MPS)
@@ -858,54 +705,19 @@ if __name__ == "__main__":
             with wandb.init(project=project_name, config=config):
                 train()  # No gpu_id needed for CPU/MPS
                 final_loss = wandb.run.summary["train_loss"]
-                final_losses[exp["num_layers"]][exp["optimizer"]][
-                    exp["seed"]
-                ] = final_loss
+                final_losses[exp["num_layers"]][exp["optimizer"]] = final_loss
 
-    # Save detailed results to CSV
-    csv_data = [["Depth", "Optimizer", "Seed", "Loss"]]
+    # Save results to CSV for just depth experiments
+    # csv_data = [["Depth", "Final Loss with Adam", "Final Loss with AdamW"]]
+    # for depth in depths:
+    #     adam_loss = final_losses[depth]["adam"]
+    #     adamw_loss = final_losses[depth]["adamw"]
+    #     csv_data.append([depth, adam_loss, adamw_loss])
 
-    for depth in depths:
-        optimizer_losses = {"adam": [], "adamw": []}
+    # csv_file_path = "experiment_results.csv"
+    # with open(csv_file_path, mode="w", newline="") as file:
+    #     writer = csv.writer(file)
+    #     writer.writerows(csv_data)
 
-        for optimizer in ["adam", "adamw"]:
-            for seed in seeds:
-                loss = final_losses[depth][optimizer].get(seed)
-                if loss is not None:
-                    optimizer_losses[optimizer].append(loss)
-                    csv_data.append([depth, optimizer, seed, f"{loss:.4f}"])
-
-        # Add summary statistics for each optimizer
-        for optimizer in ["adam", "adamw"]:
-            losses = optimizer_losses[optimizer]
-            if losses:
-                mean_loss = np.mean(losses)
-                std_loss = np.std(losses)
-                csv_data.append(
-                    [
-                        depth,
-                        f"{optimizer}_summary",
-                        "N/A",
-                        f"{mean_loss:.4f} ± {std_loss:.4f}",
-                    ]
-                )
-
-    # Save to CSV
-    timestamp = datetime.datetime.now().strftime("%m%d_%H%M")
-    csv_file_path = f"experiment_results_{timestamp}.csv"
-    with open(csv_file_path, mode="w", newline="") as file:
-        writer = csv.writer(file)
-        writer.writerows(csv_data)
-
-    print(f"\nResults saved to {csv_file_path}")
-
-    # Print summary statistics
-    print("\nSummary Statistics:")
-    for depth in depths:
-        print(f"\nDepth {depth}:")
-        for optimizer in ["adam", "adamw"]:
-            losses = [loss for loss in final_losses[depth][optimizer].values()]
-            if losses:
-                mean_loss = np.mean(losses)
-                std_loss = np.std(losses)
-                print(f"{optimizer.upper()}: {mean_loss:.4f} ± {std_loss:.4f}")
+    # print(f"Results saved to {csv_file_path}")
+    # Replace the existing CSV writing code with:
