@@ -17,6 +17,7 @@ from torch.cuda.amp import autocast, GradScaler
 import copy
 from torch.nn.functional import scaled_dot_product_attention
 from torch.nn import LayerNorm, Linear, Dropout, ModuleList
+from transformers import GPT2Tokenizer
 
 os.environ["WANDB_MODE"] = "offline"
 
@@ -84,23 +85,6 @@ os.environ["WANDB_MODE"] = "offline"
 #         return rotated_x
 
 
-class CharacterTokenizer:
-    def __init__(self, text):
-        # Get unique characters from text
-        self.chars = sorted(list(set(text)))
-        self.vocab_size = len(self.chars)
-
-        # Create character to index and index to character mappings
-        self.char_to_idx = {ch: i for i, ch in enumerate(self.chars)}
-        self.idx_to_char = {i: ch for i, ch in enumerate(self.chars)}
-
-    def encode(self, text):
-        return [self.char_to_idx[ch] for ch in text]
-
-    def decode(self, indices):
-        return "".join([self.idx_to_char[idx] for idx in indices])
-
-
 def get_wikitext_data(limit=100000):
     """Load WikiText-2 dataset from local file"""
     file_path = Path("Datasets/wikitext.txt")
@@ -132,56 +116,51 @@ def get_wikitext_data(limit=100000):
 class TextDataset(Dataset):
     def __init__(self, text, seq_length, tokenizer, stride=1, random_offset=True):
         """
-        Improved TextDataset with concatenation, chunking, and random offsets.
-
-        Args:
-            text (str): Input text
-            seq_length (int): Length of each sequence
-            tokenizer: Tokenizer object with encode/decode methods
-            stride (int): Stride length for sliding window (default=1)
-            random_offset (bool): Whether to use random offset at start (default=True)
+        Improved TextDataset with proper chunking for GPT2 tokenizer.
         """
-        # Encode all text at once
-        tokens = torch.tensor(tokenizer.encode(text), dtype=torch.long)
+        # First, break text into smaller chunks (aim for ~512 tokens per chunk)
+        chunk_size = 2000  # characters, which should give roughly 400-500 tokens
+        text_chunks = [
+            text[i : i + chunk_size] for i in range(0, len(text), chunk_size)
+        ]
 
-        # Calculate effective length that's divisible by (seq_length + 1)
-        total_length = tokens.size(0)
-        chunk_size = seq_length + 1  # +1 for target shift
-        n_chunks = (
-            total_length - 1
-        ) // chunk_size  # -1 to ensure we have room for target
+        all_tokens = []
+        for chunk in text_chunks:
+            chunk_tokens = tokenizer(chunk, truncation=True, max_length=1024)[
+                "input_ids"
+            ]
+            all_tokens.extend(chunk_tokens)
 
-        # Trim to make evenly divisible
-        effective_length = n_chunks * chunk_size
+        # Convert to tensor
+        self.tokens = torch.tensor(all_tokens, dtype=torch.long)
 
-        # Apply random offset if requested
-        if random_offset and total_length > effective_length:
-            max_offset = total_length - effective_length
-            offset = random.randint(0, max_offset)
-            tokens = tokens[offset : offset + effective_length]
-        else:
-            tokens = tokens[:effective_length]
-
-        # Reshape into chunks
-        self.data = tokens.view(-1, chunk_size)
-
-        # Calculate number of sequences based on stride
-        self.stride = stride
+        # Create sequences of seq_length (+1 for targets)
+        total_length = self.tokens.size(0)
         self.seq_length = seq_length
-        self.n_sequences = (self.data.size(0) - 1) // stride + 1
+
+        # Calculate number of complete sequences we can make
+        n_seqs = (total_length - seq_length - 1) // stride
+
+        self.sequences = []
+        self.targets = []
+
+        # Create sequences with stride
+        for i in range(n_seqs):
+            start_idx = i * stride
+            end_idx = start_idx + seq_length
+            self.sequences.append(self.tokens[start_idx:end_idx])
+            self.targets.append(self.tokens[start_idx + 1 : end_idx + 1])
+
+        self.sequences = torch.stack(self.sequences)
+        self.targets = torch.stack(self.targets)
+
+        print(f"Created {len(self.sequences)} sequences of length {seq_length}")
 
     def __len__(self):
-        return self.n_sequences
+        return len(self.sequences)
 
     def __getitem__(self, idx):
-        # Calculate starting chunk and position
-        chunk_idx = (idx * self.stride) // (self.seq_length + 1)
-
-        # Get sequence and target
-        sequence = self.data[chunk_idx, :-1]  # all but last token
-        target = self.data[chunk_idx, 1:]  # all but first token
-
-        return sequence, target
+        return self.sequences[idx], self.targets[idx]
 
     @staticmethod
     def collate_fn(batch):
@@ -419,7 +398,7 @@ def train(gpu_id=None):
 
     # Initialize model
     model = SimpleTransformer(
-        vocab_size=primary_tokenizer.vocab_size,
+        vocab_size=len(primary_tokenizer),
         hidden_dim=config.hidden_dim,
         num_heads=config.num_heads,
         num_layers=config.num_layers,
@@ -625,16 +604,15 @@ def train(gpu_id=None):
         if epoch % 2 == 0:
             model.eval()
             with torch.no_grad(), autocast():
-                # Use a sample from the training data instead of hardcoded text
-                start_text = primary_text[:20]
+                start_text = primary_text[:50]  # Might want to use more text for BPE
                 input_ids = (
-                    torch.tensor(primary_tokenizer.encode(start_text))
+                    torch.tensor(primary_tokenizer(start_text)["input_ids"])
                     .unsqueeze(0)
                     .to(device)
                 )
                 generated_text = start_text
 
-                # Limit input sequence length during generation
+                # Define max_gen_length here
                 max_gen_length = (
                     config.seq_length
                 )  # Use same length as training sequences
@@ -648,7 +626,9 @@ def train(gpu_id=None):
                     next_token = torch.multinomial(
                         torch.softmax(next_token_logits / 0.7, dim=0), 1
                     )
-                    generated_text += primary_tokenizer.decode([next_token.item()])
+                    generated_text = primary_tokenizer.decode(
+                        input_ids[0].tolist()
+                    )  # Decode the full sequence
                     input_ids = torch.cat([input_ids, next_token.unsqueeze(0)], dim=1)
 
                 wandb.log({"generated_text": generated_text})
@@ -757,15 +737,21 @@ def get_dataset(config):
     # Get the text data
     text = get_wikitext_data(limit=config.wikitext_limit)
 
+    # Initialize GPT2 tokenizer from local files
+    try:
+        tokenizer = GPT2Tokenizer.from_pretrained("./gpt2_tokenizer")
+    except:
+        raise FileNotFoundError(
+            "GPT2 tokenizer files not found in ./gpt2_tokenizer. "
+            "Please download the tokenizer files first."
+        )
+
     # Split into train/val (90/10)
     split_point = int(len(text) * 0.9)
     train_text = text[:split_point]
     val_text = text[split_point:]
 
-    # Create tokenizer (on full text to ensure same vocabulary)
-    tokenizer = CharacterTokenizer(text)
-
-    # Create datasets
+    # Create datasets with GPT2 tokenizer
     train_dataset = TextDataset(
         text=train_text,
         seq_length=config.seq_length,
@@ -778,7 +764,7 @@ def get_dataset(config):
         text=val_text,
         seq_length=config.seq_length,
         tokenizer=tokenizer,
-        stride=config.seq_length,  # Non-overlapping for validation
+        stride=config.stride,
         random_offset=False,
     )
 
@@ -816,23 +802,23 @@ if __name__ == "__main__":
     # config for fast testing
     base_config = {
         "dataset": "wikitext",
-        "batch_size": 128,
-        "learning_rate": 0.001,
-        "min_lr": 0.0001,
+        "batch_size": 8,
+        "learning_rate": 0.00005,
+        "min_lr": 0.000005,
         "lr_schedule": "cosine_warmup",  # More sophisticated schedule
         "activation": "gelu",
-        "warmup_epochs": 5,  # Add proper warmup
-        "weight_decay": 0.001,  # Increase weight decay to make difference more visible
-        "hidden_dim": 128,  # Larger model
-        "num_heads": 4,
+        "warmup_epochs": 10,  # Add proper warmup
+        "weight_decay": 0.01,  # Increase weight decay to make difference more visible
+        "hidden_dim": 256,  # Might want larger model for BPE
+        "num_heads": 8,
         "num_layers": 4,  # More layers
-        "dropout": 0.2,
+        "dropout": 0.1,
         "epochs": 200,  # Train longer
-        "seq_length": 128,  # Longer sequences
-        "wikitext_limit": 1000000,  # More data
+        "seq_length": 64,  # Might want longer sequences for BPE
+        "wikitext_limit": 5000000,  # More data
         "pos_encoding": "rotary",
         "init_scheme": "xavier_normal",  # Better initialization
-        "stride": 16,
+        "stride": 32,
         "num_workers": 4,  # Adjust based on CPU cores
         "pin_memory": True,
         "compile": False,
@@ -840,7 +826,7 @@ if __name__ == "__main__":
         "max_epochs": 100,
     }
 
-    depths = [6]
+    depths = [4]
     seeds = [42, 123, 456]
     option1 = "adam"
     option2 = "adamw"
