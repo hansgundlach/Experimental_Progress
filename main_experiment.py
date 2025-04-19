@@ -472,6 +472,17 @@ def train(gpu_id=None):
 
     model.to(device)
 
+    # Add conditional compilation for GPU only
+    if device.type == "cuda" and torch.__version__ >= "2.0.0":
+        try:
+            print("Compiling model for GPU acceleration...")
+            model = torch.compile(model)
+            print("Model compilation successful")
+        except Exception as e:
+            print(
+                f"Model compilation failed, falling back to default model. Error: {e}"
+            )
+
     criterion = nn.CrossEntropyLoss()
 
     # Choose optimizer based on config
@@ -983,9 +994,9 @@ if __name__ == "__main__":
                 ]
             )
 
-    # Save to CSV
-    timestamp = datetime.datetime.now().strftime("%m%d_%H%M")
-    csv_file_path = f"experiment_results_{timestamp}.csv"
+    # Save to CSV #not timestamping for now
+    # timestamp = datetime.datetime.now().strftime("%m%d_%H%M")
+    csv_file_path = f"new_experiment_results.csv"
     with open(csv_file_path, mode="w", newline="") as file:
         writer = csv.writer(file)
         writer.writerows(csv_data)
