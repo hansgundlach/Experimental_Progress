@@ -15,6 +15,8 @@ import csv
 import multiprocessing as mp
 from torch.cuda.amp import autocast, GradScaler
 import copy
+from torch.nn.functional import scaled_dot_product_attention
+from torch.nn import LayerNorm, Linear, Dropout, ModuleList
 
 os.environ["WANDB_MODE"] = "offline"
 
@@ -230,187 +232,138 @@ def evaluate_perplexity(model, dataloader, criterion, device):
     return perplexity
 
 
-class TransformerModel(nn.Module):
+class SimpleTransformerLayer(nn.Module):
+    def __init__(self, hidden_dim, num_heads, dropout=0.1, use_rotary=False):
+        super().__init__()
+        self.hidden_dim = hidden_dim
+        self.num_heads = num_heads
+        self.head_dim = hidden_dim // num_heads
+        self.use_rotary = use_rotary
+
+        self.qkv = Linear(hidden_dim, 3 * hidden_dim)
+        self.out_proj = Linear(hidden_dim, hidden_dim)
+        self.norm1 = LayerNorm(hidden_dim)
+        self.norm2 = LayerNorm(hidden_dim)
+        self.ff = nn.Sequential(
+            Linear(hidden_dim, 4 * hidden_dim),
+            nn.GELU(),
+            Linear(4 * hidden_dim, hidden_dim),
+        )
+        self.dropout = Dropout(dropout)
+
+        # Check if Flash Attention is available
+        self.use_flash_attention = False
+        if torch.cuda.is_available():
+            try:
+                from flash_attn import flash_attn_func
+
+                self.flash_attn_func = flash_attn_func
+                self.use_flash_attention = True
+                print("Flash Attention is available and will be used on CUDA")
+            except ImportError:
+                print(
+                    "Flash Attention not available, falling back to standard attention"
+                )
+
+    def standard_attention(self, q, k, v, dropout_p=0.0):
+        # Standard scaled dot-product attention
+        B, H, L, D = q.shape
+        scores = torch.matmul(q, k.transpose(-2, -1)) / math.sqrt(D)
+        attn = F.softmax(scores, dim=-1)
+        if dropout_p > 0:
+            attn = F.dropout(attn, p=dropout_p)
+        return torch.matmul(attn, v)
+
+    def forward(self, x):
+        B, L, D = x.shape
+
+        normed = self.norm1(x)
+        qkv = self.qkv(normed).chunk(3, dim=-1)
+        q, k, v = map(
+            lambda t: t.view(B, L, self.num_heads, self.head_dim).transpose(1, 2), qkv
+        )
+
+        # Choose attention implementation based on device and availability
+        if self.use_flash_attention and x.device.type == "cuda":
+            # Reshape for Flash Attention
+            q = q.transpose(1, 2)  # [B, H, L, D] -> [B, L, H, D]
+            k = k.transpose(1, 2)
+            v = v.transpose(1, 2)
+
+            # Flash Attention expects contiguous tensors
+            q, k, v = map(lambda t: t.contiguous(), (q, k, v))
+
+            # Use Flash Attention
+            attn_output = self.flash_attn_func(
+                q,
+                k,
+                v,
+                dropout_p=self.dropout.p if self.training else 0.0,
+                softmax_scale=1.0 / math.sqrt(self.head_dim),
+                causal=False,
+            )
+
+            # Reshape back
+            attn_output = attn_output.transpose(1, 2)  # [B, L, H, D] -> [B, H, L, D]
+        else:
+            # Use standard attention for CPU/MPS or when Flash Attention is not available
+            try:
+                attn_output = scaled_dot_product_attention(
+                    q,
+                    k,
+                    v,
+                    dropout_p=self.dropout.p if self.training else 0.0,
+                )
+            except (RuntimeError, AttributeError):
+                attn_output = self.standard_attention(
+                    q, k, v, dropout_p=self.dropout.p if self.training else 0.0
+                )
+
+        # Rest of the forward pass remains the same
+        attn_output = attn_output.transpose(1, 2).contiguous().view(B, L, D)
+        out = x + self.dropout(self.out_proj(attn_output))
+        out = out + self.dropout(self.ff(self.norm2(out)))
+        return out
+
+
+class SimpleTransformer(nn.Module):
     def __init__(
         self,
         vocab_size,
         hidden_dim,
         num_heads,
         num_layers,
-        dropout,
-        activation="gelu",
-        pos_encoding="sinusoidal",
-        max_seq_length=1000,
-        weight_init="default",
+        dropout=0.1,
+        use_rotary=False,
     ):
-        super(TransformerModel, self).__init__()
+        super().__init__()
         self.embedding = nn.Embedding(vocab_size, hidden_dim)
-        self.pos_encoding_type = pos_encoding
 
-        # Move method outside of __init__
-        self._initialize_weights(weight_init)
-
-        # Positional encoding setup
-        if pos_encoding == "sinusoidal":
-            # Standard sinusoidal positional encoding
-            position = torch.arange(max_seq_length).unsqueeze(1)
-            div_term = torch.exp(
-                torch.arange(0, hidden_dim, 2) * (-math.log(10000.0) / hidden_dim)
-            )
-            pe = torch.zeros(max_seq_length, hidden_dim)
-            pe[:, 0::2] = torch.sin(position * div_term)
-            pe[:, 1::2] = torch.cos(position * div_term)
-            self.register_buffer("pe", pe)
-            self.use_rotary = False
-        elif pos_encoding == "rotary":
-            # Rotary positional encoding
-            self.rotary_emb = RotaryEmbedding(hidden_dim, max_seq_length)
-            self.use_rotary = True
-        else:
-            raise ValueError(f"Unsupported positional encoding: {pos_encoding}")
-
-        self.dropout = nn.Dropout(dropout)
-
-        # Activation function selection
-        if activation == "gelu":
-            activation_fn = nn.GELU()
-        elif activation == "relu":
-            activation_fn = nn.ReLU()
-        elif activation == "swish":
-            activation_fn = nn.SiLU()
-        elif activation == "leaky_relu":
-            activation_fn = nn.LeakyReLU()
-        else:
-            raise ValueError(f"Unsupported activation: {activation}")
-
-        # Custom transformer layer with RoPE support if needed
-        if self.use_rotary:
-            # We'll need to modify the attention mechanism for RoPE
-            # This is a simplified implementation - a full one would modify the
-            # MultiheadAttention class to apply rotary embeddings
-            # directly to Q and K matrices before computing attention
-
-            # In this simplified version, we apply dropout and normalization
-            # similar to the TransformerEncoderLayer but inject the rotary
-            # position encoding in between
-
-            encoder_layers = []
-            for _ in range(num_layers):
-                layer = nn.TransformerEncoderLayer(
-                    hidden_dim,
-                    num_heads,
-                    hidden_dim * 4,
-                    dropout,
-                    activation=activation_fn,
+        # Create transformer layers
+        self.layers = ModuleList(
+            [
+                SimpleTransformerLayer(
+                    hidden_dim=hidden_dim,
+                    num_heads=num_heads,
+                    dropout=dropout,
+                    use_rotary=use_rotary,
                 )
-                encoder_layers.append(layer)
-            self.transformer_layers = nn.ModuleList(encoder_layers)
-        else:
-            # Standard implementation
-            encoder_layers = nn.TransformerEncoderLayer(
-                hidden_dim,
-                num_heads,
-                hidden_dim * 4,
-                dropout,
-                activation=activation_fn,
-            )
-            self.transformer_encoder = nn.TransformerEncoder(encoder_layers, num_layers)
+                for _ in range(num_layers)
+            ]
+        )
 
-        self.fc = nn.Linear(hidden_dim, vocab_size)
-        self.hidden_dim = hidden_dim
-        self.num_heads = num_heads
+        self.norm = LayerNorm(hidden_dim)
+        self.fc = Linear(hidden_dim, vocab_size)
 
-    def _initialize_weights(self, scheme):
-        """Initialize network weights based on specified scheme"""
-        if scheme == "default":
-            return  # PyTorch default initialization
+    def forward(self, x):
+        x = self.embedding(x)
 
-        for name, p in self.named_parameters():
-            if "weight" in name:
-                if scheme == "xavier_uniform":
-                    nn.init.xavier_uniform_(p)
-                elif scheme == "xavier_normal":
-                    nn.init.xavier_normal_(p)
-                elif scheme == "kaiming_uniform":
-                    nn.init.kaiming_uniform_(p)
-                elif scheme == "kaiming_normal":
-                    nn.init.kaiming_normal_(p)
-                elif scheme == "orthogonal":
-                    nn.init.orthogonal_(p)
-                else:
-                    raise ValueError(f"Unsupported initialization scheme: {scheme}")
-            elif "bias" in name:
-                nn.init.zeros_(p)
+        for layer in self.layers:
+            x = layer(x)
 
-    def forward(self, src):
-        # Embed the input
-        src = self.embedding(src) * math.sqrt(self.hidden_dim)
-
-        # Apply positional encoding
-        if not self.use_rotary:
-            # Standard sinusoidal positional encoding
-            src = src + self.pe[: src.size(1), :]
-            src = self.dropout(src)
-
-            # Transform for transformer (seq_len, batch, hidden_dim)
-            src = src.transpose(0, 1)
-
-            # Pass through transformer
-            output = self.transformer_encoder(src)
-        else:
-            # Rotary positional encoding
-            src = self.dropout(src)
-
-            # Transform for transformer (seq_len, batch, hidden_dim)
-            src = src.transpose(0, 1)
-
-            # Get rotary embeddings
-            cos, sin = self.rotary_emb(src)
-
-            # For each layer, manually apply RoPE to the queries and keys
-            output = src
-            for layer in self.transformer_layers:
-                # This is a simplified approach - a complete implementation
-                # would modify the MultiheadAttention module to apply RoPE
-                # directly to Q and K matrices before computing attention
-
-                # In this simplified version, we apply dropout and normalization
-                # similar to the TransformerEncoderLayer but inject the rotary
-                # position encoding in between
-
-                # Self-attention with RoPE
-                # First get the residual
-                residual = output
-
-                # Apply the first normalization
-                output = layer.norm1(output)
-
-                # Here we would normally compute self-attention, but instead
-                # we're simulating it with rotary embeddings
-                # Apply rotary embeddings to the whole tensor (simplified)
-                rotary_output = RotaryEmbedding.apply_rotary_pos_emb(output, cos, sin)
-
-                # Continue with the rest of the self-attention computation
-                # Since we can't modify PyTorch's built-in MultiheadAttention,
-                # we use the original layer's self-attention but with our rotary-encoded inputs
-                output = layer.self_attn(rotary_output, rotary_output, rotary_output)[0]
-                output = residual + layer.dropout1(output)
-
-                # Feed-forward part is unchanged
-                residual = output
-                output = layer.norm2(output)
-                output = layer.linear2(
-                    layer.dropout(layer.activation(layer.linear1(output)))
-                )
-                output = residual + layer.dropout2(output)
-
-        # Transform back (batch, seq_len, hidden_dim)
-        output = output.transpose(0, 1)
-
-        # Project to vocabulary size
-        output = self.fc(output)
-
-        return output
+        x = self.norm(x)
+        x = self.fc(x)
+        return x
 
 
 def get_device(gpu_id=None):
@@ -440,40 +393,46 @@ def train(gpu_id=None):
     # Load dataset using new HF-style loading
     train_dataset, val_dataset, primary_tokenizer, primary_text = get_dataset(config)
 
+    num_workers = min(mp.cpu_count() // 2, 8)
+
     train_dataloader = DataLoader(
         train_dataset,
         batch_size=config.batch_size,
         shuffle=True,
-        num_workers=config.num_workers,
+        num_workers=num_workers,
         pin_memory=config.pin_memory,
         collate_fn=TextDataset.collate_fn,
+        persistent_workers=True,
+        prefetch_factor=2,
     )
 
     val_dataloader = DataLoader(
         val_dataset,
         batch_size=config.batch_size,
         shuffle=False,
-        num_workers=config.num_workers,
+        num_workers=num_workers,
         pin_memory=config.pin_memory,
         collate_fn=TextDataset.collate_fn,
+        persistent_workers=True,
+        prefetch_factor=2,
     )
 
     # Initialize model
-    model = TransformerModel(
+    model = SimpleTransformer(
         vocab_size=primary_tokenizer.vocab_size,
         hidden_dim=config.hidden_dim,
         num_heads=config.num_heads,
         num_layers=config.num_layers,
         dropout=config.dropout,
-        activation=config.activation,
-        max_seq_length=config.seq_length,
-        weight_init=config.init_scheme,
+        use_rotary=config.pos_encoding == "rotary",
     )
 
-    model.to(device)
-
-    # Add conditional compilation for GPU only
-    if device.type == "cuda" and torch.__version__ >= "2.0.0":
+    # Add conditional compilation for GPU
+    if (
+        device.type == "cuda"
+        and torch.__version__ >= "2.0.0"
+        and config.compile == True
+    ):
         try:
             print("Compiling model for GPU acceleration...")
             model = torch.compile(model)
@@ -482,6 +441,8 @@ def train(gpu_id=None):
             print(
                 f"Model compilation failed, falling back to default model. Error: {e}"
             )
+
+    model.to(device)
 
     criterion = nn.CrossEntropyLoss()
 
@@ -822,28 +783,6 @@ if __name__ == "__main__":
     use_multi_gpu = torch.cuda.device_count() > 1
     use_mps = torch.backends.mps.is_available()
 
-    # config config for across scales experimetns
-    # base_config = {
-    #     "dataset": "wikitext",
-    #     "batch_size": 128,
-    #     "learning_rate": 0.001,
-    #     "min_lr": 0.0001,
-    #     "lr_schedule": "default",
-    #     "activation": "gelu",
-    #     "warmup_epochs": 0,
-    #     "weight_decay": 0.01,
-    #     "hidden_dim": 128,
-    #     "num_heads": 8,
-    #     "num_layers": 4,
-    #     "dropout": 0.1,
-    #     "epochs": 15,
-    #     "seq_length": 64,
-    #     "wikitext_limit": 40000,
-    #     "pos_encoding": "rotary",
-    #     "init_scheme": "default",
-    #     "optimizer": "adamw",
-    # }
-
     # base_config = {
     #     "dataset": "wikitext",
     #     "batch_size": 128,
@@ -885,6 +824,7 @@ if __name__ == "__main__":
         "stride": 16,
         "num_workers": 4,  # Adjust based on CPU cores
         "pin_memory": True,
+        "compile": False,
     }
 
     depths = [6]
