@@ -23,65 +23,65 @@ os.environ["WANDB_MODE"] = "offline"
 
 #     return sampled_text
 #  Add rotary positional encoding implementation
-class RotaryEmbedding(nn.Module):
-    def __init__(self, dim, max_seq_len=1000):
-        super().__init__()
-        self.dim = dim
-        self.max_seq_len = max_seq_len
+# class RotaryEmbedding(nn.Module):
+#     def __init__(self, dim, max_seq_len=1000):
+#         super().__init__()
+#         self.dim = dim
+#         self.max_seq_len = max_seq_len
 
-        # Initialize the frequencies for different dimensions
-        freqs = 1.0 / (10000 ** (torch.arange(0, dim, 2).float() / dim))
-        positions = torch.arange(0, max_seq_len).float()
+#         # Initialize the frequencies for different dimensions
+#         freqs = 1.0 / (10000 ** (torch.arange(0, dim, 2).float() / dim))
+#         positions = torch.arange(0, max_seq_len).float()
 
-        # Compute the sine and cosine values
-        freqs = torch.outer(positions, freqs)
-        cos = torch.cos(freqs)
-        sin = torch.sin(freqs)
+#         # Compute the sine and cosine values
+#         freqs = torch.outer(positions, freqs)
+#         cos = torch.cos(freqs)
+#         sin = torch.sin(freqs)
 
-        # Store sin and cos values for later use
-        self.register_buffer("cos", cos)
-        self.register_buffer("sin", sin)
+#         # Store sin and cos values for later use
+#         self.register_buffer("cos", cos)
+#         self.register_buffer("sin", sin)
 
-    def forward(self, x, seq_dim=1):
-        seq_len = x.shape[seq_dim]
+#     def forward(self, x, seq_dim=1):
+#         seq_len = x.shape[seq_dim]
 
-        # Get the appropriate sine and cosine values for this sequence length
-        cos = self.cos[:seq_len, :]
-        sin = self.sin[:seq_len, :]
+#         # Get the appropriate sine and cosine values for this sequence length
+#         cos = self.cos[:seq_len, :]
+#         sin = self.sin[:seq_len, :]
 
-        # Reshape for broadcasting
-        if seq_dim == 1:
-            # (batch, seq, dim) -> need cos/sin of shape (1, seq, dim)
-            cos = cos.unsqueeze(0)
-            sin = sin.unsqueeze(0)
-        else:
-            # (seq, batch, dim) -> need cos/sin of shape (seq, 1, dim)
-            cos = cos.unsqueeze(1)
-            sin = sin.unsqueeze(1)
+#         # Reshape for broadcasting
+#         if seq_dim == 1:
+#             # (batch, seq, dim) -> need cos/sin of shape (1, seq, dim)
+#             cos = cos.unsqueeze(0)
+#             sin = sin.unsqueeze(0)
+#         else:
+#             # (seq, batch, dim) -> need cos/sin of shape (seq, 1, dim)
+#             cos = cos.unsqueeze(1)
+#             sin = sin.unsqueeze(1)
 
-        return cos, sin
+#         return cos, sin
 
-    def apply_rotary_pos_emb(x, cos, sin):
-        # x shape: (batch, seq_len, dim) or (seq_len, batch, dim)
-        # Assuming dim divisible by 2
-        # Split x into even and odd dimensions
-        x_shape = x.shape
-        x = x.reshape(*x_shape[:-1], -1, 2)
+#     def apply_rotary_pos_emb(x, cos, sin):
+#         # x shape: (batch, seq_len, dim) or (seq_len, batch, dim)
+#         # Assuming dim divisible by 2
+#         # Split x into even and odd dimensions
+#         x_shape = x.shape
+#         x = x.reshape(*x_shape[:-1], -1, 2)
 
-        # Apply rotation
-        x1, x2 = x[..., 0], x[..., 1]
+#         # Apply rotation
+#         x1, x2 = x[..., 0], x[..., 1]
 
-        if cos.dim() == 3 and x.dim() == 4:
-            # Need to reshape cos/sin to match x's dimensionality
-            cos = cos.unsqueeze(2)
-            sin = sin.unsqueeze(2)
+#         if cos.dim() == 3 and x.dim() == 4:
+#             # Need to reshape cos/sin to match x's dimensionality
+#             cos = cos.unsqueeze(2)
+#             sin = sin.unsqueeze(2)
 
-        # Rotate even and odd dimensions with sine and cosine
-        rotated_x = torch.stack([x1 * cos - x2 * sin, x1 * sin + x2 * cos], dim=-1)
+#         # Rotate even and odd dimensions with sine and cosine
+#         rotated_x = torch.stack([x1 * cos - x2 * sin, x1 * sin + x2 * cos], dim=-1)
 
-        # Reshape back
-        rotated_x = rotated_x.reshape(*x_shape)
-        return rotated_x
+#         # Reshape back
+#         rotated_x = rotated_x.reshape(*x_shape)
+#         return rotated_x
 
 
 class CharacterTokenizer:
@@ -502,7 +502,7 @@ def train(gpu_id=None):
     patience = 15  # Increased patience
     patience_counter = 0
     min_delta = 1e-4  # Minimum improvement threshold
-    min_epochs = 20  # Minimum number of epochs before early stopping
+    # min_epochs = 20  # Minimum number of epochs before early stopping
 
     for epoch in range(config.epochs):
         # Training phase
@@ -589,15 +589,26 @@ def train(gpu_id=None):
                 val_loss += criterion(output, target).item()
 
         val_loss /= len(val_dataloader)
+        if val_loss < best_val_loss:
+            best_val_loss = val_loss
+            # don't need to save the model state dict, because we don't use it for anything
+            # best_model_state = copy.deepcopy(model.state_dict())
 
         # Early stopping check
-        if epoch >= min_epochs:  # Only start checking after min_epochs
+        if epoch >= config.min_epochs:  # Only start checking after min_epochs
             if val_loss < (best_val_loss - min_delta):  # Meaningful improvement
-                best_val_loss = val_loss
-                best_model_state = copy.deepcopy(model.state_dict())
+                # best_val_loss = val_loss
+                # best_model_state = copy.deepcopy(model.state_dict())
                 patience_counter = 0
             else:
                 patience_counter += 1
+            if epoch >= config.max_epochs:
+                print(f"Max epochs reached at epoch {epoch}")
+                print(f"Best validation loss: {best_val_loss:.4f}")
+                # Restore best model
+                if best_model_state is not None:
+                    model.load_state_dict(best_model_state)
+                break
 
             if patience_counter >= patience:
                 print(f"Early stopping triggered at epoch {epoch}")
@@ -811,7 +822,7 @@ if __name__ == "__main__":
         "lr_schedule": "cosine_warmup",  # More sophisticated schedule
         "activation": "gelu",
         "warmup_epochs": 5,  # Add proper warmup
-        "weight_decay": 0.01,  # Increase weight decay to make difference more visible
+        "weight_decay": 0.001,  # Increase weight decay to make difference more visible
         "hidden_dim": 128,  # Larger model
         "num_heads": 4,
         "num_layers": 4,  # More layers
@@ -825,19 +836,22 @@ if __name__ == "__main__":
         "num_workers": 4,  # Adjust based on CPU cores
         "pin_memory": True,
         "compile": False,
+        "min_epochs": 100,
+        "max_epochs": 100,
     }
 
     depths = [6]
     seeds = [42, 123, 456]
+    option1 = "adam"
+    option2 = "adamw"
+    parameter = "optimizer"
     experiments = []
     for depth in depths:
         for seed in seeds:
-            experiments.append({"num_layers": depth, "optimizer": "adam", "seed": seed})
-            experiments.append(
-                {"num_layers": depth, "optimizer": "adamw", "seed": seed}
-            )
+            experiments.append({"num_layers": depth, parameter: option1, "seed": seed})
+            experiments.append({"num_layers": depth, parameter: option2, "seed": seed})
 
-    final_losses = {depth: {"adam": {}, "adamw": {}} for depth in depths}
+    final_losses = {depth: {option1: {}, option2: {}} for depth in depths}
 
     if use_multi_gpu:
         # Multi-GPU setup
@@ -873,7 +887,7 @@ if __name__ == "__main__":
                 train(gpu_id=0)  # Use first GPU
                 final_loss = wandb.run.summary["val_loss"]
                 best_val_loss = wandb.run.summary["best_val_loss"]
-                final_losses[exp["num_layers"]][exp["optimizer"]][exp["seed"]] = {
+                final_losses[exp["num_layers"]][exp[parameter]][exp["seed"]] = {
                     "final_loss": final_loss,
                     "best_loss": best_val_loss,
                 }
@@ -886,21 +900,21 @@ if __name__ == "__main__":
                 train()  # No gpu_id needed for CPU/MPS
                 final_loss = wandb.run.summary["val_loss"]
                 best_val_loss = wandb.run.summary["best_val_loss"]
-                final_losses[exp["num_layers"]][exp["optimizer"]][exp["seed"]] = {
+                final_losses[exp["num_layers"]][exp[parameter]][exp["seed"]] = {
                     "final_loss": final_loss,
                     "best_loss": best_val_loss,
                 }
 
     # Save detailed results to CSV
-    csv_data = [["Depth", "Optimizer", "Seed", "Final Val Loss", "Best Val Loss"]]
+    csv_data = [["Depth", parameter, "Seed", "Final Val Loss", "Best Val Loss"]]
 
     for depth in depths:
         optimizer_losses = {
-            "adam": {"final": [], "best": []},
-            "adamw": {"final": [], "best": []},
+            option1: {"final": [], "best": []},
+            option2: {"final": [], "best": []},
         }
 
-        for optimizer in ["adam", "adamw"]:
+        for optimizer in [option1, option2]:
             for seed in seeds:
                 result = final_losses[depth][optimizer].get(seed)
                 if result is not None:
@@ -947,7 +961,7 @@ if __name__ == "__main__":
     print("\nSummary Statistics:")
     for depth in depths:
         print(f"\nDepth {depth}:")
-        for optimizer in ["adam", "adamw"]:
+        for optimizer in [option1, option2]:
             # Change variable names to avoid conflict
             final_loss_values = [
                 result["final_loss"]

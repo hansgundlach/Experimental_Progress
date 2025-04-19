@@ -1,6 +1,6 @@
 # Experimental_Progress
 
-Replication of transformer scaling laws, with and without algorithmic improvement. 
+Ultra efficient transformers for benchmarking the impact of algorithmic improvements like GELU. 
 Using 2 NIVIDIA V100 GPUs. 
 
 
