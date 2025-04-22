@@ -211,6 +211,25 @@ def evaluate_perplexity(model, dataloader, criterion, device):
     return perplexity
 
 
+# swiglu implmentation adds extra computation so not directly comparable to gelu, relu, silu, glu
+class SwiGLU(nn.Module):
+    def __init__(self, dim, hidden_dim=None, dropout=0.0):
+        super().__init__()
+        hidden_dim = hidden_dim or dim * 4
+        self.w1 = nn.Linear(dim, hidden_dim)
+        self.w2 = nn.Linear(dim, hidden_dim)
+        self.act = nn.SiLU()  # Swish activation
+        self.to_out = nn.Linear(hidden_dim, dim)
+        self.dropout = nn.Dropout(dropout)
+
+    def forward(self, x):
+        gate = self.act(self.w1(x))
+        value = self.w2(x)
+        x = gate * value
+        x = self.dropout(x)
+        return self.to_out(x)
+
+
 class SimpleTransformerLayer(nn.Module):
     def __init__(self, hidden_dim, num_heads, dropout=0.1, use_rotary=False):
         super().__init__()
@@ -223,9 +242,24 @@ class SimpleTransformerLayer(nn.Module):
         self.out_proj = Linear(hidden_dim, hidden_dim)
         self.norm1 = LayerNorm(hidden_dim)
         self.norm2 = LayerNorm(hidden_dim)
+
+        if config.activation == "gelu":
+            act_fn = nn.GELU()
+        elif config.activation == "relu":
+            act_fn = nn.ReLU()
+        elif config.activation == "silu" or config.activation == "swish":
+            act_fn = nn.SiLU()
+        elif config.activation == "glu":
+            act_fn = nn.GLU()
+        elif config.activation == "swiglu":
+            # double check swigulu implementation
+            act_fn = SwiGLU(hidden_dim, hidden_dim * 4, dropout=dropout)
+        else:
+            raise ValueError(f"Unsupported activation function: {config.activation}")
+
         self.ff = nn.Sequential(
             Linear(hidden_dim, 4 * hidden_dim),
-            nn.GELU(),
+            act_fn,
             Linear(4 * hidden_dim, hidden_dim),
         )
         self.dropout = Dropout(dropout)
@@ -808,7 +842,7 @@ if __name__ == "__main__":
         "learning_rate": 0.0001,
         "min_lr": 0.00001,
         "lr_schedule": "cosine_warmup",  # More sophisticated schedule
-        "activation": "gelu",
+        "activation": "relu",
         "warmup_epochs": 5,  # Add proper warmup
         "weight_decay": 0.05,  # Increase weight decay to make difference more visible
         "hidden_dim": 128,  # Might want larger model for BPE
@@ -819,7 +853,7 @@ if __name__ == "__main__":
         "seq_length": 64,  # Might want longer sequences for BPE
         "wikitext_limit": 1000000,  # More data
         "pos_encoding": "rotary",
-        "init_scheme": "xavier_normal",  # Better initialization
+        "init_scheme": "transformer_scaled",  # Better initialization
         "stride": 32,
         "num_workers": 4,  # Adjust based on CPU cores
         "pin_memory": True,

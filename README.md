@@ -1,7 +1,16 @@
-# Experimental_Progress
+#Model Organism of Algorithmic Progress
 
-Ultra efficient transformers for benchmarking the impact of algorithmic improvements like GELU. 
-Using 2 NIVIDIA V100 GPUs. 
+Ultra efficient transformers for benchmarking the impact of algorithmic improvements. 
+
+
+# Optionality
+activation functions: relu, gelu, silu/swish, GLU, swigGLU
+optimizers: sgd(heavy ball momentum), adam, adamW
+learning rate schedule: none, warmup+cosine annealing, warmup+inverse square root
+positional encodings: sinusoidal, rotary encodings
+initializations: xavier normal, kaiming normal, transformer (layer dependent) initalization
+
+
 
 
 ## Optimizations:
@@ -14,5 +23,6 @@ Using 2 NIVIDIA V100 GPUs.
 
 ##Stack 
 - pytorch 
-= weights and biases
+- weights and biases
+- MIT supercloud V100s
 

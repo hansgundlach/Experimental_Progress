@@ -809,7 +809,7 @@ if __name__ == "__main__":
     # config for fast testing
     base_config = {
         "dataset": "wikitext",
-        "batch_size": 32,
+        "batch_size": 64,
         "learning_rate": 0.0001,
         "min_lr": 0.00001,
         "lr_schedule": "inverse_sqrt",  # More sophisticated schedule
@@ -821,11 +821,11 @@ if __name__ == "__main__":
         "num_layers": 8,  # More layers
         "dropout": 0.2,
         "epochs": 200,  # Train longer
-        "seq_length": 64,  # Might want longer sequences for BPE
+        "seq_length": 128,  # Might want longer sequences for BPE
         "wikitext_limit": 1000000,  # More data
         "pos_encoding": "rotary",
         "init_scheme": "transformer_scaled",  # Better initialization
-        "stride": 32,
+        "stride": 64,
         "num_workers": 4,  # Adjust based on CPU cores
         "pin_memory": True,
         "compile": False,
