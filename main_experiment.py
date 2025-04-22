@@ -148,8 +148,58 @@ def evaluate_perplexity(model, dataloader, criterion, device):
     return perplexity
 
 
+# swiglu implmentation adds extra computation so not directly comparable to gelu, relu, silu, glu
+class SwiGLU(nn.Module):
+    def __init__(self, dim, hidden_dim=None, dropout=0.0):
+        super().__init__()
+        hidden_dim = hidden_dim or dim * 4
+
+        # Use a single linear layer for SwiGLU projections
+        self.proj = nn.Linear(
+            dim, hidden_dim * 2
+        )  # Single projection for both gate and value
+        self.act = nn.SiLU()  # Swish activation
+        self.dropout = nn.Dropout(dropout)
+        self.to_out = nn.Linear(hidden_dim, dim)
+
+    def forward(self, x):
+        # Project input and split into gate and value
+        x = self.proj(x)
+        gate, value = x.chunk(2, dim=-1)
+
+        # Apply activation to gate and element-wise multiply
+        x = self.act(gate) * value
+        x = self.dropout(x)
+        return self.to_out(x)
+
+
+class GLUFeedForward(nn.Module):
+    def __init__(self, dim, dropout=0.1):
+        super().__init__()
+        # Project to 8*dim because GLU will halve it to 4*dim
+        self.linear1 = Linear(dim, 8 * dim)
+        # From 4*dim back to dim
+        self.linear2 = Linear(4 * dim, dim)
+        self.dropout = Dropout(dropout)
+
+    def forward(self, x):
+        # Project up (8x)
+        x = self.linear1(x)
+        # Split into two halves
+        a, b = x.chunk(2, dim=-1)
+        # GLU operation
+        x = a * torch.sigmoid(b)
+        # Dropout
+        x = self.dropout(x)
+        # Project back to original dimension
+        x = self.linear2(x)
+        return x
+
+
 class SimpleTransformerLayer(nn.Module):
-    def __init__(self, hidden_dim, num_heads, dropout=0.1, use_rotary=False):
+    def __init__(
+        self, hidden_dim, num_heads, dropout=0.1, use_rotary=False, config=None
+    ):
         super().__init__()
         self.hidden_dim = hidden_dim
         self.num_heads = num_heads
@@ -160,12 +210,52 @@ class SimpleTransformerLayer(nn.Module):
         self.out_proj = Linear(hidden_dim, hidden_dim)
         self.norm1 = LayerNorm(hidden_dim)
         self.norm2 = LayerNorm(hidden_dim)
-        self.ff = nn.Sequential(
-            Linear(hidden_dim, 4 * hidden_dim),
-            nn.GELU(),
-            Linear(4 * hidden_dim, hidden_dim),
-        )
-        self.dropout = Dropout(dropout)
+
+        # if config.activation == "swiglu":
+        #     self.ff = SwiGLU(hidden_dim, hidden_dim * 4, dropout=dropout)
+        # else:
+        #     if config.activation == "gelu":
+        #         act_fn = nn.GELU()
+        #     elif config.activation == "relu":
+        #         act_fn = nn.ReLU()
+        #     elif config.activation == "silu" or config.activation == "swish":
+        #         act_fn = nn.SiLU()
+        #     elif config.activation == "glu":
+        #         act_fn = nn.GLU()
+        #     else:
+        #         raise ValueError(
+        #             f"Unsupported activation function: {config.activation}"
+        #         )
+
+        #     self.ff = nn.Sequential(
+        #         Linear(hidden_dim, 4 * hidden_dim),
+        #         act_fn,
+        #         Linear(4 * hidden_dim, hidden_dim),
+        #     )
+        #     self.dropout = Dropout(dropout)
+        if config.activation == "swiglu":
+            # SwiGLU is a complete feed-forward module
+            self.ff = SwiGLU(hidden_dim, hidden_dim * 4, dropout=dropout)
+        elif config.activation == "glu":
+            self.ff = GLUFeedForward(hidden_dim, dropout=dropout)
+        else:
+            # Standard feed-forward with normal activations
+            if config.activation == "gelu":
+                act_fn = nn.GELU()
+            elif config.activation == "relu":
+                act_fn = nn.ReLU()
+            elif config.activation == "silu" or config.activation == "swish":
+                act_fn = nn.SiLU()
+            else:
+                raise ValueError(
+                    f"Unsupported activation function: {config.activation}"
+                )
+
+            self.ff = nn.Sequential(
+                Linear(hidden_dim, 4 * hidden_dim),
+                act_fn,
+                Linear(4 * hidden_dim, hidden_dim),
+            )
 
         # Check if Flash Attention is available
         self.use_flash_attention = False
@@ -251,6 +341,7 @@ class SimpleTransformer(nn.Module):
         num_layers,
         dropout=0.1,
         use_rotary=False,
+        config=None,
     ):
         super().__init__()
         self.embedding = nn.Embedding(vocab_size, hidden_dim)
@@ -263,6 +354,7 @@ class SimpleTransformer(nn.Module):
                     num_heads=num_heads,
                     dropout=dropout,
                     use_rotary=use_rotary,
+                    config=config,
                 )
                 for _ in range(num_layers)
             ]
@@ -341,6 +433,7 @@ def train(gpu_id=None):
         num_layers=config.num_layers,
         dropout=config.dropout,
         use_rotary=config.pos_encoding == "rotary",
+        config=config,
     )
 
     # Apply initialization based on config.init_scheme
@@ -382,6 +475,19 @@ def train(gpu_id=None):
             nn.init.zeros_(layer.ff[0].bias)
             nn.init.normal_(layer.ff[2].weight, mean=0.0, std=layer_scale)
             nn.init.zeros_(layer.ff[2].bias)
+            # Initialize feedforward weights based on type
+            # if hasattr(layer, "activation_type") and layer.activation_type == "swiglu":
+            #     Initialize SwiGLU weights
+            #     nn.init.normal_(layer.ff.proj.weight, mean=0.0, std=layer_scale)
+            #     nn.init.zeros_(layer.ff.proj.bias)
+            #     nn.init.normal_(layer.ff.to_out.weight, mean=0.0, std=layer_scale)
+            #     nn.init.zeros_(layer.ff.to_out.bias)
+            # else:
+            #     # Initialize standard feed-forward weights
+            #     nn.init.normal_(layer.ff[0].weight, mean=0.0, std=layer_scale)
+            #     nn.init.zeros_(layer.ff[0].bias)
+            #     nn.init.normal_(layer.ff[2].weight, mean=0.0, std=layer_scale)
+            #     nn.init.zeros_(layer.ff[2].bias)
 
         # Initialize embedding with small uniform
         nn.init.normal_(model.embedding.weight, mean=0.0, std=init_scale)
@@ -817,8 +923,8 @@ if __name__ == "__main__":
         "warmup_epochs": 5,  # Add proper warmup
         "weight_decay": 0.05,  # Increase weight decay to make difference more visible
         "hidden_dim": 128,  # Might want larger model for BPE
+        "num_layers": 8,
         "num_heads": 8,
-        "num_layers": 8,  # More layers
         "dropout": 0.2,
         "epochs": 200,  # Train longer
         "seq_length": 128,  # Might want longer sequences for BPE
@@ -834,14 +940,16 @@ if __name__ == "__main__":
         "use_gradient_clipping": True,
         "gradient_clip_val": 0.5,
     }
+    depths = [8]
 
     # Replace the optimizer-specific setup with a more general comparison setup
     def setup_experiment_configs():
         # Define what you want to compare
         comparison_setup = {
             "parameter": "activation",  # What parameter you're varying
-            "options": ["gelu", "relu"],  # The values to compare
+            "options": ["glu", "gelu", "relu"],  # The values to compare
             "base_changes": {  # Any changes needed to base_config for each option
+                "glu": {"activation": "glu"},
                 "gelu": {"activation": "gelu"},
                 "relu": {"activation": "relu"},
             },
@@ -852,27 +960,25 @@ if __name__ == "__main__":
         return comparison_setup
 
     # Modified experiment generation
-    depths = [4]
-    seeds = [42, 123, 456, 789]
+    # depths = [4]
+    seeds = [42, 123]
     comparison = setup_experiment_configs()
     parameter = comparison["parameter"]
     options = comparison["options"]
     base_changes = comparison["base_changes"]
 
     experiments = []
-    for depth in depths:
-        for seed in seeds:
-            for option in options:
-                exp_config = {
-                    "num_layers": depth,
-                    "seed": seed,
-                    **comparison["required_base_params"],  # Add required parameters
-                    **base_changes[option],  # Add the varying parameter
-                }
-                experiments.append(exp_config)
-
+    # for depth in depths:
+    for seed in seeds:
+        for option in options:
+            exp_config = {
+                "seed": seed,
+                **comparison["required_base_params"],  # Add required parameters
+                **base_changes[option],  # Add the varying parameter
+            }
+            experiments.append(exp_config)
     # Modified results storage
-    final_losses = {depth: {option: {} for option in options} for depth in depths}
+    final_losses = {option: {} for option in options}
 
     if use_multi_gpu:
         # Multi-GPU setup
@@ -894,10 +1000,9 @@ if __name__ == "__main__":
 
         # Combine results
         for gpu_results in results:
-            for depth, optimizer_results in gpu_results.items():
-                for optimizer, results in optimizer_results.items():
-                    for seed, result in results.items():
-                        final_losses[depth][optimizer][seed] = result
+            for optimizer, results in gpu_results.items():
+                for seed, result in results.items():
+                    final_losses[optimizer][seed] = result
 
     elif torch.cuda.is_available():
         # Single GPU setup
@@ -908,7 +1013,7 @@ if __name__ == "__main__":
                 train(gpu_id=0)  # Use first GPU
                 final_loss = wandb.run.summary["val_loss"]
                 best_val_loss = wandb.run.summary["best_val_loss"]
-                final_losses[exp["num_layers"]][exp[parameter]][exp["seed"]] = {
+                final_losses[exp[parameter]][exp["seed"]] = {
                     "final_loss": final_loss,
                     "best_loss": best_val_loss,
                 }
@@ -921,34 +1026,32 @@ if __name__ == "__main__":
                 train()  # No gpu_id needed for CPU/MPS
                 final_loss = wandb.run.summary["val_loss"]
                 best_val_loss = wandb.run.summary["best_val_loss"]
-                final_losses[exp["num_layers"]][exp[parameter]][exp["seed"]] = {
+                final_losses[exp[parameter]][exp["seed"]] = {
                     "final_loss": final_loss,
                     "best_loss": best_val_loss,
                 }
 
     # Modified CSV output
-    csv_data = [["Depth", parameter, "Seed", "Final Val Loss", "Best Val Loss"]]
+    csv_data = [[parameter, "Seed", "Final Val Loss", "Best Val Loss"]]
 
-    for depth in depths:
-        optimizer_losses = {option: {"final": [], "best": []} for option in options}
+    optimizer_losses = {option: {"final": [], "best": []} for option in options}
 
-        for option in options:
-            for seed in seeds:
-                result = final_losses[depth][option].get(seed)
-                if result is not None:
-                    final_loss = result["final_loss"]
-                    best_loss = result["best_loss"]
-                    optimizer_losses[option]["final"].append(final_loss)
-                    optimizer_losses[option]["best"].append(best_loss)
-                    csv_data.append(
-                        [
-                            depth,
-                            option,
-                            seed,
-                            f"{final_loss:.4f}",
-                            f"{best_loss:.4f}",
-                        ]
-                    )
+    for option in options:
+        for seed in seeds:
+            result = final_losses[option].get(seed)
+            if result is not None:
+                final_loss = result["final_loss"]
+                best_loss = result["best_loss"]
+                optimizer_losses[option]["final"].append(final_loss)
+                optimizer_losses[option]["best"].append(best_loss)
+                csv_data.append(
+                    [
+                        option,
+                        seed,
+                        f"{final_loss:.4f}",
+                        f"{best_loss:.4f}",
+                    ]
+                )
 
         # Add summary statistics
         if optimizer_losses[option]["final"]:
@@ -958,7 +1061,6 @@ if __name__ == "__main__":
             std_best = np.std(optimizer_losses[option]["best"])
             csv_data.append(
                 [
-                    depth,
                     f"{option}_summary",
                     "N/A",
                     f"{mean_final:.4f} ± {std_final:.4f}",
@@ -977,21 +1079,19 @@ if __name__ == "__main__":
 
     # Print summary statistics
     print(f"\nComparing different {parameter} values:")
-    for depth in depths:
-        print(f"\nDepth {depth}:")
-        for option in options:
-            final_loss_values = [
-                result["final_loss"] for result in final_losses[depth][option].values()
-            ]
-            best_loss_values = [
-                result["best_loss"] for result in final_losses[depth][option].values()
-            ]
+    for option in options:
+        final_loss_values = [
+            result["final_loss"] for result in final_losses[option].values()
+        ]
+        best_loss_values = [
+            result["best_loss"] for result in final_losses[option].values()
+        ]
 
-            if final_loss_values:
-                mean_final = np.mean(final_loss_values)
-                std_final = np.std(final_loss_values)
-                mean_best = np.mean(best_loss_values)
-                std_best = np.std(best_loss_values)
-                print(f"{option.upper()}:")
-                print(f"  Final: {mean_final:.4f} ± {std_final:.4f}")
-                print(f"  Best:  {mean_best:.4f} ± {std_best:.4f}")
+        if final_loss_values:
+            mean_final = np.mean(final_loss_values)
+            std_final = np.std(final_loss_values)
+            mean_best = np.mean(best_loss_values)
+            std_best = np.std(best_loss_values)
+            print(f"{option.upper()}:")
+            print(f"  Final: {mean_final:.4f} ± {std_final:.4f}")
+            print(f"  Best:  {mean_best:.4f} ± {std_best:.4f}")
