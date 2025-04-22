@@ -1,0 +1,5 @@
+
+
+#implement learning rate schedules in term of steps
+#download flash attention in bash file 
+#remove config parameters that no longer do anything

@@ -22,6 +22,69 @@ from transformers import GPT2Tokenizer
 os.environ["WANDB_MODE"] = "offline"
 
 
+#     return sampled_text
+#  Add rotary positional encoding implementation
+# class RotaryEmbedding(nn.Module):
+#     def __init__(self, dim, max_seq_len=1000):
+#         super().__init__()
+#         self.dim = dim
+#         self.max_seq_len = max_seq_len
+
+#         # Initialize the frequencies for different dimensions
+#         freqs = 1.0 / (10000 ** (torch.arange(0, dim, 2).float() / dim))
+#         positions = torch.arange(0, max_seq_len).float()
+
+#         # Compute the sine and cosine values
+#         freqs = torch.outer(positions, freqs)
+#         cos = torch.cos(freqs)
+#         sin = torch.sin(freqs)
+
+#         # Store sin and cos values for later use
+#         self.register_buffer("cos", cos)
+#         self.register_buffer("sin", sin)
+
+#     def forward(self, x, seq_dim=1):
+#         seq_len = x.shape[seq_dim]
+
+#         # Get the appropriate sine and cosine values for this sequence length
+#         cos = self.cos[:seq_len, :]
+#         sin = self.sin[:seq_len, :]
+
+#         # Reshape for broadcasting
+#         if seq_dim == 1:
+#             # (batch, seq, dim) -> need cos/sin of shape (1, seq, dim)
+#             cos = cos.unsqueeze(0)
+#             sin = sin.unsqueeze(0)
+#         else:
+#             # (seq, batch, dim) -> need cos/sin of shape (seq, 1, dim)
+#             cos = cos.unsqueeze(1)
+#             sin = sin.unsqueeze(1)
+
+#         return cos, sin
+
+#     def apply_rotary_pos_emb(x, cos, sin):
+#         # x shape: (batch, seq_len, dim) or (seq_len, batch, dim)
+#         # Assuming dim divisible by 2
+#         # Split x into even and odd dimensions
+#         x_shape = x.shape
+#         x = x.reshape(*x_shape[:-1], -1, 2)
+
+#         # Apply rotation
+#         x1, x2 = x[..., 0], x[..., 1]
+
+#         if cos.dim() == 3 and x.dim() == 4:
+#             # Need to reshape cos/sin to match x's dimensionality
+#             cos = cos.unsqueeze(2)
+#             sin = sin.unsqueeze(2)
+
+#         # Rotate even and odd dimensions with sine and cosine
+#         rotated_x = torch.stack([x1 * cos - x2 * sin, x1 * sin + x2 * cos], dim=-1)
+
+#         # Reshape back
+#         rotated_x = rotated_x.reshape(*x_shape)
+#         return rotated_x
+
+
 def get_wikitext_data(limit=100000):
     """Load WikiText-2 dataset from local file"""
     file_path = Path("Datasets/wikitext.txt")
@@ -343,59 +406,6 @@ def train(gpu_id=None):
         use_rotary=config.pos_encoding == "rotary",
     )
 
-    # Apply initialization based on config.init_scheme
-    if config.init_scheme == "xavier_normal":
-        for module in model.modules():
-            if isinstance(module, nn.Linear):
-                nn.init.xavier_normal_(module.weight, gain=1.0)
-                if module.bias is not None:
-                    nn.init.zeros_(module.bias)
-            elif isinstance(module, nn.Embedding):
-                nn.init.xavier_normal_(module.weight, gain=1.0)
-
-    elif config.init_scheme == "kaiming_normal":
-        for module in model.modules():
-            if isinstance(module, nn.Linear):
-                nn.init.kaiming_normal_(module.weight, nonlinearity="relu")
-                if module.bias is not None:
-                    nn.init.zeros_(module.bias)
-            elif isinstance(module, nn.Embedding):
-                nn.init.kaiming_normal_(module.weight, nonlinearity="relu")
-
-    elif config.init_scheme == "transformer_scaled":
-        # Modern transformer initialization with layer-dependent scaling
-        init_scale = 0.02
-        num_layers = len(model.layers)
-
-        for i, layer in enumerate(model.layers):
-            # Scale by depth for better gradient flow
-            layer_scale = init_scale / math.sqrt(2.0 * num_layers)
-
-            # Initialize attention weights
-            nn.init.normal_(layer.qkv.weight, mean=0.0, std=layer_scale)
-            nn.init.zeros_(layer.qkv.bias)
-            nn.init.normal_(layer.out_proj.weight, mean=0.0, std=layer_scale)
-            nn.init.zeros_(layer.out_proj.bias)
-
-            # Initialize feedforward weights
-            nn.init.normal_(layer.ff[0].weight, mean=0.0, std=layer_scale)
-            nn.init.zeros_(layer.ff[0].bias)
-            nn.init.normal_(layer.ff[2].weight, mean=0.0, std=layer_scale)
-            nn.init.zeros_(layer.ff[2].bias)
-
-        # Initialize embedding with small uniform
-        nn.init.normal_(model.embedding.weight, mean=0.0, std=init_scale)
-
-        # Initialize final layer with small weights
-        nn.init.normal_(
-            model.fc.weight, mean=0.0, std=init_scale / math.sqrt(num_layers)
-        )
-        nn.init.zeros_(model.fc.bias)
-    elif config.init_scheme == "default":
-        pass
-    else:
-        raise ValueError(f"Unsupported initialization scheme: {config.init_scheme}")
-
     # Add conditional compilation for GPU
     if (
         device.type == "cuda"
@@ -453,20 +463,6 @@ def train(gpu_id=None):
                 return 0.5 * (1 + math.cos(math.pi * progress))
 
         scheduler = optim.lr_scheduler.LambdaLR(optimizer, lr_lambda=warmup_cosine)
-    elif config.lr_schedule == "inverse_sqrt":
-
-        def inverse_sqrt_with_warmup(epoch):
-            # Linear warmup for warmup_epochs
-            if epoch < config.warmup_epochs:
-                return float(epoch) / float(max(1, config.warmup_epochs))
-            # Inverse square root decay after warmup
-            # This formula ensures learning rate = 1.0 right after warmup
-            # and then decays with inverse square root
-            return (config.warmup_epochs**0.5) * ((epoch + 1) ** -0.5)
-
-        scheduler = optim.lr_scheduler.LambdaLR(
-            optimizer, lr_lambda=inverse_sqrt_with_warmup
-        )
     else:
         scheduler = None
 
@@ -691,32 +687,31 @@ def run_experiments_on_gpu(gpu_id, experiments):
     return final_losses
 
 
-# old character level tokenizatio form
-# def create_dataset_from_local_file(file_path, seq_length, stride=1):
-#     """Create sequences and targets from local text file"""
-#     # Read the text file
-#     with open(file_path, "r", encoding="utf-8") as f:
-#         text = f.read()
+def create_dataset_from_local_file(file_path, seq_length, stride=1):
+    """Create sequences and targets from local text file"""
+    # Read the text file
+    with open(file_path, "r", encoding="utf-8") as f:
+        text = f.read()
 
-#     # Create initial tokenization
-#     tokenizer = CharacterTokenizer(text)
+    # Create initial tokenization
+    tokenizer = CharacterTokenizer(text)
 
-#     # Convert text to token ids
-#     tokens = tokenizer.encode(text)
+    # Convert text to token ids
+    tokens = tokenizer.encode(text)
 
-#     # Create sequences with stride
-#     sequences = []
-#     targets = []
+    # Create sequences with stride
+    sequences = []
+    targets = []
 
-#     for i in range(0, len(tokens) - seq_length, stride):
-#         sequences.append(tokens[i : i + seq_length])
-#         targets.append(tokens[i + 1 : i + seq_length + 1])
+    for i in range(0, len(tokens) - seq_length, stride):
+        sequences.append(tokens[i : i + seq_length])
+        targets.append(tokens[i + 1 : i + seq_length + 1])
 
-#     # Convert to torch tensors directly
-#     sequences = torch.tensor(sequences, dtype=torch.long)
-#     targets = torch.tensor(targets, dtype=torch.long)
+    # Convert to torch tensors directly
+    sequences = torch.tensor(sequences, dtype=torch.long)
+    targets = torch.tensor(targets, dtype=torch.long)
 
-#     return sequences, targets, tokenizer
+    return sequences, targets, tokenizer
 
 
 class TransformerDataset(Dataset):
@@ -812,19 +807,19 @@ if __name__ == "__main__":
         "batch_size": 32,
         "learning_rate": 0.0001,
         "min_lr": 0.00001,
-        "lr_schedule": "inverse_sqrt",  # More sophisticated schedule
+        "lr_schedule": "cosine_warmup",  # More sophisticated schedule
         "activation": "gelu",
         "warmup_epochs": 5,  # Add proper warmup
         "weight_decay": 0.05,  # Increase weight decay to make difference more visible
         "hidden_dim": 128,  # Might want larger model for BPE
-        "num_heads": 8,
-        "num_layers": 8,  # More layers
+        "num_heads": 4,
+        "num_layers": 4,  # More layers
         "dropout": 0.2,
         "epochs": 200,  # Train longer
         "seq_length": 64,  # Might want longer sequences for BPE
         "wikitext_limit": 1000000,  # More data
         "pos_encoding": "rotary",
-        "init_scheme": "transformer_scaled",  # Better initialization
+        "init_scheme": "xavier_normal",  # Better initialization
         "stride": 32,
         "num_workers": 4,  # Adjust based on CPU cores
         "pin_memory": True,
@@ -835,44 +830,18 @@ if __name__ == "__main__":
         "gradient_clip_val": 0.5,
     }
 
-    # Replace the optimizer-specific setup with a more general comparison setup
-    def setup_experiment_configs():
-        # Define what you want to compare
-        comparison_setup = {
-            "parameter": "activation",  # What parameter you're varying
-            "options": ["gelu", "relu"],  # The values to compare
-            "base_changes": {  # Any changes needed to base_config for each option
-                "gelu": {"activation": "gelu"},
-                "relu": {"activation": "relu"},
-            },
-            "required_base_params": {  # Add any required parameters that aren't being compared
-                "optimizer": "adamw"  # Default optimizer
-            },
-        }
-        return comparison_setup
-
-    # Modified experiment generation
     depths = [4]
-    seeds = [42, 123, 456, 789]
-    comparison = setup_experiment_configs()
-    parameter = comparison["parameter"]
-    options = comparison["options"]
-    base_changes = comparison["base_changes"]
-
+    seeds = [42, 123, 456]
+    option1 = "sgd"
+    option2 = "adamw"
+    parameter = "optimizer"
     experiments = []
     for depth in depths:
         for seed in seeds:
-            for option in options:
-                exp_config = {
-                    "num_layers": depth,
-                    "seed": seed,
-                    **comparison["required_base_params"],  # Add required parameters
-                    **base_changes[option],  # Add the varying parameter
-                }
-                experiments.append(exp_config)
+            experiments.append({"num_layers": depth, parameter: option1, "seed": seed})
+            experiments.append({"num_layers": depth, parameter: option2, "seed": seed})
 
-    # Modified results storage
-    final_losses = {depth: {option: {} for option in options} for depth in depths}
+    final_losses = {depth: {option1: {}, option2: {}} for depth in depths}
 
     if use_multi_gpu:
         # Multi-GPU setup
@@ -926,40 +895,43 @@ if __name__ == "__main__":
                     "best_loss": best_val_loss,
                 }
 
-    # Modified CSV output
+    # Save detailed results to CSV
     csv_data = [["Depth", parameter, "Seed", "Final Val Loss", "Best Val Loss"]]
 
     for depth in depths:
-        optimizer_losses = {option: {"final": [], "best": []} for option in options}
+        optimizer_losses = {
+            option1: {"final": [], "best": []},
+            option2: {"final": [], "best": []},
+        }
 
-        for option in options:
+        for optimizer in [option1, option2]:
             for seed in seeds:
-                result = final_losses[depth][option].get(seed)
+                result = final_losses[depth][optimizer].get(seed)
                 if result is not None:
                     final_loss = result["final_loss"]
                     best_loss = result["best_loss"]
-                    optimizer_losses[option]["final"].append(final_loss)
-                    optimizer_losses[option]["best"].append(best_loss)
+                    optimizer_losses[optimizer]["final"].append(final_loss)
+                    optimizer_losses[optimizer]["best"].append(best_loss)
                     csv_data.append(
                         [
                             depth,
-                            option,
+                            optimizer,
                             seed,
                             f"{final_loss:.4f}",
                             f"{best_loss:.4f}",
                         ]
                     )
 
-        # Add summary statistics
-        if optimizer_losses[option]["final"]:
-            mean_final = np.mean(optimizer_losses[option]["final"])
-            std_final = np.std(optimizer_losses[option]["final"])
-            mean_best = np.mean(optimizer_losses[option]["best"])
-            std_best = np.std(optimizer_losses[option]["best"])
+        # Add summary statistics for each optimizer
+        if optimizer_losses[optimizer]["final"]:
+            mean_final = np.mean(optimizer_losses[optimizer]["final"])
+            std_final = np.std(optimizer_losses[optimizer]["final"])
+            mean_best = np.mean(optimizer_losses[optimizer]["best"])
+            std_best = np.std(optimizer_losses[optimizer]["best"])
             csv_data.append(
                 [
                     depth,
-                    f"{option}_summary",
+                    f"{optimizer}_summary",
                     "N/A",
                     f"{mean_final:.4f} ± {std_final:.4f}",
                     f"{mean_best:.4f} ± {std_best:.4f}",
@@ -976,22 +948,25 @@ if __name__ == "__main__":
     print(f"\nResults saved to {csv_file_path}")
 
     # Print summary statistics
-    print(f"\nComparing different {parameter} values:")
+    print("\nSummary Statistics:")
     for depth in depths:
         print(f"\nDepth {depth}:")
-        for option in options:
+        for optimizer in [option1, option2]:
+            # Change variable names to avoid conflict
             final_loss_values = [
-                result["final_loss"] for result in final_losses[depth][option].values()
+                result["final_loss"]
+                for result in final_losses[depth][optimizer].values()
             ]
             best_loss_values = [
-                result["best_loss"] for result in final_losses[depth][option].values()
+                result["best_loss"]
+                for result in final_losses[depth][optimizer].values()
             ]
 
-            if final_loss_values:
+            if final_loss_values:  # Check if we have any values
                 mean_final = np.mean(final_loss_values)
                 std_final = np.std(final_loss_values)
                 mean_best = np.mean(best_loss_values)
                 std_best = np.std(best_loss_values)
-                print(f"{option.upper()}:")
+                print(f"{optimizer.upper()}:")
                 print(f"  Final: {mean_final:.4f} ± {std_final:.4f}")
                 print(f"  Best:  {mean_best:.4f} ± {std_best:.4f}")
