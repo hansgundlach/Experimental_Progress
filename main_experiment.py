@@ -14,6 +14,8 @@ import wandb
 import csv
 import multiprocessing as mp
 from torch.cuda.amp import autocast, GradScaler
+
+# amp stands for automatic mixed precision
 import copy
 from torch.nn.functional import scaled_dot_product_attention
 from torch.nn import LayerNorm, Linear, Dropout, ModuleList
@@ -956,8 +958,8 @@ if __name__ == "__main__":
     base_config = {
         "dataset": "wikitext",
         "batch_size": 64,
-        "learning_rate": 0.0005,
-        "min_lr": 0.00001,
+        "learning_rate": 0.001,
+        "min_lr": 0.00005,
         "lr_schedule": "cosine_warmup",  # More sophisticated schedule
         "activation": "gelu",
         "warmup_epochs": 5,  # Add proper warmup
@@ -986,15 +988,24 @@ if __name__ == "__main__":
     # Replace the optimizer-specific setup with a more general comparison setup
     def setup_experiment_configs():
         # Define what you want to compare
+        # comparison_setup = {
+        #     "parameter": "activation",  # What parameter you're varying
+        #     "options": ["gelu", "relu"],  # The values to compare
+        #     "base_changes": {  # Any changes needed to base_config for each option
+        #         "gelu": {"activation": "gelu"},
+        #         "relu": {"activation": "relu"},
+        #     },
+        #     "required_base_params": {  # Add any required parameters that aren't being compared
+        #         "optimizer": "adamw"  # Default optimizer
+        #     },
+        # }
+        # optimizer comparison
         comparison_setup = {
-            "parameter": "activation",  # What parameter you're varying
-            "options": ["gelu", "relu"],  # The values to compare
+            "parameter": "optimizer",  # What parameter you're varying
+            "options": ["sgd", "adam"],  # The values to compare
             "base_changes": {  # Any changes needed to base_config for each option
-                "gelu": {"activation": "gelu"},
-                "relu": {"activation": "relu"},
-            },
-            "required_base_params": {  # Add any required parameters that aren't being compared
-                "optimizer": "adamw"  # Default optimizer
+                "sgd": {"optimizer": "sgd"},
+                "adam": {"optimizer": "adam"},
             },
         }
         return comparison_setup
@@ -1013,7 +1024,6 @@ if __name__ == "__main__":
         for option in options:
             exp_config = {
                 "seed": seed,
-                **comparison["required_base_params"],  # Add required parameters
                 **base_changes[option],  # Add the varying parameter
             }
             experiments.append(exp_config)
