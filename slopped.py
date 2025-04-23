@@ -196,27 +196,6 @@ class GLUFeedForward(nn.Module):
         return x
 
 
-# Add SinusoidalPositionalEmbedding class BEFORE SimpleTransformerLayer and SimpleTransformer
-class SinusoidalPositionalEmbedding(nn.Module):
-    def __init__(self, d_model, max_len=5000):
-        super().__init__()
-        # Create constant positional encoding matrix
-        pe = torch.zeros(max_len, d_model)
-        position = torch.arange(0, max_len, dtype=torch.float).unsqueeze(1)
-        div_term = torch.exp(
-            torch.arange(0, d_model, 2).float() * (-math.log(10000.0) / d_model)
-        )
-        pe[:, 0::2] = torch.sin(position * div_term)
-        pe[:, 1::2] = torch.cos(position * div_term)
-        pe = pe.unsqueeze(0)
-        self.register_buffer("pe", pe)
-
-    def forward(self, x):
-        # Add positional encoding to the embedding
-        seq_len = x.size(1)
-        return x + self.pe[:, :seq_len, :]
-
-
 class SimpleTransformerLayer(nn.Module):
     def __init__(self, hidden_dim, num_heads, dropout=0.1, config=None):
         super().__init__()
@@ -224,20 +203,19 @@ class SimpleTransformerLayer(nn.Module):
         self.num_heads = num_heads
         self.head_dim = hidden_dim // num_heads
         self.activation_type = config.activation
-        self.dropout = nn.Dropout(dropout)
 
         self.qkv = Linear(hidden_dim, 3 * hidden_dim)
         self.out_proj = Linear(hidden_dim, hidden_dim)
         self.norm1 = LayerNorm(hidden_dim)
         self.norm2 = LayerNorm(hidden_dim)
+        self.dropout = nn.Dropout(dropout)
 
+        # Feed-forward network setup
         if config.activation == "swiglu":
-            # SwiGLU is a complete feed-forward module
             self.ff = SwiGLU(hidden_dim, hidden_dim * 4, dropout=dropout)
         elif config.activation == "glu":
             self.ff = GLUFeedForward(hidden_dim, dropout=dropout)
         else:
-            # Standard feed-forward with normal activations
             if config.activation == "gelu":
                 act_fn = nn.GELU()
             elif config.activation == "relu":
@@ -270,70 +248,24 @@ class SimpleTransformerLayer(nn.Module):
                     "Flash Attention not available, falling back to standard attention"
                 )
 
-    def standard_attention(self, q, k, v, dropout_p=0.0):
-        # Standard scaled dot-product attention
-        B, H, L, D = q.shape
-        scores = torch.matmul(q, k.transpose(-2, -1)) / math.sqrt(D)
-        attn = F.softmax(scores, dim=-1)
-        if dropout_p > 0:
-            attn = F.dropout(attn, p=dropout_p)
-        return torch.matmul(attn, v)
-
     def forward(self, x):
-        B, L, D = x.shape
+        # First norm and attention
+        shortcut = x
+        x = self.norm1(x)
 
-        normed = self.norm1(x)
-        qkv = self.qkv(normed).chunk(3, dim=-1)
-        q, k, v = map(
-            lambda t: t.view(B, L, self.num_heads, self.head_dim).transpose(1, 2), qkv
-        )
+        # Use PyTorch's attention (rotary is handled internally if enabled)
+        x, _ = self.self_attn(x, x, x)
+        x = self.dropout(x)
+        x = shortcut + x
 
-        # Choose attention implementation based on device and availability
-        if self.use_flash_attention and x.device.type == "cuda":
-            # Reshape for Flash Attention
-            q = q.transpose(1, 2)  # [B, H, L, D] -> [B, L, H, D]
-            k = k.transpose(1, 2)
-            v = v.transpose(1, 2)
+        # Second norm and feed-forward
+        shortcut = x
+        x = self.norm2(x)
+        x = self.ff(x)
+        x = self.dropout(x)
+        x = shortcut + x
 
-            # Flash Attention expects contiguous tensors
-            q, k, v = map(lambda t: t.contiguous(), (q, k, v))
-
-            # Use Flash Attention
-            attn_output = self.flash_attn_func(
-                q,
-                k,
-                v,
-                dropout_p=self.dropout.p if self.training else 0.0,
-                softmax_scale=1.0 / math.sqrt(self.head_dim),
-                causal=True,
-            )
-
-            # Reshape back
-            attn_output = attn_output.transpose(1, 2)  # [B, L, H, D] -> [B, H, L, D]
-        else:
-            # Use standard attention for CPU/MPS or when Flash Attention is not available
-            try:
-                attn_output = scaled_dot_product_attention(
-                    q,
-                    k,
-                    v,
-                    dropout_p=self.dropout.p if self.training else 0.0,
-                    is_causal=True,
-                )
-            except (RuntimeError, AttributeError):
-                attn_output = self.standard_attention(
-                    q,
-                    k,
-                    v,
-                    dropout_p=self.dropout.p if self.training else 0.0,
-                    is_causal=True,
-                )
-
-        # Rest of the forward pass remains the same
-        attn_output = attn_output.transpose(1, 2).contiguous().view(B, L, D)
-        out = x + self.dropout(self.out_proj(attn_output))
-        out = out + self.dropout(self.ff(self.norm2(out)))
-        return out
+        return x
 
 
 class SimpleTransformer(nn.Module):
@@ -348,16 +280,6 @@ class SimpleTransformer(nn.Module):
     ):
         super().__init__()
         self.embedding = nn.Embedding(vocab_size, hidden_dim)
-
-        # Add positional embeddings based on config
-        self.pos_encoding = config.pos_encoding
-        if self.pos_encoding == "sinusoidal":
-            self.pos_emb = SinusoidalPositionalEmbedding(hidden_dim)
-        elif self.pos_encoding == "learned":
-            # Max sequence length for learned positional embeddings
-            max_seq_len = config.seq_length
-            self.pos_emb = nn.Parameter(torch.zeros(1, max_seq_len, hidden_dim))
-            nn.init.normal_(self.pos_emb, std=0.01)
 
         # Create transformer layers
         self.layers = ModuleList(
@@ -376,14 +298,7 @@ class SimpleTransformer(nn.Module):
         self.fc = Linear(hidden_dim, vocab_size)
 
     def forward(self, x):
-        B, L = x.shape
         x = self.embedding(x)
-
-        # Apply positional encoding if configured
-        if self.pos_encoding == "sinusoidal":
-            x = self.pos_emb(x)
-        elif self.pos_encoding == "learned":
-            x = x + self.pos_emb[:, :L, :]
 
         for layer in self.layers:
             x = layer(x)
@@ -430,7 +345,7 @@ def train(gpu_id=None):
         pin_memory=config.pin_memory,
         collate_fn=TextDataset.collate_fn,
         persistent_workers=True,
-        prefetch_factor=config.prefetch_factor,
+        prefetch_factor=2,
     )
 
     val_dataloader = DataLoader(
@@ -441,7 +356,7 @@ def train(gpu_id=None):
         pin_memory=config.pin_memory,
         collate_fn=TextDataset.collate_fn,
         persistent_workers=True,
-        prefetch_factor=config.prefetch_factor,
+        prefetch_factor=2,
     )
 
     # Initialize model
@@ -483,12 +398,10 @@ def train(gpu_id=None):
             layer_scale = init_scale / math.sqrt(2.0 * num_layers)
 
             # Initialize attention weights
-            nn.init.normal_(layer.qkv.weight, mean=0.0, std=layer_scale)
-            nn.init.zeros_(layer.qkv.bias)
-            nn.init.normal_(layer.out_proj.weight, mean=0.0, std=layer_scale)
-            nn.init.zeros_(layer.out_proj.bias)
+            nn.init.normal_(layer.self_attn.in_proj_weight, mean=0.0, std=layer_scale)
+            nn.init.zeros_(layer.self_attn.in_proj_bias)
 
-            # Initialize feedforward weights based on the type of the feedforward network
+            # Initialize feedforward weights based on type
             if isinstance(layer.ff, SwiGLU):
                 # Initialize SwiGLU weights
                 nn.init.normal_(layer.ff.proj.weight, mean=0.0, std=layer_scale)
@@ -496,29 +409,23 @@ def train(gpu_id=None):
                 nn.init.normal_(layer.ff.to_out.weight, mean=0.0, std=layer_scale)
                 nn.init.zeros_(layer.ff.to_out.bias)
             elif isinstance(layer.ff, GLUFeedForward):
-                # Initialize GLUFeedForward weights
+                # Initialize GLU weights
                 nn.init.normal_(layer.ff.linear1.weight, mean=0.0, std=layer_scale)
                 nn.init.zeros_(layer.ff.linear1.bias)
                 nn.init.normal_(layer.ff.linear2.weight, mean=0.0, std=layer_scale)
                 nn.init.zeros_(layer.ff.linear2.bias)
             elif isinstance(layer.ff, nn.Sequential):
                 # Initialize standard sequential feed-forward weights
-                # First find the Linear layers by iterating through the sequential modules
-                linear_layers = [m for m in layer.ff if isinstance(m, nn.Linear)]
-
-                # Initialize each Linear layer found
-                for linear in linear_layers:
-                    nn.init.normal_(linear.weight, mean=0.0, std=layer_scale)
-                    nn.init.zeros_(linear.bias)
+                nn.init.normal_(layer.ff[0].weight, mean=0.0, std=layer_scale)
+                nn.init.zeros_(layer.ff[0].bias)
+                if len(layer.ff) > 2:
+                    nn.init.normal_(layer.ff[2].weight, mean=0.0, std=layer_scale)
+                    nn.init.zeros_(layer.ff[2].bias)
             else:
                 print(f"Warning: Unknown feed-forward network type: {type(layer.ff)}")
 
         # Initialize embedding with small uniform
         nn.init.normal_(model.embedding.weight, mean=0.0, std=init_scale)
-
-        # Initialize positional embedding if using learned positional embeddings
-        if model.pos_encoding == "learned" and hasattr(model, "pos_emb"):
-            nn.init.normal_(model.pos_emb, mean=0.0, std=init_scale)
 
         # Initialize final layer with small weights
         nn.init.normal_(
@@ -547,10 +454,7 @@ def train(gpu_id=None):
 
     model.to(device)
 
-    if config.label_smoothing > 0:
-        criterion = nn.CrossEntropyLoss(label_smoothing=config.label_smoothing)
-    else:
-        criterion = nn.CrossEntropyLoss()
+    criterion = nn.CrossEntropyLoss()
 
     # Choose optimizer based on config
     if config.optimizer == "adam":
@@ -575,7 +479,7 @@ def train(gpu_id=None):
     if config.lr_schedule == "cosine":
         scheduler = optim.lr_scheduler.CosineAnnealingLR(
             optimizer,
-            T_max=config.max_epochs,
+            T_max=config.epochs,
             eta_min=config.min_lr,
         )
     elif config.lr_schedule == "cosine_warmup":
@@ -585,7 +489,7 @@ def train(gpu_id=None):
                 return epoch / config.warmup_epochs
             else:
                 progress = (epoch - config.warmup_epochs) / (
-                    config.max_epochs - config.warmup_epochs
+                    config.epochs - config.warmup_epochs
                 )
                 return 0.5 * (1 + math.cos(math.pi * progress))
 
@@ -624,7 +528,7 @@ def train(gpu_id=None):
     min_delta = 1e-4  # Minimum improvement threshold
     # min_epochs = 20  # Minimum number of epochs before early stopping
 
-    for epoch in range(config.max_epochs):
+    for epoch in range(config.epochs):
         # Training phase
         model.train()
         total_loss = 0
@@ -947,9 +851,9 @@ if __name__ == "__main__":
     base_config = {
         "dataset": "wikitext",
         "batch_size": 64,
-        "learning_rate": 0.0005,
+        "learning_rate": 0.0001,
         "min_lr": 0.00001,
-        "lr_schedule": "cosine_warmup",  # More sophisticated schedule
+        "lr_schedule": "inverse_sqrt",  # More sophisticated schedule
         "activation": "gelu",
         "warmup_epochs": 5,  # Add proper warmup
         "weight_decay": 0.05,  # Increase weight decay to make difference more visible
@@ -957,19 +861,19 @@ if __name__ == "__main__":
         "num_layers": 8,
         "num_heads": 8,
         "dropout": 0.2,
+        "epochs": 200,  # Train longer
         "seq_length": 128,  # Might want longer sequences for BPE
         "wikitext_limit": 1000000,  # More data
-        "pos_encoding": "sinusoidal",  # Changed from "rotary" to "sinusoidal"
+        "pos_encoding": "none",  # Changed from "rotary" to "none"
         "init_scheme": "transformer_scaled",  # Better initialization
         "stride": 64,
+        "num_workers": 4,  # Adjust based on CPU cores
         "pin_memory": True,
         "compile": False,
-        "prefetch_factor": 8,
         "min_epochs": 50,
         "max_epochs": 50,
         "use_gradient_clipping": True,
         "gradient_clip_val": 0.5,
-        "label_smoothing": 0.1,
     }
     depths = [8]
 
@@ -978,8 +882,9 @@ if __name__ == "__main__":
         # Define what you want to compare
         comparison_setup = {
             "parameter": "activation",  # What parameter you're varying
-            "options": ["gelu", "relu"],  # The values to compare
+            "options": ["glu", "gelu", "relu"],  # The values to compare
             "base_changes": {  # Any changes needed to base_config for each option
+                "glu": {"activation": "glu"},
                 "gelu": {"activation": "gelu"},
                 "relu": {"activation": "relu"},
             },
@@ -1125,3 +1030,24 @@ if __name__ == "__main__":
             print(f"{option.upper()}:")
             print(f"  Final: {mean_final:.4f} ± {std_final:.4f}")
             print(f"  Best:  {mean_best:.4f} ± {std_best:.4f}")
+
+
+# Add SinusoidalPositionalEmbedding class
+class SinusoidalPositionalEmbedding(nn.Module):
+    def __init__(self, d_model, max_len=5000):
+        super().__init__()
+        # Create constant positional encoding matrix
+        pe = torch.zeros(max_len, d_model)
+        position = torch.arange(0, max_len, dtype=torch.float).unsqueeze(1)
+        div_term = torch.exp(
+            torch.arange(0, d_model, 2).float() * (-math.log(10000.0) / d_model)
+        )
+        pe[:, 0::2] = torch.sin(position * div_term)
+        pe[:, 1::2] = torch.cos(position * div_term)
+        pe = pe.unsqueeze(0)
+        self.register_buffer("pe", pe)
+
+    def forward(self, x):
+        # Add positional encoding to the embedding
+        seq_len = x.size(1)
+        return x + self.pe[:, :seq_len, :]

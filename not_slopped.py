@@ -18,6 +18,7 @@ import copy
 from torch.nn.functional import scaled_dot_product_attention
 from torch.nn import LayerNorm, Linear, Dropout, ModuleList
 from transformers import GPT2Tokenizer
+import torch.nn.functional as F
 
 os.environ["WANDB_MODE"] = "offline"
 
@@ -196,35 +197,18 @@ class GLUFeedForward(nn.Module):
         return x
 
 
-# Add SinusoidalPositionalEmbedding class BEFORE SimpleTransformerLayer and SimpleTransformer
-class SinusoidalPositionalEmbedding(nn.Module):
-    def __init__(self, d_model, max_len=5000):
-        super().__init__()
-        # Create constant positional encoding matrix
-        pe = torch.zeros(max_len, d_model)
-        position = torch.arange(0, max_len, dtype=torch.float).unsqueeze(1)
-        div_term = torch.exp(
-            torch.arange(0, d_model, 2).float() * (-math.log(10000.0) / d_model)
-        )
-        pe[:, 0::2] = torch.sin(position * div_term)
-        pe[:, 1::2] = torch.cos(position * div_term)
-        pe = pe.unsqueeze(0)
-        self.register_buffer("pe", pe)
-
-    def forward(self, x):
-        # Add positional encoding to the embedding
-        seq_len = x.size(1)
-        return x + self.pe[:, :seq_len, :]
-
-
 class SimpleTransformerLayer(nn.Module):
-    def __init__(self, hidden_dim, num_heads, dropout=0.1, config=None):
+    def __init__(
+        self, hidden_dim, num_heads, dropout=0.1, use_rotary=False, config=None
+    ):
         super().__init__()
         self.hidden_dim = hidden_dim
         self.num_heads = num_heads
         self.head_dim = hidden_dim // num_heads
-        self.activation_type = config.activation
-        self.dropout = nn.Dropout(dropout)
+        self.use_rotary = use_rotary
+
+        # Add the dropout layer that was missing
+        self.dropout = Dropout(dropout)
 
         self.qkv = Linear(hidden_dim, 3 * hidden_dim)
         self.out_proj = Linear(hidden_dim, hidden_dim)
@@ -252,7 +236,7 @@ class SimpleTransformerLayer(nn.Module):
             self.ff = nn.Sequential(
                 Linear(hidden_dim, 4 * hidden_dim),
                 act_fn,
-                nn.Dropout(dropout),
+                Dropout(dropout),  # Also ensure dropout is included here
                 Linear(4 * hidden_dim, hidden_dim),
             )
 
@@ -305,7 +289,7 @@ class SimpleTransformerLayer(nn.Module):
                 v,
                 dropout_p=self.dropout.p if self.training else 0.0,
                 softmax_scale=1.0 / math.sqrt(self.head_dim),
-                causal=True,
+                causal=False,
             )
 
             # Reshape back
@@ -318,15 +302,10 @@ class SimpleTransformerLayer(nn.Module):
                     k,
                     v,
                     dropout_p=self.dropout.p if self.training else 0.0,
-                    is_causal=True,
                 )
             except (RuntimeError, AttributeError):
                 attn_output = self.standard_attention(
-                    q,
-                    k,
-                    v,
-                    dropout_p=self.dropout.p if self.training else 0.0,
-                    is_causal=True,
+                    q, k, v, dropout_p=self.dropout.p if self.training else 0.0
                 )
 
         # Rest of the forward pass remains the same
@@ -344,20 +323,11 @@ class SimpleTransformer(nn.Module):
         num_heads,
         num_layers,
         dropout=0.1,
+        use_rotary=False,
         config=None,
     ):
         super().__init__()
         self.embedding = nn.Embedding(vocab_size, hidden_dim)
-
-        # Add positional embeddings based on config
-        self.pos_encoding = config.pos_encoding
-        if self.pos_encoding == "sinusoidal":
-            self.pos_emb = SinusoidalPositionalEmbedding(hidden_dim)
-        elif self.pos_encoding == "learned":
-            # Max sequence length for learned positional embeddings
-            max_seq_len = config.seq_length
-            self.pos_emb = nn.Parameter(torch.zeros(1, max_seq_len, hidden_dim))
-            nn.init.normal_(self.pos_emb, std=0.01)
 
         # Create transformer layers
         self.layers = ModuleList(
@@ -366,6 +336,7 @@ class SimpleTransformer(nn.Module):
                     hidden_dim=hidden_dim,
                     num_heads=num_heads,
                     dropout=dropout,
+                    use_rotary=use_rotary,
                     config=config,
                 )
                 for _ in range(num_layers)
@@ -376,14 +347,7 @@ class SimpleTransformer(nn.Module):
         self.fc = Linear(hidden_dim, vocab_size)
 
     def forward(self, x):
-        B, L = x.shape
         x = self.embedding(x)
-
-        # Apply positional encoding if configured
-        if self.pos_encoding == "sinusoidal":
-            x = self.pos_emb(x)
-        elif self.pos_encoding == "learned":
-            x = x + self.pos_emb[:, :L, :]
 
         for layer in self.layers:
             x = layer(x)
@@ -451,6 +415,7 @@ def train(gpu_id=None):
         num_heads=config.num_heads,
         num_layers=config.num_layers,
         dropout=config.dropout,
+        use_rotary=config.pos_encoding == "rotary",
         config=config,
     )
 
@@ -488,7 +453,7 @@ def train(gpu_id=None):
             nn.init.normal_(layer.out_proj.weight, mean=0.0, std=layer_scale)
             nn.init.zeros_(layer.out_proj.bias)
 
-            # Initialize feedforward weights based on the type of the feedforward network
+            # Initialize feedforward weights based on the type of feedforward network
             if isinstance(layer.ff, SwiGLU):
                 # Initialize SwiGLU weights
                 nn.init.normal_(layer.ff.proj.weight, mean=0.0, std=layer_scale)
@@ -502,23 +467,14 @@ def train(gpu_id=None):
                 nn.init.normal_(layer.ff.linear2.weight, mean=0.0, std=layer_scale)
                 nn.init.zeros_(layer.ff.linear2.bias)
             elif isinstance(layer.ff, nn.Sequential):
-                # Initialize standard sequential feed-forward weights
-                # First find the Linear layers by iterating through the sequential modules
-                linear_layers = [m for m in layer.ff if isinstance(m, nn.Linear)]
-
-                # Initialize each Linear layer found
-                for linear in linear_layers:
-                    nn.init.normal_(linear.weight, mean=0.0, std=layer_scale)
-                    nn.init.zeros_(linear.bias)
-            else:
-                print(f"Warning: Unknown feed-forward network type: {type(layer.ff)}")
+                # For sequential layers, only initialize the Linear layers
+                for module in layer.ff:
+                    if isinstance(module, nn.Linear):
+                        nn.init.normal_(module.weight, mean=0.0, std=layer_scale)
+                        nn.init.zeros_(module.bias)
 
         # Initialize embedding with small uniform
         nn.init.normal_(model.embedding.weight, mean=0.0, std=init_scale)
-
-        # Initialize positional embedding if using learned positional embeddings
-        if model.pos_encoding == "learned" and hasattr(model, "pos_emb"):
-            nn.init.normal_(model.pos_emb, mean=0.0, std=init_scale)
 
         # Initialize final layer with small weights
         nn.init.normal_(
@@ -546,7 +502,6 @@ def train(gpu_id=None):
             )
 
     model.to(device)
-
     if config.label_smoothing > 0:
         criterion = nn.CrossEntropyLoss(label_smoothing=config.label_smoothing)
     else:
@@ -575,7 +530,7 @@ def train(gpu_id=None):
     if config.lr_schedule == "cosine":
         scheduler = optim.lr_scheduler.CosineAnnealingLR(
             optimizer,
-            T_max=config.max_epochs,
+            T_max=config.epochs,
             eta_min=config.min_lr,
         )
     elif config.lr_schedule == "cosine_warmup":
@@ -585,7 +540,7 @@ def train(gpu_id=None):
                 return epoch / config.warmup_epochs
             else:
                 progress = (epoch - config.warmup_epochs) / (
-                    config.max_epochs - config.warmup_epochs
+                    config.epochs - config.warmup_epochs
                 )
                 return 0.5 * (1 + math.cos(math.pi * progress))
 
@@ -624,7 +579,7 @@ def train(gpu_id=None):
     min_delta = 1e-4  # Minimum improvement threshold
     # min_epochs = 20  # Minimum number of epochs before early stopping
 
-    for epoch in range(config.max_epochs):
+    for epoch in range(config.epochs):
         # Training phase
         model.train()
         total_loss = 0
@@ -946,30 +901,32 @@ if __name__ == "__main__":
     # config for fast testing
     base_config = {
         "dataset": "wikitext",
-        "batch_size": 64,
+        "batch_size": 128,
         "learning_rate": 0.0005,
         "min_lr": 0.00001,
-        "lr_schedule": "cosine_warmup",  # More sophisticated schedule
+        "lr_schedule": "inverse_sqrt",  # More sophisticated schedule
         "activation": "gelu",
         "warmup_epochs": 5,  # Add proper warmup
-        "weight_decay": 0.05,  # Increase weight decay to make difference more visible
+        "weight_decay": 0.01,  # Increase weight decay to make difference more visible
         "hidden_dim": 128,  # Might want larger model for BPE
         "num_layers": 8,
         "num_heads": 8,
         "dropout": 0.2,
-        "seq_length": 128,  # Might want longer sequences for BPE
+        "seq_length": 256,  # Might want longer sequences for BPE
         "wikitext_limit": 1000000,  # More data
-        "pos_encoding": "sinusoidal",  # Changed from "rotary" to "sinusoidal"
+        "pos_encoding": "rotary",
         "init_scheme": "transformer_scaled",  # Better initialization
         "stride": 64,
+        "num_workers": 4,  # Adjust based on CPU cores
         "pin_memory": True,
+        "prefetch_factor": 4,
         "compile": False,
-        "prefetch_factor": 8,
         "min_epochs": 50,
         "max_epochs": 50,
         "use_gradient_clipping": True,
         "gradient_clip_val": 0.5,
-        "label_smoothing": 0.1,
+        "label_smoothing": 0.0,
+ 
     }
     depths = [8]
 
