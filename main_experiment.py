@@ -645,7 +645,6 @@ def train(gpu_id=None):
 
         for batch_idx, (data, target) in enumerate(train_dataloader):
             data, target = data.to(device), target.to(device)
-            optimizer.zero_grad()
 
             if use_amp:
                 with autocast():
@@ -655,15 +654,21 @@ def train(gpu_id=None):
                     output = output.contiguous().view(-1, primary_tokenizer.vocab_size)
                     target = target.contiguous().view(-1)
                     loss = criterion(output, target)
+                    # Scale the loss
+                    loss = loss / config.gradient_accumulation_steps
 
                 scaler.scale(loss).backward()
-                scaler.unscale_(optimizer)
-                if config.use_gradient_clipping:
-                    torch.nn.utils.clip_grad_norm_(
-                        model.parameters(), config.gradient_clip_val
-                    )
-                scaler.step(optimizer)
-                scaler.update()
+
+                # Only update weights after accumulating gradients
+                if (batch_idx + 1) % config.gradient_accumulation_steps == 0:
+                    scaler.unscale_(optimizer)
+                    if config.use_gradient_clipping:
+                        torch.nn.utils.clip_grad_norm_(
+                            model.parameters(), config.gradient_clip_val
+                        )
+                    scaler.step(optimizer)
+                    scaler.update()
+                    optimizer.zero_grad()
             else:
                 output = model(data)
                 output = output[:, :-1, :]
@@ -671,13 +676,17 @@ def train(gpu_id=None):
                 output = output.contiguous().view(-1, primary_tokenizer.vocab_size)
                 target = target.contiguous().view(-1)
                 loss = criterion(output, target)
-
+                # Scale the loss
+                loss = loss / config.gradient_accumulation_steps
                 loss.backward()
-                if config.use_gradient_clipping:
-                    torch.nn.utils.clip_grad_norm_(
-                        model.parameters(), config.gradient_clip_val
-                    )
-                optimizer.step()
+
+                if (batch_idx + 1) % config.gradient_accumulation_steps == 0:
+                    if config.use_gradient_clipping:
+                        torch.nn.utils.clip_grad_norm_(
+                            model.parameters(), config.gradient_clip_val
+                        )
+                    optimizer.step()
+                    optimizer.zero_grad()
 
             total_loss += loss.item()
 
@@ -970,6 +979,7 @@ if __name__ == "__main__":
         "use_gradient_clipping": True,
         "gradient_clip_val": 0.5,
         "label_smoothing": 0.1,
+        "gradient_accumulation_steps": 4,  # Accumulate over 4 batches
     }
     depths = [8]
 
