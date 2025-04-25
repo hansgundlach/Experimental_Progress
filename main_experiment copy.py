@@ -20,7 +20,6 @@ import copy
 from torch.nn.functional import scaled_dot_product_attention
 from torch.nn import LayerNorm, Linear, Dropout, ModuleList
 from transformers import GPT2Tokenizer
-import time  # Add at the top with other imports
 
 os.environ["WANDB_MODE"] = "offline"
 
@@ -574,14 +573,13 @@ def train(gpu_id=None):
     else:
         raise ValueError(f"Unsupported optimizer: {config.optimizer}")
 
-    # After optimizer creation, add step-based schedulers
+    # Add learning rate scheduler AFTER optimizer is created
     if config.lr_schedule == "cosine":
         scheduler = optim.lr_scheduler.CosineAnnealingLR(
             optimizer,
             T_max=config.max_epochs,
             eta_min=config.min_lr,
         )
-        scheduler_type = "epoch"
     elif config.lr_schedule == "cosine_warmup":
 
         def warmup_cosine(epoch):
@@ -594,7 +592,6 @@ def train(gpu_id=None):
                 return 0.5 * (1 + math.cos(math.pi * progress))
 
         scheduler = optim.lr_scheduler.LambdaLR(optimizer, lr_lambda=warmup_cosine)
-        scheduler_type = "epoch"
     elif config.lr_schedule == "inverse_sqrt":
 
         def inverse_sqrt_with_warmup(epoch):
@@ -609,39 +606,9 @@ def train(gpu_id=None):
         scheduler = optim.lr_scheduler.LambdaLR(
             optimizer, lr_lambda=inverse_sqrt_with_warmup
         )
-        scheduler_type = "epoch"
-    elif config.lr_schedule == "one_cycle":
-        # Calculate total steps for the scheduler
-        steps_per_epoch = len(train_dataloader) // config.gradient_accumulation_steps
-        total_steps = steps_per_epoch * config.max_epochs
-
-        scheduler = optim.lr_scheduler.OneCycleLR(
-            optimizer,
-            max_lr=config.learning_rate,
-            total_steps=total_steps,
-            pct_start=0.3,
-            div_factor=25,
-            final_div_factor=1000,
-        )
-        scheduler_type = "step"
-    elif config.lr_schedule == "transformer":
-        # Implementation of the transformer paper's learning rate schedule
-        d_model = config.hidden_dim
-        warmup_steps = config.warmup_steps if hasattr(config, "warmup_steps") else 4000
-
-        def transformer_lr_lambda(step):
-            # Transformer learning rate schedule from "Attention Is All You Need"
-            # lrate = d_model^(-0.5) * min(step^(-0.5), step * warmup_steps^(-1.5))
-            step = max(1, step)  # Avoid division by zero
-            return (d_model**-0.5) * min(step**-0.5, step * (warmup_steps**-1.5))
-
-        scheduler = optim.lr_scheduler.LambdaLR(
-            optimizer, lr_lambda=transformer_lr_lambda
-        )
-        scheduler_type = "step"
+        # This needs a step-based scheduler that includes epochs and batches
     else:
         scheduler = None
-        scheduler_type = None
 
     # Create a descriptive name
     # Create a descriptive name with timestamp
@@ -660,31 +627,28 @@ def train(gpu_id=None):
     min_delta = 1e-4  # Minimum improvement threshold
     # min_epochs = 20  # Minimum number of epochs before early stopping
 
-    global_step = 0
-
     for epoch in range(config.max_epochs):
         # Training phase
         model.train()
         total_loss = 0
 
-        # Initialize metrics dictionary
+        # Initialize metrics dictionary at the start of each epoch
         metrics = {
             "epoch": epoch,
             "optimizer": config.optimizer,
             "dataset": "wikitext",
         }
 
-        # Step epoch-based scheduler at the beginning of each epoch
-        if scheduler is not None and scheduler_type == "epoch":
+        current_lr = optimizer.param_groups[0]["lr"]
+        metrics.update({"learning_rate": current_lr})
+
+        # Step the scheduler at the end of each epoch
+        if scheduler is not None:
             scheduler.step()
-            current_lr = optimizer.param_groups[0]["lr"]
-            metrics.update({"learning_rate": current_lr})
-            wandb.log(metrics)
 
         for batch_idx, (data, target) in enumerate(train_dataloader):
             data, target = data.to(device), target.to(device)
 
-            # Mixed precision training logic...
             if use_amp:
                 with autocast():
                     output = model(data)
@@ -708,17 +672,6 @@ def train(gpu_id=None):
                     scaler.step(optimizer)
                     scaler.update()
                     optimizer.zero_grad()
-
-                    # Update step-based scheduler after optimization step
-                    global_step += 1
-                    if scheduler is not None and scheduler_type == "step":
-                        scheduler.step()
-                        current_lr = optimizer.param_groups[0]["lr"]
-                        step_metrics = {
-                            "learning_rate": current_lr,
-                            "global_step": global_step,
-                        }
-                        wandb.log(step_metrics)
             else:
                 output = model(data)
                 output = output[:, :-1, :]
@@ -737,11 +690,6 @@ def train(gpu_id=None):
                         )
                     optimizer.step()
                     optimizer.zero_grad()
-
-                    # Update step-based scheduler here too
-                    global_step += 1
-                    if scheduler is not None and scheduler_type == "step":
-                        scheduler.step()
 
             total_loss += loss.item()
 
@@ -867,32 +815,29 @@ def train(gpu_id=None):
 
 
 def run_experiments_on_gpu(gpu_id, experiments):
-    print(f"\nGPU {gpu_id} STARTING:")
-    print(f"Number of experiments on GPU: {len(experiments)}")
-    print("Experiments:", [(exp["activation"], exp["seed"]) for exp in experiments])
-    start_time = time.time()  # Add timing
-    print(f"GPU {gpu_id} starting with {len(experiments)} experiments")
-    results = {}
+    """Run a subset of experiments on a specific GPU"""
+    final_losses = {}
     for exp in experiments:
         config = {**base_config, **exp}
         with wandb.init(project=project_name, config=config):
-            train(gpu_id=gpu_id)
-            final_loss = wandb.run.summary["val_loss"]
-            best_val_loss = wandb.run.summary["best_val_loss"]
-
-            activation = exp["activation"]
+            train(gpu_id=gpu_id)  # Pass the GPU ID to the train function
+            # Change this to use validation loss instead of training loss
+            final_loss = wandb.run.summary["val_loss"]  # Changed from train_loss
+            best_val_loss = wandb.run.summary[
+                "best_val_loss"
+            ]  # Also track best validation loss
+            depth = exp["num_layers"]
+            optimizer = exp["optimizer"]
             seed = exp["seed"]
-            if activation not in results:
-                results[activation] = {}
-            results[activation][seed] = {
+
+            if depth not in final_losses:
+                final_losses[depth] = {"adam": {}, "adamw": {}}
+            final_losses[depth][optimizer][seed] = {
                 "final_loss": final_loss,
                 "best_loss": best_val_loss,
             }
-    elapsed = time.time() - start_time
-    print(
-        f"GPU {gpu_id} completed all experiments in {elapsed:.2f} seconds"
-    )  # Add timing
-    return results
+
+    return final_losses
 
 
 # old character level tokenizatio form
@@ -982,60 +927,93 @@ def get_dataset(config):
     return train_dataset, val_dataset, tokenizer, text
 
 
-def setup_experiment_configs():
-    comparison_setup = {
-        "parameter": "activation",
-        "options": ["gelu", "relu"],
-        "base_changes": {
-            "gelu": {"activation": "gelu"},
-            "relu": {"activation": "relu"},
-        },
-    }
-    return comparison_setup
-
-
 if __name__ == "__main__":
-
     wandb.login()
     timestamp = datetime.datetime.now().strftime("%m%d_%H%M")
     project_name = f"transformer_experiments_{timestamp}"
 
     # Detect available compute resources
-    n_gpus = torch.cuda.device_count()
-    # Base configuration for all experiments
+    use_multi_gpu = torch.cuda.device_count() > 1
+    use_mps = torch.backends.mps.is_available()
+
+    # base_config = {
+    #     "dataset": "wikitext",
+    #     "batch_size": 128,
+    #     "learning_rate": 0.001,
+    #     "min_lr": 0.0001,
+    #     "lr_schedule": "cosine_warmup",  # More sophisticated schedule
+    #     "activation": "gelu",
+    #     "warmup_epochs": 2,  # Add proper warmup
+    #     "weight_decay": 0.1,  # Increase weight decay to make difference more visible
+    #     "hidden_dim": 128,  # Larger model
+    #     "num_heads": 4,
+    #     "num_layers": 4,  # More layers
+    #     "dropout": 0.1,
+    #     "epochs": 15,  # Train longer
+    #     "seq_length": 256,  # Longer sequences
+    #     "wikitext_limit": 100000,  # More data
+    #     "pos_encoding": "rotary",
+    #     "init_scheme": "xavier_normal",  # Better initialization
+    # }
+    # config for fast testing
     base_config = {
         "dataset": "wikitext",
         "batch_size": 64,
         "learning_rate": 0.001,
         "min_lr": 0.00005,
-        "lr_schedule": "one_cycle",  # Options: "cosine", "cosine_warmup", "inverse_sqrt", "one_cycle", "transformer"
-        "warmup_epochs": 5,  # For "cosine_warmup" and "inverse_sqrt"
-        "warmup_steps": 4000,  # For "transformer" scheduler
-        "pct_start": 0.3,  # For "one_cycle" - percentage of training spent in warmup phase
-        "weight_decay": 0.05,
-        "hidden_dim": 128,
+        "lr_schedule": "cosine_warmup",  # More sophisticated schedule
+        "activation": "gelu",
+        "warmup_epochs": 5,  # Add proper warmup
+        "weight_decay": 0.05,  # Increase weight decay to make difference more visible
+        "hidden_dim": 128,  # Might want larger model for BPE
         "num_layers": 8,
         "num_heads": 8,
         "dropout": 0.2,
-        "seq_length": 128,
-        "wikitext_limit": 1000000,
-        "pos_encoding": "sinusoidal",
-        "init_scheme": "transformer_scaled",
+        "seq_length": 128,  # Might want longer sequences for BPE
+        "wikitext_limit": 1000000,  # More data
+        "pos_encoding": "sinusoidal",  # Changed from "rotary" to "sinusoidal"
+        "init_scheme": "transformer_scaled",  # Better initialization
         "stride": 64,
         "pin_memory": True,
         "compile": False,
         "prefetch_factor": 8,
-        "min_epochs": 2,
-        "max_epochs": 2,
+        "min_epochs": 150,
+        "max_epochs": 150,
         "use_gradient_clipping": True,
         "gradient_clip_val": 0.5,
         "label_smoothing": 0.1,
-        "gradient_accumulation_steps": 4,
+        "gradient_accumulation_steps": 4,  # Accumulate over 4 batches
         "optimizer": "adamw",
-        "activation": "gelu",  # Default activation
     }
+    depths = [8]
 
-    # Setup experiments
+    # Replace the optimizer-specific setup with a more general comparison setup
+    def setup_experiment_configs():
+        # Define what you want to compare
+        # comparison_setup = {
+        #     "parameter": "activation",  # What parameter you're varying
+        #     "options": ["gelu", "relu"],  # The values to compare
+        #     "base_changes": {  # Any changes needed to base_config for each option
+        #         "gelu": {"activation": "gelu"},
+        #         "relu": {"activation": "relu"},
+        #     },
+        #     "required_base_params": {  # Add any required parameters that aren't being compared
+        #         "optimizer": "adamw"  # Default optimizer
+        #     },
+        # }
+        # optimizer comparison
+        comparison_setup = {
+            "parameter": "activation",  # What parameter you're varying
+            "options": ["gelu", "relu"],  # The values to compare
+            "base_changes": {  # Any changes needed to base_config for each option
+                "gelu": {"activation": "gelu"},
+                "relu": {"activation": "relu"},
+            },
+        }
+        return comparison_setup
+
+    # Modified experiment generation
+    # depths = [4]
     seeds = [42, 123, 789]
     comparison = setup_experiment_configs()
     parameter = comparison["parameter"]
@@ -1043,80 +1021,48 @@ if __name__ == "__main__":
     base_changes = comparison["base_changes"]
 
     experiments = []
+    # for depth in depths:
     for seed in seeds:
         for option in options:
             exp_config = {
                 "seed": seed,
-                **base_changes[option],
+                **base_changes[option],  # Add the varying parameter
             }
             experiments.append(exp_config)
-
+    # Modified results storage
     final_losses = {option: {} for option in options}
 
-    if n_gpus > 1:
-        total_start_time = time.time()
-        print(f"\nRunning {len(experiments)} total experiments across {n_gpus} GPUs")
-        processes = []
-        results_queue = mp.Queue()
+    if use_multi_gpu:
+        # Multi-GPU setup
+        n_gpus = torch.cuda.device_count()
         experiments_per_gpu = len(experiments) // n_gpus
 
-        # Track which GPUs are assigned what
-        for gpu_id in range(n_gpus):
-            start_idx = gpu_id * experiments_per_gpu
-            end_idx = (
-                start_idx + experiments_per_gpu
-                if gpu_id < n_gpus - 1
-                else len(experiments)
-            )
-            gpu_experiments = experiments[start_idx:end_idx]
-            print(f"\nGPU {gpu_id} assigned experiments {start_idx} to {end_idx-1}:")
-            print(
-                f"Experiments: {[(exp['activation'], exp['seed']) for exp in gpu_experiments]}"
-            )
+        with mp.Pool(n_gpus) as pool:
+            gpu_assignments = []
+            for i in range(n_gpus):
+                start_idx = i * experiments_per_gpu
+                end_idx = (
+                    start_idx + experiments_per_gpu
+                    if i < n_gpus - 1
+                    else len(experiments)
+                )
+                gpu_assignments.append((i, experiments[start_idx:end_idx]))
 
-            p = mp.Process(
-                target=lambda q, gid, exps: q.put(
-                    (gid, run_experiments_on_gpu(gid, exps))
-                ),  # Include GPU ID in results
-                args=(results_queue, gpu_id, gpu_experiments),
-            )
-            p.daemon = False
-            processes.append(p)
-            p.start()
+            results = pool.starmap(run_experiments_on_gpu, gpu_assignments)
 
-        # Collect results from all processes
-        final_losses = {option: {} for option in options}
-        completed_gpus = set()
-
-        for _ in range(len(processes)):
-            gpu_id, results = results_queue.get()  # Get GPU ID with results
-            completed_gpus.add(gpu_id)
-            print(f"\nReceived results from GPU {gpu_id}")
-
-            for act_type, seeds in results.items():
-                if act_type not in final_losses:
-                    final_losses[act_type] = {}
-                final_losses[act_type].update(seeds)
-
-            print(f"GPUs completed: {sorted(completed_gpus)}")
-
-        # Wait for all processes to complete
-        for p in processes:
-            p.join()
-
-        total_elapsed = time.time() - total_start_time
-        print(
-            f"\nAll experiments completed in {total_elapsed:.2f} seconds"
-        )  # Add timing
+        # Combine results
+        for gpu_results in results:
+            for optimizer, results in gpu_results.items():
+                for seed, result in results.items():
+                    final_losses[optimizer][seed] = result
 
     elif torch.cuda.is_available():
         # Single GPU setup
-        print("Running on single GPU")
         device = torch.device("cuda:0")
         for exp in experiments:
             config = {**base_config, **exp}
             with wandb.init(project=project_name, config=config):
-                train(gpu_id=0)
+                train(gpu_id=0)  # Use first GPU
                 final_loss = wandb.run.summary["val_loss"]
                 best_val_loss = wandb.run.summary["best_val_loss"]
                 final_losses[exp[parameter]][exp["seed"]] = {
@@ -1125,12 +1071,11 @@ if __name__ == "__main__":
                 }
 
     else:
-        # CPU setup
-        print("Running on CPU")
+        # Single device setup (CPU or MPS)
         for exp in experiments:
             config = {**base_config, **exp}
             with wandb.init(project=project_name, config=config):
-                train()
+                train()  # No gpu_id needed for CPU/MPS
                 final_loss = wandb.run.summary["val_loss"]
                 best_val_loss = wandb.run.summary["best_val_loss"]
                 final_losses[exp[parameter]][exp["seed"]] = {
@@ -1202,8 +1147,3 @@ if __name__ == "__main__":
             print(f"{option.upper()}:")
             print(f"  Final: {mean_final:.4f} ± {std_final:.4f}")
             print(f"  Best:  {mean_best:.4f} ± {std_best:.4f}")
-
-    # Right after creating experiments list
-    print("\nTOTAL EXPERIMENTS CREATED:")
-    print(f"Number of experiments: {len(experiments)}")
-    print("Experiments:", [(exp["activation"], exp["seed"]) for exp in experiments])
