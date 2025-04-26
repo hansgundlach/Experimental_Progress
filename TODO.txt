@@ -7,3 +7,4 @@
 #download flash attention in bash file 
 #remove config parameters that no longer do anything
 #control for randomness across runs to get better replicability and cross model comparison 
+#divid up main_experiment.py to make more readable

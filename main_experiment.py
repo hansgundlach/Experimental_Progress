@@ -408,9 +408,8 @@ def get_device(gpu_id=None):
 
 
 def train(gpu_id=None):
-    # Initialize wandb
-    wandb.init(mode="offline")
-    config = wandb.config
+    # Remove the wandb.init() call from here since it's now handled in run_experiments_on_gpu
+    config = wandb.config  # This will use the existing run's config
 
     # Get appropriate device
     device = get_device(gpu_id)
@@ -844,54 +843,61 @@ def train(gpu_id=None):
         # Update print statement to include validation loss
         print(f"Epoch {epoch}: Train Loss = {avg_loss:.4f}, Val Loss = {val_loss:.4f}")
 
-    # Save model #not necesary for experiments
-    # model_path = (
-    #     f"../models/{dataset_choice}_model_{config.optimizer}_{config.activation}.pth"
-    # )
-    # torch.save(
-    #     {
-    #         "model_state_dict": model.state_dict(),
-    #         "tokenizer_chars": primary_tokenizer.chars,
-    #         "config": {
-    #             "hidden_dim": config.hidden_dim,
-    #             "num_heads": config.num_heads,
-    #             "num_layers": config.num_layers,
-    #             "dropout": config.dropout,
-    #             "optimizer": config.optimizer,
-    #             "dataset": dataset_choice,
-    #         },
-    #     },
-    #     model_path,
-    # )
-    # wandb.save(model_path)
+    # At the end of training, return the final values
+    return {"val_loss": val_loss, "best_val_loss": best_val_loss}
 
 
 def run_experiments_on_gpu(gpu_id, experiments):
     print(f"\nGPU {gpu_id} STARTING:")
     print(f"Number of experiments on GPU: {len(experiments)}")
     print("Experiments:", [(exp["activation"], exp["seed"]) for exp in experiments])
-    start_time = time.time()  # Add timing
-    print(f"GPU {gpu_id} starting with {len(experiments)} experiments")
+    start_time = time.time()
     results = {}
-    for exp in experiments:
-        config = {**base_config, **exp}
-        with wandb.init(project=project_name, config=config):
-            train(gpu_id=gpu_id)
-            final_loss = wandb.run.summary["val_loss"]
-            best_val_loss = wandb.run.summary["best_val_loss"]
 
+    for exp in experiments:
+        try:
+            with wandb.init(
+                project=project_name, config={**base_config, **exp}, reinit=True
+            ) as run:
+                # Get training results directly
+                training_results = train(gpu_id=gpu_id)
+
+                activation = exp["activation"]
+                seed = exp["seed"]
+                if activation not in results:
+                    results[activation] = {}
+                results[activation][seed] = {
+                    "final_loss": training_results["val_loss"],
+                    "best_loss": training_results["best_val_loss"],
+                }
+
+                # Log to wandb for tracking
+                wandb.log(
+                    {
+                        "final_val_loss": training_results["val_loss"],
+                        "best_val_loss": training_results["best_val_loss"],
+                    }
+                )
+                run.finish()
+
+                print(f"Completed experiment: {activation} seed {seed}")
+                print(
+                    f"Results: final_loss={training_results['val_loss']:.4f}, best_loss={training_results['best_val_loss']:.4f}"
+                )
+
+        except Exception as e:
+            print(f"Error in experiment {exp} on GPU {gpu_id}: {str(e)}")
             activation = exp["activation"]
             seed = exp["seed"]
             if activation not in results:
                 results[activation] = {}
             results[activation][seed] = {
-                "final_loss": final_loss,
-                "best_loss": best_val_loss,
+                "final_loss": float("nan"),
+                "best_loss": float("nan"),
             }
+
     elapsed = time.time() - start_time
-    print(
-        f"GPU {gpu_id} completed all experiments in {elapsed:.2f} seconds"
-    )  # Add timing
+    print(f"GPU {gpu_id} completed all experiments in {elapsed:.2f} seconds")
     return results
 
 
@@ -1086,19 +1092,15 @@ if __name__ == "__main__":
 
         # Collect results from all processes
         final_losses = {option: {} for option in options}
-        completed_gpus = set()
-
+        print("\nCollecting results from GPUs:")
         for _ in range(len(processes)):
-            gpu_id, results = results_queue.get()  # Get GPU ID with results
-            completed_gpus.add(gpu_id)
-            print(f"\nReceived results from GPU {gpu_id}")
-
-            for act_type, seeds in results.items():
+            gpu_id, gpu_results = results_queue.get()  # Unpack the tuple correctly
+            print(f"\nReceived results from GPU {gpu_id}:")
+            # gpu_results is the dictionary we want to process
+            for act_type, seeds_dict in gpu_results.items():  # Process the results dict
                 if act_type not in final_losses:
                     final_losses[act_type] = {}
-                final_losses[act_type].update(seeds)
-
-            print(f"GPUs completed: {sorted(completed_gpus)}")
+                final_losses[act_type].update(seeds_dict)
 
         # Wait for all processes to complete
         for p in processes:
