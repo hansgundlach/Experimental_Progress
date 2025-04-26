@@ -229,10 +229,17 @@ class SimpleTransformerLayer(nn.Module):
         self.activation_type = config.activation
         self.dropout = nn.Dropout(dropout)
 
+        # Choose normalization type
+        norm_layer = (
+            nn.RMSNorm
+            if getattr(config, "norm_type", "layer") == "rms"
+            else nn.LayerNorm
+        )
+        self.norm1 = norm_layer(hidden_dim)
+        self.norm2 = norm_layer(hidden_dim)
+
         self.qkv = Linear(hidden_dim, 3 * hidden_dim)
         self.out_proj = Linear(hidden_dim, hidden_dim)
-        self.norm1 = LayerNorm(hidden_dim)
-        self.norm2 = LayerNorm(hidden_dim)
 
         if config.activation == "swiglu":
             # SwiGLU is a complete feed-forward module
@@ -901,34 +908,6 @@ def run_experiments_on_gpu(gpu_id, experiments):
     return results
 
 
-# old character level tokenizatio form
-# def create_dataset_from_local_file(file_path, seq_length, stride=1):
-#     """Create sequences and targets from local text file"""
-#     # Read the text file
-#     with open(file_path, "r", encoding="utf-8") as f:
-#         text = f.read()
-
-#     # Create initial tokenization
-#     tokenizer = CharacterTokenizer(text)
-
-#     # Convert text to token ids
-#     tokens = tokenizer.encode(text)
-
-#     # Create sequences with stride
-#     sequences = []
-#     targets = []
-
-#     for i in range(0, len(tokens) - seq_length, stride):
-#         sequences.append(tokens[i : i + seq_length])
-#         targets.append(tokens[i + 1 : i + seq_length + 1])
-
-#     # Convert to torch tensors directly
-#     sequences = torch.tensor(sequences, dtype=torch.long)
-#     targets = torch.tensor(targets, dtype=torch.long)
-
-#     return sequences, targets, tokenizer
-
-
 class TransformerDataset(Dataset):
     def __init__(self, sequences, targets):
         """
@@ -1031,14 +1010,15 @@ if __name__ == "__main__":
         "pin_memory": True,
         "compile": False,
         "prefetch_factor": 8,
-        "min_epochs": 2,
-        "max_epochs": 2,
+        "min_epochs": 150,
+        "max_epochs": 150,
         "use_gradient_clipping": True,
         "gradient_clip_val": 0.5,
         "label_smoothing": 0.1,
         "gradient_accumulation_steps": 4,
         "optimizer": "adamw",
         "activation": "gelu",  # Default activation
+        "norm_type": "rms",  # Options: "layer" or "rms"
     }
 
     # Setup experiments
