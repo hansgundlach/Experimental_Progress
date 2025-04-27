@@ -415,13 +415,23 @@ def get_device(gpu_id=None):
 
 
 def train(gpu_id=None):
-    # Remove the wandb.init() call from here since it's now handled in run_experiments_on_gpu
-    config = wandb.config  # This will use the existing run's config
 
     # Get appropriate device
     device = get_device(gpu_id)
     print(f"Training on device: {device}")
 
+    # Remove the wandb.init() call from here since it's now handled in run_experiments_on_gpu
+    config = wandb.config  # This will use the existing run's config
+    # random seeding to make experiments more reproducable
+    seed = config.seed
+    torch.manual_seed(seed)
+    np.random.seed(seed)
+    random.seed(seed)
+    if torch.cuda.is_available():
+        torch.cuda.manual_seed(seed)
+        torch.cuda.manual_seed_all(seed)
+
+    # Only use GradScaler when using CUDA
     # Only use GradScaler when using CUDA
     use_amp = device.type == "cuda"
     scaler = GradScaler() if use_amp else None
@@ -970,10 +980,12 @@ def get_dataset(config):
 def setup_experiment_configs():
     comparison_setup = {
         "parameter": "activation",
-        "options": ["gelu", "relu"],
+        "options": ["gelu", "relu", "swiglu"],
         "base_changes": {
             "gelu": {"activation": "gelu"},
             "relu": {"activation": "relu"},
+            "swiglu": {"activation": "swiglu"},
+            "glu": {"activation": "glu"},
         },
     }
     return comparison_setup
@@ -992,8 +1004,8 @@ if __name__ == "__main__":
         "dataset": "wikitext",
         "batch_size": 64,
         "learning_rate": 0.001,
-        "min_lr": 0.00005,
-        "lr_schedule": "one_cycle",  # Options: "cosine", "cosine_warmup", "inverse_sqrt", "one_cycle", "transformer"
+        "min_lr": 0.0002,
+        "lr_schedule": "inverse_sqrt",  # Options: "cosine", "cosine_warmup", "inverse_sqrt", "one_cycle", "transformer"
         "warmup_epochs": 5,  # For "cosine_warmup" and "inverse_sqrt"
         "warmup_steps": 4000,  # For "transformer" scheduler
         "pct_start": 0.3,  # For "one_cycle" - percentage of training spent in warmup phase
@@ -1010,19 +1022,19 @@ if __name__ == "__main__":
         "pin_memory": True,
         "compile": False,
         "prefetch_factor": 8,
-        "min_epochs": 150,
-        "max_epochs": 150,
+        "min_epochs": 50,
+        "max_epochs": 50,
         "use_gradient_clipping": True,
         "gradient_clip_val": 0.5,
         "label_smoothing": 0.1,
         "gradient_accumulation_steps": 4,
         "optimizer": "adamw",
-        "activation": "gelu",  # Default activation
-        "norm_type": "rms",  # Options: "layer" or "rms"
+        "activation": "gelu",  # Default activation choices are gelu, relu, glu, swiglu
+        "norm_type": "layer",  # Options: "layer" or "rms"
     }
 
     # Setup experiments
-    seeds = [42, 123, 789]
+    seeds = [42, 123, 789, 1000]
     comparison = setup_experiment_configs()
     parameter = comparison["parameter"]
     options = comparison["options"]
