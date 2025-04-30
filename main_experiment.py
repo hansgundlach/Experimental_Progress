@@ -1003,11 +1003,11 @@ if __name__ == "__main__":
     base_config = {
         "dataset": "wikitext",
         "batch_size": 64,
-        "learning_rate": 0.001,
-        "min_lr": 0.0002,
+        "learning_rate": 0.0005,
+        "min_lr": 0.0001,
         "lr_schedule": "inverse_sqrt",  # Options: "cosine", "cosine_warmup", "inverse_sqrt", "one_cycle", "transformer"
         "warmup_epochs": 5,  # For "cosine_warmup" and "inverse_sqrt"
-        "warmup_steps": 4000,  # For "transformer" scheduler
+        "warmup_steps": 4000,  # For "transformer" scheduler step per epoch = trainingsamples/batch size , training samples = 1e6/128
         "pct_start": 0.3,  # For "one_cycle" - percentage of training spent in warmup phase
         "weight_decay": 0.05,
         "hidden_dim": 128,
@@ -1022,8 +1022,8 @@ if __name__ == "__main__":
         "pin_memory": True,
         "compile": False,
         "prefetch_factor": 8,
-        "min_epochs": 50,
-        "max_epochs": 50,
+        "min_epochs": 15,
+        "max_epochs": 15,
         "use_gradient_clipping": True,
         "gradient_clip_val": 0.5,
         "label_smoothing": 0.1,
