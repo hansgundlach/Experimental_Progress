@@ -1,9 +1,9 @@
-#Model Organism of Algorithmic Progress
+# Model Organism of Algorithmic Progress
 
 Ultra efficient transformers for benchmarking the impact of algorithmic improvements. 
 
 
-#Current Optionality
+# Current Optionality
 activation functions: relu, gelu, silu/swish, GLU, swigGLU
 optimizers: sgd(heavy ball momentum), adam, adamW
 learning rate schedule: none, warmup+cosine annealing, warmup+inverse square root
@@ -25,7 +25,7 @@ RMSNorm, LayerNorm
 - data loading optimization: keeping workers alive, pinning memory, prefetch factor
 
 
-##Stack 
+## Stack 
 - pytorch 
 - weights and biases
 - MIT supercloud V100s

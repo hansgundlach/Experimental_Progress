@@ -463,6 +463,15 @@ def train(gpu_id=None):
         prefetch_factor=config.prefetch_factor,
     )
 
+    # Dynamically set warmup_steps based on fraction of epochs
+    steps_per_epoch = len(train_dataloader)
+    total_steps = steps_per_epoch * config.max_epochs
+    if hasattr(config, "warmup_epochs_frac"):
+        config.warmup_steps = int(total_steps * config.warmup_epochs_frac)
+        print(
+            f"Using {config.warmup_steps} warmup steps ({config.warmup_epochs_frac*100:.1f}% of total steps)"
+        )
+
     # Initialize model
     model = SimpleTransformer(
         vocab_size=len(primary_tokenizer),
@@ -867,7 +876,7 @@ def train(gpu_id=None):
 def run_experiments_on_gpu(gpu_id, experiments):
     print(f"\nGPU {gpu_id} STARTING:")
     print(f"Number of experiments on GPU: {len(experiments)}")
-    print("Experiments:", [(exp["activation"], exp["seed"]) for exp in experiments])
+    print("Experiments:", [(exp[parameter], exp["seed"]) for exp in experiments])
     start_time = time.time()
     results = {}
 
@@ -876,19 +885,18 @@ def run_experiments_on_gpu(gpu_id, experiments):
             with wandb.init(
                 project=project_name, config={**base_config, **exp}, reinit=True
             ) as run:
-                # Get training results directly
                 training_results = train(gpu_id=gpu_id)
 
-                activation = exp["activation"]
+                # Use the current parameter type instead of hardcoding "activation"
+                param_value = exp[parameter]
                 seed = exp["seed"]
-                if activation not in results:
-                    results[activation] = {}
-                results[activation][seed] = {
+                if param_value not in results:
+                    results[param_value] = {}
+                results[param_value][seed] = {
                     "final_loss": training_results["val_loss"],
                     "best_loss": training_results["best_val_loss"],
                 }
 
-                # Log to wandb for tracking
                 wandb.log(
                     {
                         "final_val_loss": training_results["val_loss"],
@@ -897,18 +905,18 @@ def run_experiments_on_gpu(gpu_id, experiments):
                 )
                 run.finish()
 
-                print(f"Completed experiment: {activation} seed {seed}")
+                print(f"Completed experiment: {param_value} seed {seed}")
                 print(
                     f"Results: final_loss={training_results['val_loss']:.4f}, best_loss={training_results['best_val_loss']:.4f}"
                 )
 
         except Exception as e:
             print(f"Error in experiment {exp} on GPU {gpu_id}: {str(e)}")
-            activation = exp["activation"]
+            param_value = exp[parameter]
             seed = exp["seed"]
-            if activation not in results:
-                results[activation] = {}
-            results[activation][seed] = {
+            if param_value not in results:
+                results[param_value] = {}
+            results[param_value][seed] = {
                 "final_loss": float("nan"),
                 "best_loss": float("nan"),
             }
@@ -977,18 +985,18 @@ def get_dataset(config):
     return train_dataset, val_dataset, tokenizer, text
 
 
-def setup_experiment_configs():
-    comparison_setup = {
-        "parameter": "activation",
-        "options": ["gelu", "relu", "swiglu"],
-        "base_changes": {
-            "gelu": {"activation": "gelu"},
-            "relu": {"activation": "relu"},
-            "swiglu": {"activation": "swiglu"},
-            "glu": {"activation": "glu"},
-        },
-    }
-    return comparison_setup
+# def setup_experiment_configs():
+#     comparison_setup = {
+#         "parameter": "activation",
+#         "options": ["gelu", "relu", "swiglu"],
+#         "base_changes": {
+#             "gelu": {"activation": "gelu"},
+#             "relu": {"activation": "relu"},
+#             "swiglu": {"activation": "swiglu"},
+#             "glu": {"activation": "glu"},
+#         },
+#     }
+#     return comparison_setup
 
 
 if __name__ == "__main__":
@@ -1006,8 +1014,8 @@ if __name__ == "__main__":
         "learning_rate": 0.0005,
         "min_lr": 0.0001,
         "lr_schedule": "inverse_sqrt",  # Options: "cosine", "cosine_warmup", "inverse_sqrt", "one_cycle", "transformer"
-        "warmup_epochs": 5,  # For "cosine_warmup" and "inverse_sqrt"
-        "warmup_steps": 4000,  # For "transformer" scheduler step per epoch = trainingsamples/batch size , training samples = 1e6/128
+        "warmup_epochs": 3,  # For "cosine_warmup" and "inverse_sqrt"
+        "warmup_epochs_frac": 0.2,  # 20% of total epochs as warmup
         "pct_start": 0.3,  # For "one_cycle" - percentage of training spent in warmup phase
         "weight_decay": 0.05,
         "hidden_dim": 128,
@@ -1035,7 +1043,71 @@ if __name__ == "__main__":
 
     # Setup experiments
     seeds = [42, 123, 789, 1000]
-    comparison = setup_experiment_configs()
+
+    # comparing activation functions
+    comparison_activation = {
+        "parameter": "activation",
+        "options": ["gelu", "relu", "swiglu"],
+        "base_changes": {
+            "gelu": {"activation": "gelu"},
+            "relu": {"activation": "relu"},
+            "swiglu": {"activation": "swiglu"},
+            "glu": {"activation": "glu"},
+        },
+    }
+    # comparing lr_schedulers
+    comparison_lr_schedule = {
+        "parameter": "lr_schedule",
+        "options": [
+            "cosine",
+            "cosine_warmup",
+            "inverse_sqrt",
+            "one_cycle",
+            "transformer",
+        ],
+        "base_changes": {
+            "cosine": {"lr_schedule": "cosine"},
+            "cosine_warmup": {"lr_schedule": "cosine_warmup"},
+            "inverse_sqrt": {"lr_schedule": "inverse_sqrt"},
+            "one_cycle": {"lr_schedule": "one_cycle"},
+            "transformer": {"lr_schedule": "transformer"},
+        },
+    }
+    comparison_optimizer = {
+        "parameter": "optimizer",
+        "options": ["adamw", "adam", "sgd"],
+        "base_changes": {
+            "adamw": {"optimizer": "adamw"},
+            "adam": {"optimizer": "adam"},
+            "sgd": {"optimizer": "sgd"},
+        },
+    }
+    comparison_init_scheme = {
+        "parameter": "init_scheme",
+        "options": ["transformer_scaled", "transformer_uniform", "xavier_uniform"],
+        "base_changes": {
+            "transformer_scaled": {"init_scheme": "transformer_scaled"},
+            "transformer_uniform": {"init_scheme": "transformer_uniform"},
+            "xavier_uniform": {"init_scheme": "xavier_uniform"},
+        },
+    }
+    comparison_gradient_clipping = {
+        "parameter": "use_gradient_clipping",
+        "options": [True, False],
+        "base_changes": {
+            True: {"use_gradient_clipping": True},
+            False: {"use_gradient_clipping": False},
+        },
+    }
+    comparison_dropout = {
+        "parameter": "dropout",
+        "options": [0.0, 0.1],
+        "base_changes": {
+            "0.0": {"dropout": 0.0},
+            "0.1": {"dropout": 0.1},
+        },
+    }
+    comparison = comparison_activation
     parameter = comparison["parameter"]
     options = comparison["options"]
     base_changes = comparison["base_changes"]
@@ -1069,7 +1141,7 @@ if __name__ == "__main__":
             gpu_experiments = experiments[start_idx:end_idx]
             print(f"\nGPU {gpu_id} assigned experiments {start_idx} to {end_idx-1}:")
             print(
-                f"Experiments: {[(exp['activation'], exp['seed']) for exp in gpu_experiments]}"
+                f"Experiments: {[(exp[parameter], exp['seed']) for exp in gpu_experiments]}"
             )
 
             p = mp.Process(
@@ -1134,8 +1206,7 @@ if __name__ == "__main__":
 
     # Modified CSV output
     csv_data = [[parameter, "Seed", "Final Val Loss", "Best Val Loss"]]
-
-    optimizer_losses = {option: {"final": [], "best": []} for option in options}
+    param_losses = {option: {"final": [], "best": []} for option in options}
 
     for option in options:
         for seed in seeds:
@@ -1143,8 +1214,8 @@ if __name__ == "__main__":
             if result is not None:
                 final_loss = result["final_loss"]
                 best_loss = result["best_loss"]
-                optimizer_losses[option]["final"].append(final_loss)
-                optimizer_losses[option]["best"].append(best_loss)
+                param_losses[option]["final"].append(final_loss)
+                param_losses[option]["best"].append(best_loss)
                 csv_data.append(
                     [
                         option,
@@ -1155,11 +1226,11 @@ if __name__ == "__main__":
                 )
 
         # Add summary statistics
-        if optimizer_losses[option]["final"]:
-            mean_final = np.mean(optimizer_losses[option]["final"])
-            std_final = np.std(optimizer_losses[option]["final"])
-            mean_best = np.mean(optimizer_losses[option]["best"])
-            std_best = np.std(optimizer_losses[option]["best"])
+        if param_losses[option]["final"]:
+            mean_final = np.mean(param_losses[option]["final"])
+            std_final = np.std(param_losses[option]["final"])
+            mean_best = np.mean(param_losses[option]["best"])
+            std_best = np.std(param_losses[option]["best"])
             csv_data.append(
                 [
                     f"{option}_summary",
@@ -1169,9 +1240,8 @@ if __name__ == "__main__":
                 ]
             )
 
-    # Save to CSV #not timestamping for now
-    # timestamp = datetime.datetime.now().strftime("%m%d_%H%M")
-    csv_file_path = f"new_experiment_results.csv"
+    # Save results with parameter type in filename
+    csv_file_path = f"experiment_results_{parameter}_{timestamp}.csv"
     with open(csv_file_path, mode="w", newline="") as file:
         writer = csv.writer(file)
         writer.writerows(csv_data)
@@ -1193,11 +1263,10 @@ if __name__ == "__main__":
             std_final = np.std(final_loss_values)
             mean_best = np.mean(best_loss_values)
             std_best = np.std(best_loss_values)
-            print(f"{option.upper()}:")
+            print(f"{option}:")  # Remove .upper() to preserve exact parameter values
             print(f"  Final: {mean_final:.4f} ± {std_final:.4f}")
             print(f"  Best:  {mean_best:.4f} ± {std_best:.4f}")
 
-    # Right after creating experiments list
     print("\nTOTAL EXPERIMENTS CREATED:")
     print(f"Number of experiments: {len(experiments)}")
-    print("Experiments:", [(exp["activation"], exp["seed"]) for exp in experiments])
+    print("Experiments:", [(exp[parameter], exp["seed"]) for exp in experiments])
