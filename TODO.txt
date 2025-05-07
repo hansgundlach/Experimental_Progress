@@ -1,7 +1,17 @@
 
+# get flash attention to work on models 
+# test model on 8 gpu setup 
+# update pytorch to get nn.RMSnorm
+#figure out why torch.compile is failing and fix it. 
+
+
+
+
+
+
+
+
 #add pre-LN setup 
-
-
 # glu and swiglu
 #implement learning rate schedules in term of steps
 #download flash attention in bash file 

@@ -14,6 +14,6 @@ with open("Datasets/wikitext.txt", "w", encoding="utf-8") as f:
 
 print("Dataset saved to Datasets/wikitext.txt")
 
-
+# Save the GPT2 tokenizer
 tokenizer = GPT2Tokenizer.from_pretrained("gpt2")
 tokenizer.save_pretrained("./gpt2_tokenizer")

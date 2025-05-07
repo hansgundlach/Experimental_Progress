@@ -11,7 +11,7 @@ positional encodings: sinusoidal, rotary encodings
 initializations: xavier normal, kaiming normal, transformer (layer dependent) initalization
 regularization options: early stopping, gradient clipping
 
-#Future Options
+## Future Options
 Label smoothing, ALiBi, MoE
 RMSNorm, LayerNorm
 
@@ -30,3 +30,6 @@ RMSNorm, LayerNorm
 - weights and biases
 - MIT supercloud V100s
 
+## Running guidlines 
+run setup_dataset.py to setup wikitext and GTP2Tokenizer
+sbatch main.sh
