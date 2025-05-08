@@ -2,7 +2,8 @@
 # get flash attention to work on models 
 # test model on 8 gpu setup 
 # update pytorch to get nn.RMSnorm
-#figure out why torch.compile is failing and fix it. 
+# figure out why torch.compile is failing and fix it. 
+
 
 
 
