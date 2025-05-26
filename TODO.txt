@@ -1,4 +1,11 @@
 
+#
+
+
+
+
+
+
 # get flash attention to work on models 
 # test model on 8 gpu setup 
 # update pytorch to get nn.RMSnorm
