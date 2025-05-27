@@ -8,11 +8,13 @@ import wandb
 import os
 from collections import Counter
 from typing import Dict, List, Tuple
+from transformers import GPT2Tokenizer
 
 # Configuration
 CONFIG = {
     "data_path": "Datasets/wikitext.txt",
-    "vocab_size": 10000,  # Top K most frequent words
+    "tokenizer_path": "gpt2_tokenizer",
+    "max_characters": 2e5,  # Maximum number of characters to use from dataset
     "sequence_length": 128,
     "batch_size": 32,
     "hidden_size": 512,
@@ -48,34 +50,25 @@ class WikiTextDataset(Dataset):
 
 
 class TextPreprocessor:
-    def __init__(self, vocab_size: int):
-        self.vocab_size = vocab_size
-        self.word_to_idx = {}
-        self.idx_to_word = {}
-        self.unk_token = "<UNK>"
-        self.pad_token = "<PAD>"
-
-    def build_vocab(self, text: str) -> None:
-        # Tokenize and count words
-        words = text.lower().split()
-        word_counts = Counter(words)
-
-        # Get most frequent words
-        most_common = word_counts.most_common(self.vocab_size - 2)  # -2 for UNK and PAD
-
-        # Build vocabulary
-        self.word_to_idx = {self.pad_token: 0, self.unk_token: 1}
-        self.idx_to_word = {0: self.pad_token, 1: self.unk_token}
-
-        for idx, (word, _) in enumerate(most_common, start=2):
-            self.word_to_idx[word] = idx
-            self.idx_to_word[idx] = word
-
-        print(f"Built vocabulary with {len(self.word_to_idx)} words")
+    def __init__(self, tokenizer_path: str):
+        # Load tokenizer from local directory (offline mode)
+        self.tokenizer = GPT2Tokenizer.from_pretrained(
+            tokenizer_path,
+            local_files_only=True,  # Force offline mode
+            use_fast=False,  # Use slow tokenizer to avoid potential issues
+        )
+        # Set pad token if not already set
+        if self.tokenizer.pad_token is None:
+            self.tokenizer.pad_token = self.tokenizer.eos_token
+        self.vocab_size = len(self.tokenizer)
+        print(
+            f"Loaded GPT-2 tokenizer from local path with vocabulary size: {self.vocab_size}"
+        )
 
     def text_to_indices(self, text: str) -> List[int]:
-        words = text.lower().split()
-        return [self.word_to_idx.get(word, 1) for word in words]  # 1 is UNK token
+        # Tokenize the text using GPT2 tokenizer
+        tokens = self.tokenizer.encode(text, add_special_tokens=False)
+        return tokens
 
 
 class LSTMLanguageModel(nn.Module):
@@ -109,9 +102,11 @@ class LSTMLanguageModel(nn.Module):
 
 
 class FLOPCounter:
-    def __init__(self, model: nn.Module, config: Dict):
+    def __init__(self, model: nn.Module, config: Dict, tokenizer: GPT2Tokenizer):
         self.model = model
         self.config = config
+        self.tokenizer = tokenizer
+        self.vocab_size = len(tokenizer)
         self.total_flops = 0
 
     def count_lstm_flops(self, batch_size: int, sequence_length: int) -> int:
@@ -139,8 +134,7 @@ class FLOPCounter:
     def count_linear_flops(self, batch_size: int, sequence_length: int) -> int:
         """Count FLOPs for final linear layer"""
         hidden_size = self.config["hidden_size"]
-        vocab_size = self.config["vocab_size"]
-        return batch_size * sequence_length * hidden_size * vocab_size
+        return batch_size * sequence_length * hidden_size * self.vocab_size
 
     def count_forward_flops(self, batch_size: int, sequence_length: int) -> int:
         """Count total FLOPs for one forward pass"""
@@ -168,11 +162,19 @@ def load_and_preprocess_data(
     with open(config["data_path"], "r", encoding="utf-8") as f:
         text = f.read()
 
-    # Initialize preprocessor
-    preprocessor = TextPreprocessor(config["vocab_size"])
-    preprocessor.build_vocab(text)
+    # Limit data size if specified
+    if config["max_characters"] and len(text) > config["max_characters"]:
+        text = text[: int(config["max_characters"])]
+        print(
+            f"Limited dataset to {config['max_characters']:.0e} characters (originally {len(text)} characters)"
+        )
+    else:
+        print(f"Using full dataset: {len(text)} characters")
 
-    # Convert text to indices
+    # Initialize preprocessor with GPT-2 tokenizer
+    preprocessor = TextPreprocessor(config["tokenizer_path"])
+
+    # Convert text to indices using GPT-2 tokenizer
     indices = preprocessor.text_to_indices(text)
 
     # Split data
@@ -199,7 +201,10 @@ def load_and_preprocess_data(
     )
 
     print(
-        f"Data split: Train={len(train_data)}, Val={len(val_data)}, Test={len(test_data)}"
+        f"Data split: Train={len(train_data)} tokens, Val={len(val_data)} tokens, Test={len(test_data)} tokens"
+    )
+    print(
+        f"Batches per epoch: Train={len(train_loader)}, Val={len(val_loader)}, Test={len(test_loader)}"
     )
 
     return train_loader, val_loader, test_loader, preprocessor
@@ -249,16 +254,16 @@ def train_model(config: Dict):
         config
     )
 
-    # Initialize model
+    # Initialize model using GPT-2 tokenizer vocab size
     model = LSTMLanguageModel(
-        vocab_size=config["vocab_size"],
+        vocab_size=preprocessor.vocab_size,
         hidden_size=config["hidden_size"],
         num_layers=config["num_layers"],
         dropout=config["dropout"],
     ).to(device)
 
     # Initialize FLOP counter
-    flop_counter = FLOPCounter(model, config)
+    flop_counter = FLOPCounter(model, config, preprocessor.tokenizer)
 
     # Loss and optimizer
     criterion = nn.CrossEntropyLoss()
@@ -286,7 +291,7 @@ def train_model(config: Dict):
             outputs, _ = model(inputs, hidden)
 
             # Reshape for loss calculation
-            outputs = outputs.view(-1, config["vocab_size"])
+            outputs = outputs.view(-1, model.vocab_size)
             targets = targets.view(-1)
 
             # Calculate loss
@@ -309,7 +314,7 @@ def train_model(config: Dict):
                     f"Epoch {epoch+1}/{config['num_epochs']}, "
                     f"Batch {batch_idx}/{len(train_loader)}, "
                     f"Loss: {loss.item():.4f}, "
-                    f"Total FLOPs: {flop_counter.total_flops:,}"
+                    f"Total FLOPs: {flop_counter.total_flops:.2e}"
                 )
 
         # Calculate epoch statistics
@@ -326,11 +331,11 @@ def train_model(config: Dict):
         # Print epoch results
         print(f"\nEpoch {epoch+1}/{config['num_epochs']} Summary:")
         print(
-            f"  Train Loss: {avg_train_loss:.4f} (Perplexity: {train_perplexity:.2f})"
+            f"  Training Loss: {avg_train_loss:.4f} (Perplexity: {train_perplexity:.2f})"
         )
-        print(f"  Val Loss: {val_loss:.4f} (Perplexity: {val_perplexity:.2f})")
+        print(f"  Validation Loss: {val_loss:.4f} (Perplexity: {val_perplexity:.2f})")
         print(f"  Epoch Time: {epoch_time:.2f}s")
-        print(f"  Total FLOPs: {flop_counter.total_flops:,}")
+        print(f"  Total FLOPs: {flop_counter.total_flops:.2e}")
         print(
             f"  FLOPs per second: {flop_counter.total_flops/sum([time.time() - epoch_start_time for _ in range(epoch+1)]):.2e}"
         )
@@ -369,14 +374,14 @@ def train_model(config: Dict):
     return model, flop_counter.total_flops
 
 
-def benchmark_model(model: nn.Module, config: Dict):
+def benchmark_model(model: nn.Module, config: Dict, tokenizer: GPT2Tokenizer):
     """Benchmark model inference speed"""
     device = torch.device(config["device"])
     model.eval()
 
-    # Create dummy input
+    # Create dummy input using tokenizer vocab size
     dummy_input = torch.randint(
-        0, config["vocab_size"], (config["batch_size"], config["sequence_length"])
+        0, len(tokenizer), (config["batch_size"], config["sequence_length"])
     ).to(device)
 
     # Warmup
@@ -414,11 +419,16 @@ if __name__ == "__main__":
     # Train model
     trained_model, total_flops = train_model(CONFIG)
 
+    # Get the tokenizer for benchmarking (offline mode)
+    tokenizer = GPT2Tokenizer.from_pretrained(
+        CONFIG["tokenizer_path"], local_files_only=True, use_fast=False
+    )
+
     # Benchmark model
-    inference_time, throughput = benchmark_model(trained_model, CONFIG)
+    inference_time, throughput = benchmark_model(trained_model, CONFIG, tokenizer)
 
     print(f"\nTraining completed!")
-    print(f"Total FLOPs used in training: {total_flops:,}")
+    print(f"Total FLOPs used in training: {total_flops:.2e}")
     print(
         f"Final benchmark - Inference time: {inference_time*1000:.2f}ms, Throughput: {throughput:.2f} samples/s"
     )
