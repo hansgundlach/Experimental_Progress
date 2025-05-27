@@ -546,7 +546,7 @@ def train(gpu_id=None):
 
         # Initialize positional embedding if using learned positional embeddings
         if model.pos_encoding == "learned" and hasattr(model, "pos_emb"):
-            nn.init.normal_(model.pos_emb, mean=0.0, std=init_scale)
+            nn.init.normal_(modelçç.pos_emb, mean=0.0, std=init_scale)
 
         # Initialize final layer with small weights
         nn.init.normal_(
@@ -1008,69 +1008,126 @@ if __name__ == "__main__":
     # Detect available compute resources
     n_gpus = torch.cuda.device_count()
     # Base configuration for all experiments
+    # small base config
+    # base_config = {
+    #     "dataset": "wikitext",
+    #     "batch_size": 128,
+    #     "learning_rate": 0.0001,
+    #     "min_lr": 0.0001,
+    #     "lr_schedule": "inverse_sqrt",  # Options: "cosine", "cosine_warmup", "inverse_sqrt", "one_cycle", "transformer"
+    #     "warmup_epochs": 3,  # For "cosine_warmup" and "inverse_sqrt"
+    #     "warmup_epochs_frac": 0.2,  # 20% of total epochs as warmup
+    #     "pct_start": 0.3,  # For "one_cycle" - percentage of training spent in warmup phase
+    #     "weight_decay": 0.2,
+    #     "hidden_dim": 128,
+    #     "num_layers": 8,
+    #     "num_heads": 8,
+    #     "dropout": 0.5,
+    #     "seq_length": 128,
+    #     "wikitext_limit": 1000000,
+    #     "pos_encoding": "sinusoidal",
+    #     "init_scheme": "transformer_scaled",
+    #     "stride": 64,
+    #     "pin_memory": True,
+    #     "compile": False,
+    #     "prefetch_factor": 8,
+    #     "min_epochs": 30,
+    #     "max_epochs": 30,
+    #     "use_gradient_clipping": True,
+    #     "gradient_clip_val": 0.5,
+    #     "label_smoothing": 0.2,
+    #     "gradient_accumulation_steps": 2,
+    #     "optimizer": "adamw",
+    #     "activation": "gelu",  # Default activation choices are gelu, relu, glu, swiglu
+    #     "norm_type": "layer",  # Options: "layer" or "rms"
+    # }
     base_config = {
         "dataset": "wikitext",
-        "batch_size": 64,
-        "learning_rate": 0.0005,
+        "batch_size": 128,
+        "learning_rate": 0.0003,
         "min_lr": 0.0001,
         "lr_schedule": "inverse_sqrt",  # Options: "cosine", "cosine_warmup", "inverse_sqrt", "one_cycle", "transformer"
         "warmup_epochs": 3,  # For "cosine_warmup" and "inverse_sqrt"
         "warmup_epochs_frac": 0.2,  # 20% of total epochs as warmup
         "pct_start": 0.3,  # For "one_cycle" - percentage of training spent in warmup phase
         "weight_decay": 0.05,
-        "hidden_dim": 128,
+        "hidden_dim": 192,
         "num_layers": 8,
         "num_heads": 8,
         "dropout": 0.2,
         "seq_length": 128,
-        "wikitext_limit": 1000000,
+        "wikitext_limit": 2000000,
         "pos_encoding": "sinusoidal",
         "init_scheme": "transformer_scaled",
         "stride": 64,
         "pin_memory": True,
         "compile": False,
         "prefetch_factor": 8,
-        "min_epochs": 15,
-        "max_epochs": 15,
+        "min_epochs": 30,
+        "max_epochs": 30,
         "use_gradient_clipping": True,
         "gradient_clip_val": 0.5,
         "label_smoothing": 0.1,
-        "gradient_accumulation_steps": 4,
+        "gradient_accumulation_steps": 2,
         "optimizer": "adamw",
         "activation": "gelu",  # Default activation choices are gelu, relu, glu, swiglu
         "norm_type": "layer",  # Options: "layer" or "rms"
     }
 
     # Setup experiments
-    seeds = [42, 123, 789, 1000]
+    # long_seeds = [42, 123, 789, 1000]
+    seeds = [42, 789]
 
     # comparing activation functions
-    comparison_activation = {
+    # comparison_activation = {
+    #     "parameter": "activation",
+    #     "options": ["gelu", "relu", "swiglu"],
+    #     "base_changes": {
+    #         "gelu": {"activation": "gelu"},
+    #         "relu": {"activation": "relu"},
+    #         "swiglu": {"activation": "swiglu"},
+    #         "glu": {"activation": "glu"},
+    #     },
+    # }
+
+    short_comparison_activation = {
         "parameter": "activation",
         "options": ["gelu", "relu", "swiglu"],
         "base_changes": {
             "gelu": {"activation": "gelu"},
             "relu": {"activation": "relu"},
             "swiglu": {"activation": "swiglu"},
-            "glu": {"activation": "glu"},
         },
     }
     # comparing lr_schedulers
-    comparison_lr_schedule = {
+    # comparison_lr_schedule = {
+    #     "parameter": "lr_schedule",
+    #     "options": [
+    #         "cosine",
+    #         "cosine_warmup",
+    #         "inverse_sqrt",
+    #         "one_cycle",
+    #         "transformer",
+    #     ],
+    #     "base_changes": {
+    #         "cosine": {"lr_schedule": "cosine"},
+    #         "cosine_warmup": {"lr_schedule": "cosine_warmup"},
+    #         "inverse_sqrt": {"lr_schedule": "inverse_sqrt"},
+    #         "one_cycle": {"lr_schedule": "one_cycle"},
+    #         "transformer": {"lr_schedule": "transformer"},
+    #     },
+    # }
+    short_comparison_lr_schedule = {
         "parameter": "lr_schedule",
         "options": [
-            "cosine",
             "cosine_warmup",
             "inverse_sqrt",
             "one_cycle",
-            "transformer",
         ],
         "base_changes": {
-            "cosine": {"lr_schedule": "cosine"},
             "cosine_warmup": {"lr_schedule": "cosine_warmup"},
             "inverse_sqrt": {"lr_schedule": "inverse_sqrt"},
             "one_cycle": {"lr_schedule": "one_cycle"},
-            "transformer": {"lr_schedule": "transformer"},
         },
     }
     comparison_optimizer = {
@@ -1101,13 +1158,13 @@ if __name__ == "__main__":
     }
     comparison_dropout = {
         "parameter": "dropout",
-        "options": [0.0, 0.1],
+        "options": [0.0, 0.2],
         "base_changes": {
-            "0.0": {"dropout": 0.0},
-            "0.1": {"dropout": 0.1},
+            0.0: {"dropout": 0.0},
+            0.2: {"dropout": 0.2},
         },
     }
-    comparison = comparison_activation
+    comparison = comparison_dropout
     parameter = comparison["parameter"]
     options = comparison["options"]
     base_changes = comparison["base_changes"]
