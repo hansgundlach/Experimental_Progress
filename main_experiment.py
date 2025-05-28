@@ -21,6 +21,10 @@ from torch.nn.functional import scaled_dot_product_attention
 from torch.nn import LayerNorm, Linear, Dropout, ModuleList
 from transformers import GPT2Tokenizer
 import time  # Add at the top with other imports
+from transformers.models.llama.modeling_llama import (
+    LlamaRotaryEmbedding,
+    apply_rotary_pos_emb,
+)
 
 os.environ["WANDB_MODE"] = "offline"
 
@@ -228,6 +232,7 @@ class SimpleTransformerLayer(nn.Module):
         self.head_dim = hidden_dim // num_heads
         self.activation_type = config.activation
         self.dropout = nn.Dropout(dropout)
+        self.use_rotary = config.pos_encoding == "rotary"
 
         # Choose normalization type
         norm_layer = (
@@ -280,6 +285,12 @@ class SimpleTransformerLayer(nn.Module):
                     "Flash Attention not available, falling back to standard attention"
                 )
 
+        # Add rotary embedding if specified
+        if self.use_rotary:
+            self.rotary_emb = LlamaRotaryEmbedding(
+                self.head_dim, max_position_embeddings=config.seq_length, base=10000
+            )
+
     def standard_attention(self, q, k, v, dropout_p=0.0):
         # Standard scaled dot-product attention
         B, H, L, D = q.shape
@@ -297,6 +308,13 @@ class SimpleTransformerLayer(nn.Module):
         q, k, v = map(
             lambda t: t.view(B, L, self.num_heads, self.head_dim).transpose(1, 2), qkv
         )
+
+        # Apply rotary position embedding if enabled
+        if self.use_rotary:
+            # Create position ids for the sequence
+            position_ids = torch.arange(L, device=x.device).unsqueeze(0).expand(B, -1)
+            cos, sin = self.rotary_emb(v, position_ids)
+            q, k = apply_rotary_pos_emb(q, k, cos, sin)
 
         # Choose attention implementation based on device and availability
         if self.use_flash_attention and x.device.type == "cuda":
@@ -336,7 +354,6 @@ class SimpleTransformerLayer(nn.Module):
                     k,
                     v,
                     dropout_p=self.dropout.p if self.training else 0.0,
-                    is_causal=True,
                 )
 
         # Rest of the forward pass remains the same
@@ -359,7 +376,7 @@ class SimpleTransformer(nn.Module):
         super().__init__()
         self.embedding = nn.Embedding(vocab_size, hidden_dim)
 
-        # Add positional embeddings based on config
+        # MODIFY THIS SECTION - Add positional embeddings based on config
         self.pos_encoding = config.pos_encoding
         if self.pos_encoding == "sinusoidal":
             self.pos_emb = SinusoidalPositionalEmbedding(hidden_dim)
@@ -368,6 +385,11 @@ class SimpleTransformer(nn.Module):
             max_seq_len = config.seq_length
             self.pos_emb = nn.Parameter(torch.zeros(1, max_seq_len, hidden_dim))
             nn.init.normal_(self.pos_emb, std=0.01)
+        elif self.pos_encoding == "rotary":
+            # Rotary embeddings are handled in the attention layers
+            self.pos_emb = None
+        else:
+            raise ValueError(f"Unsupported positional encoding: {self.pos_encoding}")
 
         # Create transformer layers
         self.layers = ModuleList(
@@ -389,11 +411,12 @@ class SimpleTransformer(nn.Module):
         B, L = x.shape
         x = self.embedding(x)
 
-        # Apply positional encoding if configured
+        # MODIFY THIS SECTION - Apply positional encoding if configured
         if self.pos_encoding == "sinusoidal":
             x = self.pos_emb(x)
         elif self.pos_encoding == "learned":
             x = x + self.pos_emb[:, :L, :]
+        # rotary doesn't add anything here - it's handled in attention layers
 
         for layer in self.layers:
             x = layer(x)
@@ -1163,7 +1186,16 @@ if __name__ == "__main__":
             0.2: {"dropout": 0.2},
         },
     }
-    comparison = comparison_init_scheme
+    comparison_pos_encoding = {
+        "parameter": "pos_encoding",
+        "options": ["sinusoidal", "learned", "rotary"],
+        "base_changes": {
+            "sinusoidal": {"pos_encoding": "sinusoidal"},
+            "learned": {"pos_encoding": "learned"},
+            "rotary": {"pos_encoding": "rotary"},
+        },
+    }
+    comparison = comparison_pos_encoding
     parameter = comparison["parameter"]
     options = comparison["options"]
     base_changes = comparison["base_changes"]
