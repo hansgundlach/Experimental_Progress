@@ -9,6 +9,7 @@ import os
 from collections import Counter
 from typing import Dict, List, Tuple
 from transformers import GPT2Tokenizer
+from torch.profiler import profile, record_function, ProfilerActivity
 
 # Configuration
 CONFIG = {
@@ -108,48 +109,82 @@ class FLOPCounter:
         self.tokenizer = tokenizer
         self.vocab_size = len(tokenizer)
         self.total_flops = 0
+        self.flops_per_batch = None  # Will be set after profiling one batch
+        self.profiled = False
 
-    def count_lstm_flops(self, batch_size: int, sequence_length: int) -> int:
-        """Count FLOPs for LSTM layer"""
+    def profile_one_batch(self, inputs, targets, hidden, optimizer, criterion):
+        """Profile one batch to get accurate FLOP count, then use for extrapolation"""
+        print("  [PROFILER] Profiling one batch to determine FLOPs per batch...")
+
+        with profile(
+            activities=[ProfilerActivity.CPU, ProfilerActivity.CUDA],
+            record_shapes=True,
+            with_flops=True,
+        ) as prof:
+            with record_function("forward_pass"):
+                outputs, _ = self.model(inputs, hidden)
+                outputs = outputs.view(-1, self.model.vocab_size)
+                targets_reshaped = targets.view(-1)
+                loss = criterion(outputs, targets_reshaped)
+
+            with record_function("backward_pass"):
+                optimizer.zero_grad()
+                loss.backward()
+                optimizer.step()
+
+        # Extract FLOP count from profiler
+        total_flops = 0
+        flop_events = 0
+        for evt in prof.events():
+            if evt.flops is not None and evt.flops > 0:
+                total_flops += evt.flops
+                flop_events += 1
+
+        if flop_events > 0:
+            self.flops_per_batch = total_flops
+            print(
+                f"  [PROFILER] Found {flop_events} FLOP events, FLOPs per batch: {self.flops_per_batch:.2e}"
+            )
+        else:
+            # Fallback to manual calculation
+            batch_size, sequence_length = inputs.size()
+            self.flops_per_batch = (
+                self.count_forward_flops_manual(batch_size, sequence_length) * 3
+            )
+            print(
+                f"  [PROFILER] No FLOP events found, using manual estimate: {self.flops_per_batch:.2e}"
+            )
+
+        self.profiled = True
+        self.total_flops += self.flops_per_batch
+        return loss
+
+    def count_forward_flops_manual(self, batch_size: int, sequence_length: int) -> int:
+        """Count total FLOPs for one forward pass (manual approximation)"""
         hidden_size = self.config["hidden_size"]
         num_layers = self.config["num_layers"]
 
-        # LSTM has 4 gates (input, forget, cell, output)
-        # Each gate: input_size * hidden_size + hidden_size * hidden_size + hidden_size (bias)
-        # For each timestep and layer
-
+        # LSTM FLOPs
         flops_per_gate = (
             (hidden_size * hidden_size) + (hidden_size * hidden_size) + hidden_size
         )
         flops_per_timestep = 4 * flops_per_gate  # 4 gates
         flops_per_layer = flops_per_timestep * sequence_length
-        total_lstm_flops = flops_per_layer * num_layers * batch_size
+        lstm_flops = flops_per_layer * num_layers * batch_size
 
-        return total_lstm_flops
+        # Embedding FLOPs (minimal)
+        embedding_flops = batch_size * sequence_length
 
-    def count_embedding_flops(self, batch_size: int, sequence_length: int) -> int:
-        """Count FLOPs for embedding layer (mainly memory access, minimal compute)"""
-        return batch_size * sequence_length  # Simplified
-
-    def count_linear_flops(self, batch_size: int, sequence_length: int) -> int:
-        """Count FLOPs for final linear layer"""
-        hidden_size = self.config["hidden_size"]
-        return batch_size * sequence_length * hidden_size * self.vocab_size
-
-    def count_forward_flops(self, batch_size: int, sequence_length: int) -> int:
-        """Count total FLOPs for one forward pass"""
-        embedding_flops = self.count_embedding_flops(batch_size, sequence_length)
-        lstm_flops = self.count_lstm_flops(batch_size, sequence_length)
-        linear_flops = self.count_linear_flops(batch_size, sequence_length)
+        # Linear layer FLOPs
+        linear_flops = batch_size * sequence_length * hidden_size * self.vocab_size
 
         return embedding_flops + lstm_flops + linear_flops
 
-    def add_batch_flops(self, batch_size: int, sequence_length: int):
-        """Add FLOPs for one batch (forward + backward ≈ 3x forward)"""
-        forward_flops = self.count_forward_flops(batch_size, sequence_length)
-        total_batch_flops = forward_flops * 3  # Approximate backward pass
-        self.total_flops += total_batch_flops
-        return total_batch_flops
+    def add_batch_flops(self):
+        """Add FLOPs for one batch using the profiled value"""
+        if self.flops_per_batch is not None:
+            self.total_flops += self.flops_per_batch
+        return self.flops_per_batch
 
 
 def load_and_preprocess_data(
@@ -271,6 +306,7 @@ def train_model(config: Dict):
 
     print(f"Model parameters: {sum(p.numel() for p in model.parameters()):,}")
     print(f"Training on {len(train_loader)} batches per epoch")
+    print(f"FLOP counting method: Profile first batch, then extrapolate")
 
     # Training loop
     for epoch in range(config["num_epochs"]):
@@ -283,26 +319,31 @@ def train_model(config: Dict):
             inputs, targets = inputs.to(device), targets.to(device)
             batch_size, sequence_length = inputs.size()
 
-            # Zero gradients
-            optimizer.zero_grad()
-
-            # Forward pass
+            # Initialize hidden state
             hidden = model.init_hidden(batch_size, device)
-            outputs, _ = model(inputs, hidden)
 
-            # Reshape for loss calculation
-            outputs = outputs.view(-1, model.vocab_size)
-            targets = targets.view(-1)
+            # Profile first batch, then extrapolate for the rest
+            if not flop_counter.profiled:
+                # Profile the first batch to get accurate FLOP count
+                loss = flop_counter.profile_one_batch(
+                    inputs, targets, hidden, optimizer, criterion
+                )
+            else:
+                # Use profiled FLOP count and do normal training
+                flop_counter.add_batch_flops()
 
-            # Calculate loss
-            loss = criterion(outputs, targets)
+                # Normal training step
+                optimizer.zero_grad()
 
-            # Backward pass
-            loss.backward()
-            optimizer.step()
+                # Forward pass
+                outputs, _ = model(inputs, hidden)
+                outputs = outputs.view(-1, model.vocab_size)
+                targets_reshaped = targets.view(-1)
+                loss = criterion(outputs, targets_reshaped)
 
-            # Update FLOP counter
-            batch_flops = flop_counter.add_batch_flops(batch_size, sequence_length)
+                # Backward pass
+                loss.backward()
+                optimizer.step()
 
             # Update epoch statistics
             epoch_loss += loss.item()
@@ -310,11 +351,12 @@ def train_model(config: Dict):
 
             # Print batch statistics
             if batch_idx % config["print_every"] == 0:
+                method = "Profiled" if flop_counter.profiled else "Profiling"
                 print(
                     f"Epoch {epoch+1}/{config['num_epochs']}, "
                     f"Batch {batch_idx}/{len(train_loader)}, "
                     f"Loss: {loss.item():.4f}, "
-                    f"Total FLOPs: {flop_counter.total_flops:.2e}"
+                    f"Total FLOPs: {flop_counter.total_flops:.2e} [{method}]"
                 )
 
         # Calculate epoch statistics
@@ -336,9 +378,7 @@ def train_model(config: Dict):
         print(f"  Validation Loss: {val_loss:.4f} (Perplexity: {val_perplexity:.2f})")
         print(f"  Epoch Time: {epoch_time:.2f}s")
         print(f"  Total FLOPs: {flop_counter.total_flops:.2e}")
-        print(
-            f"  FLOPs per second: {flop_counter.total_flops/sum([time.time() - epoch_start_time for _ in range(epoch+1)]):.2e}"
-        )
+        print(f"  FLOPs per second: {flop_counter.total_flops/epoch_time:.2e}")
         print("-" * 60)
 
         # Log to wandb

@@ -1063,8 +1063,8 @@ if __name__ == "__main__":
         "pin_memory": True,
         "compile": False,
         "prefetch_factor": 8,
-        "min_epochs": 30,
-        "max_epochs": 30,
+        "min_epochs": 2,
+        "max_epochs": 2,
         "use_gradient_clipping": True,
         "gradient_clip_val": 0.5,
         "label_smoothing": 0.1,
@@ -1164,7 +1164,7 @@ if __name__ == "__main__":
             0.2: {"dropout": 0.2},
         },
     }
-    comparison = comparison_dropout
+    comparison = comparison_init_scheme
     parameter = comparison["parameter"]
     options = comparison["options"]
     base_changes = comparison["base_changes"]
