@@ -483,14 +483,14 @@ def train(gpu_id=None):
     )
 
     # Apply initialization based on config.init_scheme
-    if config.init_scheme == "xavier_normal":
+    if config.init_scheme == "xavier_uniform":
         for module in model.modules():
             if isinstance(module, nn.Linear):
-                nn.init.xavier_normal_(module.weight, gain=1.0)
+                nn.init.xavier_uniform_(module.weight, gain=1.0)
                 if module.bias is not None:
                     nn.init.zeros_(module.bias)
             elif isinstance(module, nn.Embedding):
-                nn.init.xavier_normal_(module.weight, gain=1.0)
+                nn.init.xavier_uniform_(module.weight, gain=1.0)
 
     elif config.init_scheme == "kaiming_normal":
         for module in model.modules():
@@ -546,7 +546,7 @@ def train(gpu_id=None):
 
         # Initialize positional embedding if using learned positional embeddings
         if model.pos_encoding == "learned" and hasattr(model, "pos_emb"):
-            nn.init.normal_(modelçç.pos_emb, mean=0.0, std=init_scale)
+            nn.init.normal_(model.pos_emb, mean=0.0, std=init_scale)
 
         # Initialize final layer with small weights
         nn.init.normal_(
@@ -1063,8 +1063,8 @@ if __name__ == "__main__":
         "pin_memory": True,
         "compile": False,
         "prefetch_factor": 8,
-        "min_epochs": 2,
-        "max_epochs": 2,
+        "min_epochs": 30,
+        "max_epochs": 30,
         "use_gradient_clipping": True,
         "gradient_clip_val": 0.5,
         "label_smoothing": 0.1,
@@ -1141,10 +1141,9 @@ if __name__ == "__main__":
     }
     comparison_init_scheme = {
         "parameter": "init_scheme",
-        "options": ["transformer_scaled", "transformer_uniform", "xavier_uniform"],
+        "options": ["transformer_scaled", "xavier_uniform"],
         "base_changes": {
             "transformer_scaled": {"init_scheme": "transformer_scaled"},
-            "transformer_uniform": {"init_scheme": "transformer_uniform"},
             "xavier_uniform": {"init_scheme": "xavier_uniform"},
         },
     }
