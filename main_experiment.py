@@ -1099,7 +1099,7 @@ if __name__ == "__main__":
 
     # Setup experiments
     # long_seeds = [42, 123, 789, 1000]
-    seeds = [42, 789]
+    seeds = [789]
 
     # comparing activation functions
     # comparison_activation = {
@@ -1195,7 +1195,7 @@ if __name__ == "__main__":
             "rotary": {"pos_encoding": "rotary"},
         },
     }
-    comparison = comparison_pos_encoding
+    comparison = short_comparison_activation
     parameter = comparison["parameter"]
     options = comparison["options"]
     base_changes = comparison["base_changes"]
