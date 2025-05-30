@@ -2,8 +2,8 @@ from datasets import load_dataset
 from pathlib import Path
 from transformers import GPT2Tokenizer
 
-# Download the official wikitext-2 dataset
-dataset = load_dataset("wikitext", "wikitext-2-raw-v1", split="train")
+# Download the official wikitext-103 dataset (much larger!)
+dataset = load_dataset("wikitext", "wikitext-103-raw-v1", split="train")
 
 # Create directory if it doesn't exist
 Path("Datasets").mkdir(exist_ok=True)

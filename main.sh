@@ -54,6 +54,6 @@ python check_gpu.py || exit 1
 
 # Run the main experiment
 echo "Running main experiment..."
-python main_experiment.py --device cuda:0 2>&1 | tee "$LOG_DIR/$SLURM_JOB_ID.log"
+python experiments.py --device cuda:0 2>&1 | tee "$LOG_DIR/$SLURM_JOB_ID.log"
 
 echo "Job ended at $(date)"

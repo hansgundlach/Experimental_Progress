@@ -10,6 +10,11 @@ from pathlib import Path
 import random
 import os
 import copy
+import datetime
+import csv
+import multiprocessing as mp
+from torch.cuda.amp import autocast, GradScaler
+import torch.profiler
 from torch.nn.functional import scaled_dot_product_attention
 from torch.nn import LayerNorm, Linear, Dropout, ModuleList
 from transformers import GPT2Tokenizer
@@ -18,40 +23,8 @@ from transformers.models.llama.modeling_llama import (
     LlamaRotaryEmbedding,
     apply_rotary_pos_emb,
 )
-from torch.cuda.amp import autocast, GradScaler
-import torch.profiler
-import multiprocessing as mp
 
 os.environ["WANDB_MODE"] = "offline"
-
-import torch
-import torch.nn as nn
-import torch.optim as optim
-from torch.utils.data import DataLoader, Dataset
-import wandb
-import numpy as np
-import math
-import requests
-from pathlib import Path
-import random
-import os
-import datetime
-import wandb
-import csv
-import multiprocessing as mp
-from torch.cuda.amp import autocast, GradScaler
-import torch.profiler
-
-# amp stands for automatic mixed precision
-import copy
-from torch.nn.functional import scaled_dot_product_attention
-from torch.nn import LayerNorm, Linear, Dropout, ModuleList
-from transformers import GPT2Tokenizer
-import time  # Add at the top with other imports
-from transformers.models.llama.modeling_llama import (
-    LlamaRotaryEmbedding,
-    apply_rotary_pos_emb,
-)
 
 os.environ["WANDB_MODE"] = "offline"
 

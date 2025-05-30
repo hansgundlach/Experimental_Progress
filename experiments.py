@@ -103,39 +103,71 @@ if __name__ == "__main__":
     #     "activation": "gelu",  # Default activation choices are gelu, relu, glu, swiglu
     #     "norm_type": "layer",  # Options: "layer" or "rms"
     # }
+
+    # normal config
+    # base_config = {
+    #     "dataset": "wikitext",
+    #     "batch_size": 96,  # Smaller batches
+    #     "learning_rate": 3e-4,  # Much lower LR
+    #     "min_lr": 1e-5,
+    #     "lr_schedule": "cosine_warmup",
+    #     "warmup_epochs": 3,
+    #     "warmup_epochs_frac": 0.15,
+    #     "pct_start": 0.3,
+    #     "weight_decay": 0.05,  # Much more reasonable
+    #     "hidden_dim": 256,  # Larger model
+    #     "num_layers": 6,  # Slightly smaller depth
+    #     "num_heads": 8,
+    #     "dropout": 0.1,  # Much more reasonable
+    #     "seq_length": 128,  # Longer context
+    #     "wikitext_limit": 5000000,  # Less data to prevent memorization
+    #     "pos_encoding": "rotary",
+    #     "init_scheme": "xavier_uniform",
+    #     "stride": 32,  # Half of seq_length for 50% overlap
+    #     "pin_memory": True,
+    #     "compile": False,
+    #     "prefetch_factor": 8,
+    #     "min_epochs": 30,  # More epochs to see proper learning
+    #     "max_epochs": 30,
+    #     "use_gradient_clipping": True,
+    #     "gradient_clip_val": 1.0,
+    #     "label_smoothing": 0.05,  # Mild smoothing
+    #     "gradient_accumulation_steps": 4,  # Larger effective batch
+    #     "optimizer": "adam",
+    #     "activation": "gelu",
+    #     "norm_type": "layer",
+    # }
     base_config = {
         "dataset": "wikitext",
-        "batch_size": 96,  # Smaller batches
-        "learning_rate": 3e-4,  # Much lower LR
+        "batch_size": 128,  # Larger batches (Chinchilla used big batches)
+        "learning_rate": 6e-4,  # Scale with batch size (sqrt scaling)
         "min_lr": 1e-5,
         "lr_schedule": "cosine_warmup",
-        "warmup_epochs": 3,
-        "warmup_epochs_frac": 0.15,
-        "pct_start": 0.3,
-        "weight_decay": 0.05,  # Much more reasonable
-        "hidden_dim": 256,  # Larger model
-        "num_layers": 6,  # Slightly smaller depth
-        "num_heads": 8,
-        "dropout": 0.1,  # Much more reasonable
-        "seq_length": 128,  # Longer context
-        "wikitext_limit": 4000000,  # Less data to prevent memorization
+        "warmup_epochs": 5,
+        "warmup_epochs_frac": 0.1,  # Shorter warmup
+        "weight_decay": 0.1,  # Standard Chinchilla weight decay
+        "hidden_dim": 64,  # Much smaller model
+        "num_layers": 6,  # Fewer layers
+        "num_heads": 8,  # Keep heads (64/8 = 8 dim per head)
+        "dropout": 0.0,  # Chinchilla used little/no dropout
+        "seq_length": 256,  # Longer sequences (better data efficiency)
+        "wikitext_limit": 10**8,  # Use ALL of WikiText-103!
         "pos_encoding": "rotary",
-        "init_scheme": "xavier_uniform",
-        "stride": 32,  # Half of seq_length for 50% overlap
+        "init_scheme": "transformer_scaled",
+        "stride": 128,  # 50% overlap
         "pin_memory": True,
         "compile": False,
         "prefetch_factor": 8,
-        "min_epochs": 30,  # More epochs to see proper learning
-        "max_epochs": 30,
+        "min_epochs": 10,  # MANY more epochs (see data 10-20x)
+        "max_epochs": 10,
         "use_gradient_clipping": True,
         "gradient_clip_val": 1.0,
-        "label_smoothing": 0.05,  # Mild smoothing
-        "gradient_accumulation_steps": 4,  # Larger effective batch
-        "optimizer": "adam",
+        "label_smoothing": 0.0,  # Chinchilla didn't use this
+        "gradient_accumulation_steps": 2,
+        "optimizer": "adamw",  # Chinchilla used AdamW
         "activation": "gelu",
         "norm_type": "layer",
     }
-
     # Setup experiments
     # long_seeds = [42, 123, 789, 1000]
     seeds = [789, 123]
