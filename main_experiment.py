@@ -14,6 +14,7 @@ import wandb
 import csv
 import multiprocessing as mp
 from torch.cuda.amp import autocast, GradScaler
+import torch.profiler
 
 # amp stands for automatic mixed precision
 import copy
@@ -691,43 +692,79 @@ def train(gpu_id=None):
         scheduler = None
         scheduler_type = None
 
-    # Create a descriptive name
-    # Create a descriptive name with timestamp
+    # === Prepare profiler log directory and estimate FLOPs per training step ===
+    profiler_dir = "profiler_logs"
+    os.makedirs(profiler_dir, exist_ok=True)
 
-    timestamp = datetime.datetime.now().strftime("%m%d_%H%M")
-    run_name = f"{config.num_layers}L-{config.activation}-{config.pos_encoding}-{config.hidden_dim}d-{config.optimizer}-{config.lr_schedule}-{timestamp}"
+    # === Estimate FLOPs per training step (forward+backward+optimizer) ===
+    # Grab a single batch
+    data_batch, target_batch = next(iter(train_dataloader))
+    data_batch, target_batch = data_batch.to(device), target_batch.to(device)
+    # Zero grads and profile one full train step
+    optimizer.zero_grad()
+    with torch.profiler.profile(
+        activities=[
+            torch.profiler.ProfilerActivity.CPU,
+            torch.profiler.ProfilerActivity.CUDA,
+        ],
+        with_flops=True,
+    ) as prof:
+        # forward
+        output = model(data_batch)
+        output = output[:, :-1, :].contiguous().view(-1, primary_tokenizer.vocab_size)
+        tgt = target_batch[:, :-1].contiguous().view(-1)
+        loss = criterion(output, tgt)
+        # backward + step
+        loss.backward()
+        optimizer.step()
+    # Sum up the FLOPs and extrapolate to full run
+    flops_per_step = sum(
+        evt.flops for evt in prof.key_averages() if hasattr(evt, "flops")
+    )
+    steps_per_epoch = len(train_dataloader) // config.gradient_accumulation_steps
+    total_steps = steps_per_epoch * config.max_epochs
+    total_flops = flops_per_step * total_steps
+    flops_per_epoch = flops_per_step * steps_per_epoch
+    print(f"\n==== FLOPs per step: {flops_per_step:.2e}")
+    print(f"==== FLOPs per epoch: {flops_per_epoch:.2e}")
+    print(
+        f"==== Estimated total training FLOPs: {total_flops:.2e} ({total_steps} steps) ====\n"
+    )
 
-    # Set the run name
-    wandb.run.name = run_name
-    wandb.run.save()
-
+    # Initialize training variables
     best_val_loss = float("inf")
-    best_model_state = None
-    patience = 15  # Increased patience
     patience_counter = 0
-    min_delta = 1e-4  # Minimum improvement threshold
-    # min_epochs = 20  # Minimum number of epochs before early stopping
+    min_delta = 1e-4
+    patience = 10
+    best_model_state = None
 
+    # now continue with your normal epoch loop
+    # initialize step counter before it's used below
     global_step = 0
-
     for epoch in range(config.max_epochs):
-        # Training phase
         model.train()
         total_loss = 0
 
-        # Initialize metrics dictionary
-        metrics = {
-            "epoch": epoch,
-            "optimizer": config.optimizer,
-            "dataset": "wikitext",
-        }
+        if epoch == 0:
+            profiler = torch.profiler.profile(
+                activities=[
+                    torch.profiler.ProfilerActivity.CPU,
+                    torch.profiler.ProfilerActivity.CUDA,
+                ],
+                schedule=torch.profiler.schedule(wait=0, warmup=0, active=1),
+                on_trace_ready=torch.profiler.tensorboard_trace_handler(profiler_dir),
+                record_shapes=False,
+                profile_memory=False,
+                with_stack=False,
+                with_flops=True,  # <-- enable FLOPS counting
+            )
+            profiler.start()
 
         for batch_idx, (data, target) in enumerate(train_dataloader):
             data, target = data.to(device), target.to(device)
 
-            # Forward pass and compute raw and scaled losses
-            if use_amp:
-                with autocast():
+            if epoch == 0 and batch_idx == 0:
+                with profiler:
                     output = model(data)
                     # drop last position, flatten for loss
                     output = (
@@ -739,17 +776,33 @@ def train(gpu_id=None):
                     raw_loss = criterion(output, target_flat)
                     scaled_loss = raw_loss / config.gradient_accumulation_steps
                 scaler.scale(scaled_loss).backward()
+
             else:
-                output = model(data)
-                output = (
-                    output[:, :-1, :]
-                    .contiguous()
-                    .view(-1, primary_tokenizer.vocab_size)
-                )
-                target_flat = target[:, :-1].contiguous().view(-1)
-                raw_loss = criterion(output, target_flat)
-                scaled_loss = raw_loss / config.gradient_accumulation_steps
-                scaled_loss.backward()
+                # Forward pass and compute raw and scaled losses
+                if use_amp:
+                    with autocast():
+                        output = model(data)
+                        # drop last position, flatten for loss
+                        output = (
+                            output[:, :-1, :]
+                            .contiguous()
+                            .view(-1, primary_tokenizer.vocab_size)
+                        )
+                        target_flat = target[:, :-1].contiguous().view(-1)
+                        raw_loss = criterion(output, target_flat)
+                        scaled_loss = raw_loss / config.gradient_accumulation_steps
+                    scaler.scale(scaled_loss).backward()
+                else:
+                    output = model(data)
+                    output = (
+                        output[:, :-1, :]
+                        .contiguous()
+                        .view(-1, primary_tokenizer.vocab_size)
+                    )
+                    target_flat = target[:, :-1].contiguous().view(-1)
+                    raw_loss = criterion(output, target_flat)
+                    scaled_loss = raw_loss / config.gradient_accumulation_steps
+                    scaled_loss.backward()
 
             # Only update weights after accumulating gradients
             if (batch_idx + 1) % config.gradient_accumulation_steps == 0:
@@ -792,7 +845,12 @@ def train(gpu_id=None):
 
         # Update metrics with loss after training loop
         avg_loss = total_loss / len(train_dataloader)
-        metrics.update({"train_loss": avg_loss})
+        metrics = {
+            "epoch": epoch,
+            "optimizer": config.optimizer,
+            "dataset": "wikitext",
+            "train_loss": avg_loss,
+        }
 
         # Validation phase
         model.eval()
@@ -883,6 +941,14 @@ def train(gpu_id=None):
 
         # Update print statement to include validation loss
         print(f"Epoch {epoch}: Train Loss = {avg_loss:.4f}, Val Loss = {val_loss:.4f}")
+
+        if epoch == 0 and batch_idx == 0:
+            profiler.step()
+            profiler.stop()
+            # extract and print total FLOPS for this batch
+            ka = profiler.key_averages()
+            total_flops = sum(evt.flops for evt in ka if hasattr(evt, "flops"))
+            print(f"**** Total FLOPS for batch 0: {total_flops:,} ****")
 
     # At the end of training, return the final values
     return {"val_loss": val_loss, "best_val_loss": best_val_loss}
