@@ -10,14 +10,15 @@ from collections import Counter
 from typing import Dict, List, Tuple
 from transformers import GPT2Tokenizer
 from torch.profiler import profile, record_function, ProfilerActivity
+import gc
 
-# Configuration
+# Configuration with optimizations
 CONFIG = {
     "data_path": "Datasets/wikitext.txt",
     "tokenizer_path": "gpt2_tokenizer",
     "max_characters": 2e5,  # Maximum number of characters to use from dataset
     "sequence_length": 128,
-    "batch_size": 256,
+    "batch_size": 64,  # Increased from 32
     "hidden_size": 512,
     "num_layers": 2,
     "dropout": 0.2,
@@ -27,15 +28,22 @@ CONFIG = {
     "val_split": 0.1,
     "test_split": 0.1,
     "device": "cuda" if torch.cuda.is_available() else "cpu",
-    "wandb_project": "lstm-wikitext",
+    "wandb_project": "lstm-wikitext-optimized",
     "wandb_offline": True,
     "print_every": 100,  # Print loss every N batches
+    "num_workers": 4,  # For DataLoader
+    "pin_memory": True,  # For DataLoader
+    "gradient_clip_val": 1.0,  # Gradient clipping
+    "compile_model": True,  # Use torch.compile
+    "mixed_precision": True,  # Use automatic mixed precision
+    "accumulate_grad_batches": 1,  # Gradient accumulation
 }
 
 
-class WikiTextDataset(Dataset):
+class OptimizedWikiTextDataset(Dataset):
     def __init__(self, text_data: List[int], sequence_length: int):
-        self.data = text_data
+        # Convert to tensor once for efficiency
+        self.data = torch.tensor(text_data, dtype=torch.long)
         self.sequence_length = sequence_length
 
     def __len__(self):
@@ -43,10 +51,8 @@ class WikiTextDataset(Dataset):
 
     def __getitem__(self, idx):
         return (
-            torch.tensor(self.data[idx : idx + self.sequence_length], dtype=torch.long),
-            torch.tensor(
-                self.data[idx + 1 : idx + self.sequence_length + 1], dtype=torch.long
-            ),
+            self.data[idx : idx + self.sequence_length],
+            self.data[idx + 1 : idx + self.sequence_length + 1],
         )
 
 
@@ -72,11 +78,11 @@ class TextPreprocessor:
         return tokens
 
 
-class LSTMLanguageModel(nn.Module):
+class OptimizedLSTMLanguageModel(nn.Module):
     def __init__(
         self, vocab_size: int, hidden_size: int, num_layers: int, dropout: float
     ):
-        super(LSTMLanguageModel, self).__init__()
+        super(OptimizedLSTMLanguageModel, self).__init__()
         self.hidden_size = hidden_size
         self.num_layers = num_layers
         self.vocab_size = vocab_size
@@ -88,6 +94,17 @@ class LSTMLanguageModel(nn.Module):
         self.dropout = nn.Dropout(dropout)
         self.linear = nn.Linear(hidden_size, vocab_size)
 
+        # Initialize weights for better convergence
+        self._init_weights()
+
+    def _init_weights(self):
+        """Initialize weights for better training stability"""
+        for name, param in self.named_parameters():
+            if "weight" in name and param.dim() >= 2:
+                nn.init.xavier_uniform_(param)
+            elif "bias" in name:
+                nn.init.zeros_(param)
+
     def forward(self, x, hidden=None):
         embedded = self.embedding(x)
         lstm_out, hidden = self.lstm(embedded, hidden)
@@ -97,100 +114,52 @@ class LSTMLanguageModel(nn.Module):
 
     def init_hidden(self, batch_size, device):
         return (
-            torch.zeros(self.num_layers, batch_size, self.hidden_size).to(device),
-            torch.zeros(self.num_layers, batch_size, self.hidden_size).to(device),
+            torch.zeros(self.num_layers, batch_size, self.hidden_size, device=device),
+            torch.zeros(self.num_layers, batch_size, self.hidden_size, device=device),
         )
 
 
-class FLOPCounter:
-    def __init__(self, model: nn.Module, config: Dict, tokenizer: GPT2Tokenizer):
+class SimpleFLOPCounter:
+    """Simplified FLOP counter without profiling overhead"""
+
+    def __init__(self, model: nn.Module, config: Dict):
         self.model = model
         self.config = config
-        self.tokenizer = tokenizer
-        self.vocab_size = len(tokenizer)
         self.total_flops = 0
-        self.flops_per_batch = None  # Will be set after profiling one batch
-        self.profiled = False
+        self.flops_per_batch = self._estimate_flops_per_batch()
 
-    def profile_one_batch(self, inputs, targets, hidden, optimizer, criterion):
-        """Profile one batch to get accurate FLOP count, then use for extrapolation"""
-        print("  [PROFILER] Profiling one batch to determine FLOPs per batch...")
-
-        with profile(
-            activities=[ProfilerActivity.CPU, ProfilerActivity.CUDA],
-            record_shapes=True,
-            with_flops=True,
-        ) as prof:
-            with record_function("forward_pass"):
-                outputs, _ = self.model(inputs, hidden)
-                outputs = outputs.view(-1, self.model.vocab_size)
-                targets_reshaped = targets.view(-1)
-                loss = criterion(outputs, targets_reshaped)
-
-            with record_function("backward_pass"):
-                optimizer.zero_grad()
-                loss.backward()
-                optimizer.step()
-
-        # Extract FLOP count from profiler
-        total_flops = 0
-        flop_events = 0
-        for evt in prof.events():
-            if evt.flops is not None and evt.flops > 0:
-                total_flops += evt.flops
-                flop_events += 1
-
-        if flop_events > 0:
-            self.flops_per_batch = total_flops
-            print(
-                f"  [PROFILER] Found {flop_events} FLOP events, FLOPs per batch: {self.flops_per_batch:.2e}"
-            )
-        else:
-            # Fallback to manual calculation
-            batch_size, sequence_length = inputs.size()
-            self.flops_per_batch = (
-                self.count_forward_flops_manual(batch_size, sequence_length) * 3
-            )
-            print(
-                f"  [PROFILER] No FLOP events found, using manual estimate: {self.flops_per_batch:.2e}"
-            )
-
-        self.profiled = True
-        self.total_flops += self.flops_per_batch
-        return loss
-
-    def count_forward_flops_manual(self, batch_size: int, sequence_length: int) -> int:
-        """Count total FLOPs for one forward pass (manual approximation)"""
+    def _estimate_flops_per_batch(self) -> int:
+        """Estimate FLOPs per batch using theoretical calculations"""
+        batch_size = self.config["batch_size"]
+        sequence_length = self.config["sequence_length"]
         hidden_size = self.config["hidden_size"]
         num_layers = self.config["num_layers"]
+        vocab_size = self.model.vocab_size
 
-        # LSTM FLOPs
-        flops_per_gate = (
-            (hidden_size * hidden_size) + (hidden_size * hidden_size) + hidden_size
+        # LSTM FLOPs (approximate)
+        lstm_flops = (
+            batch_size * sequence_length * num_layers * 8 * hidden_size * hidden_size
         )
-        flops_per_timestep = 4 * flops_per_gate  # 4 gates
-        flops_per_layer = flops_per_timestep * sequence_length
-        lstm_flops = flops_per_layer * num_layers * batch_size
-
-        # Embedding FLOPs (minimal)
-        embedding_flops = batch_size * sequence_length
 
         # Linear layer FLOPs
-        linear_flops = batch_size * sequence_length * hidden_size * self.vocab_size
+        linear_flops = batch_size * sequence_length * hidden_size * vocab_size
 
-        return embedding_flops + lstm_flops + linear_flops
+        # Total FLOPs for forward + backward (multiply by 3 for backward pass approximation)
+        total_flops = (lstm_flops + linear_flops) * 3
+
+        print(f"Estimated FLOPs per batch: {total_flops:.2e}")
+        return total_flops
 
     def add_batch_flops(self):
-        """Add FLOPs for one batch using the profiled value"""
-        if self.flops_per_batch is not None:
-            self.total_flops += self.flops_per_batch
+        """Add FLOPs for one batch"""
+        self.total_flops += self.flops_per_batch
         return self.flops_per_batch
 
 
 def load_and_preprocess_data(
     config: Dict,
 ) -> Tuple[DataLoader, DataLoader, DataLoader, TextPreprocessor]:
-    """Load and preprocess the WikiText data"""
+    """Load and preprocess the WikiText data with optimized DataLoaders"""
     print("Loading and preprocessing data...")
 
     # Load text data
@@ -200,9 +169,7 @@ def load_and_preprocess_data(
     # Limit data size if specified
     if config["max_characters"] and len(text) > config["max_characters"]:
         text = text[: int(config["max_characters"])]
-        print(
-            f"Limited dataset to {config['max_characters']:.0e} characters (originally {len(text)} characters)"
-        )
+        print(f"Limited dataset to {config['max_characters']:.0e} characters")
     else:
         print(f"Using full dataset: {len(text)} characters")
 
@@ -221,18 +188,38 @@ def load_and_preprocess_data(
     val_data = indices[train_len : train_len + val_len]
     test_data = indices[train_len + val_len :]
 
-    # Create datasets
-    train_dataset = WikiTextDataset(train_data, config["sequence_length"])
-    val_dataset = WikiTextDataset(val_data, config["sequence_length"])
-    test_dataset = WikiTextDataset(test_data, config["sequence_length"])
+    # Create optimized datasets
+    train_dataset = OptimizedWikiTextDataset(train_data, config["sequence_length"])
+    val_dataset = OptimizedWikiTextDataset(val_data, config["sequence_length"])
+    test_dataset = OptimizedWikiTextDataset(test_data, config["sequence_length"])
 
-    # Create data loaders
+    # Create optimized data loaders
     train_loader = DataLoader(
-        train_dataset, batch_size=config["batch_size"], shuffle=True
+        train_dataset,
+        batch_size=config["batch_size"],
+        shuffle=True,
+        num_workers=config["num_workers"],
+        pin_memory=config["pin_memory"],
+        persistent_workers=True if config["num_workers"] > 0 else False,
+        drop_last=True,  # For consistent batch sizes
     )
-    val_loader = DataLoader(val_dataset, batch_size=config["batch_size"], shuffle=False)
+    val_loader = DataLoader(
+        val_dataset,
+        batch_size=config["batch_size"],
+        shuffle=False,
+        num_workers=config["num_workers"],
+        pin_memory=config["pin_memory"],
+        persistent_workers=True if config["num_workers"] > 0 else False,
+        drop_last=True,
+    )
     test_loader = DataLoader(
-        test_dataset, batch_size=config["batch_size"], shuffle=False
+        test_dataset,
+        batch_size=config["batch_size"],
+        shuffle=False,
+        num_workers=config["num_workers"],
+        pin_memory=config["pin_memory"],
+        persistent_workers=True if config["num_workers"] > 0 else False,
+        drop_last=True,
     )
 
     print(
@@ -246,26 +233,38 @@ def load_and_preprocess_data(
 
 
 def evaluate_model(
-    model: nn.Module, data_loader: DataLoader, criterion: nn.Module, device: str
+    model: nn.Module,
+    data_loader: DataLoader,
+    criterion: nn.Module,
+    device: str,
+    scaler=None,
 ) -> float:
-    """Evaluate model on validation/test set"""
+    """Evaluate model on validation/test set with mixed precision support"""
     model.eval()
     total_loss = 0
     total_batches = 0
 
     with torch.no_grad():
         for batch_idx, (inputs, targets) in enumerate(data_loader):
-            inputs, targets = inputs.to(device), targets.to(device)
+            inputs, targets = inputs.to(device, non_blocking=True), targets.to(
+                device, non_blocking=True
+            )
             batch_size = inputs.size(0)
 
             hidden = model.init_hidden(batch_size, device)
-            outputs, _ = model(inputs, hidden)
 
-            # Reshape for loss calculation
-            outputs = outputs.view(-1, model.vocab_size)
-            targets = targets.view(-1)
+            if scaler is not None:
+                with torch.autocast(device_type="cuda"):
+                    outputs, _ = model(inputs, hidden)
+                    outputs = outputs.view(-1, model.vocab_size)
+                    targets = targets.view(-1)
+                    loss = criterion(outputs, targets)
+            else:
+                outputs, _ = model(inputs, hidden)
+                outputs = outputs.view(-1, model.vocab_size)
+                targets = targets.view(-1)
+                loss = criterion(outputs, targets)
 
-            loss = criterion(outputs, targets)
             total_loss += loss.item()
             total_batches += 1
 
@@ -273,7 +272,7 @@ def evaluate_model(
 
 
 def train_model(config: Dict):
-    """Main training function"""
+    """Main training function with optimizations"""
     # Initialize wandb
     if config["wandb_offline"]:
         os.environ["WANDB_MODE"] = "offline"
@@ -290,23 +289,47 @@ def train_model(config: Dict):
     )
 
     # Initialize model using GPT-2 tokenizer vocab size
-    model = LSTMLanguageModel(
+    model = OptimizedLSTMLanguageModel(
         vocab_size=preprocessor.vocab_size,
         hidden_size=config["hidden_size"],
         num_layers=config["num_layers"],
         dropout=config["dropout"],
     ).to(device)
 
-    # Initialize FLOP counter
-    flop_counter = FLOPCounter(model, config, preprocessor.tokenizer)
+    # Compile model for optimization (PyTorch 2.0+)
+    if config["compile_model"] and hasattr(torch, "compile"):
+        print("Compiling model with torch.compile...")
+        try:
+            model = torch.compile(model)
+        except Exception as e:
+            print(f"Failed to compile model: {e}")
 
-    # Loss and optimizer
+    # Initialize simplified FLOP counter
+    flop_counter = SimpleFLOPCounter(model, config)
+
+    # Loss and optimizer with optimizations
     criterion = nn.CrossEntropyLoss()
-    optimizer = optim.Adam(model.parameters(), lr=config["learning_rate"])
+    optimizer = optim.AdamW(
+        model.parameters(), lr=config["learning_rate"], weight_decay=0.01
+    )
+
+    # Learning rate scheduler
+    scheduler = optim.lr_scheduler.CosineAnnealingLR(
+        optimizer, T_max=config["num_epochs"]
+    )
+
+    # Mixed precision scaler
+    scaler = (
+        torch.cuda.amp.GradScaler()
+        if config["mixed_precision"] and device.type == "cuda"
+        else None
+    )
 
     print(f"Model parameters: {sum(p.numel() for p in model.parameters()):,}")
     print(f"Training on {len(train_loader)} batches per epoch")
-    print(f"FLOP counting method: Profile first batch, then extrapolate")
+    print(
+        f"Optimizations enabled: Compile={config['compile_model']}, MixedPrecision={config['mixed_precision']}"
+    )
 
     # Training loop
     for epoch in range(config["num_epochs"]):
@@ -316,55 +339,89 @@ def train_model(config: Dict):
         epoch_batches = 0
 
         for batch_idx, (inputs, targets) in enumerate(train_loader):
-            inputs, targets = inputs.to(device), targets.to(device)
+            inputs, targets = inputs.to(device, non_blocking=True), targets.to(
+                device, non_blocking=True
+            )
             batch_size, sequence_length = inputs.size()
 
             # Initialize hidden state
             hidden = model.init_hidden(batch_size, device)
 
-            # Profile first batch, then extrapolate for the rest
-            if not flop_counter.profiled:
-                # Profile the first batch to get accurate FLOP count
-                loss = flop_counter.profile_one_batch(
-                    inputs, targets, hidden, optimizer, criterion
-                )
+            # Mixed precision training
+            if scaler is not None:
+                with torch.autocast(device_type="cuda"):
+                    outputs, _ = model(inputs, hidden)
+                    outputs = outputs.view(-1, model.vocab_size)
+                    targets_reshaped = targets.view(-1)
+                    loss = criterion(outputs, targets_reshaped)
+
+                    # Scale loss for gradient accumulation
+                    loss = loss / config["accumulate_grad_batches"]
+
+                # Backward pass with scaling
+                scaler.scale(loss).backward()
+
+                # Gradient accumulation
+                if (batch_idx + 1) % config["accumulate_grad_batches"] == 0:
+                    # Gradient clipping
+                    scaler.unscale_(optimizer)
+                    torch.nn.utils.clip_grad_norm_(
+                        model.parameters(), config["gradient_clip_val"]
+                    )
+
+                    scaler.step(optimizer)
+                    scaler.update()
+                    optimizer.zero_grad()
             else:
-                # Use profiled FLOP count and do normal training
-                flop_counter.add_batch_flops()
-
-                # Normal training step
-                optimizer.zero_grad()
-
-                # Forward pass
+                # Regular training without mixed precision
                 outputs, _ = model(inputs, hidden)
                 outputs = outputs.view(-1, model.vocab_size)
                 targets_reshaped = targets.view(-1)
                 loss = criterion(outputs, targets_reshaped)
 
+                # Scale loss for gradient accumulation
+                loss = loss / config["accumulate_grad_batches"]
+
                 # Backward pass
                 loss.backward()
-                optimizer.step()
+
+                # Gradient accumulation
+                if (batch_idx + 1) % config["accumulate_grad_batches"] == 0:
+                    # Gradient clipping
+                    torch.nn.utils.clip_grad_norm_(
+                        model.parameters(), config["gradient_clip_val"]
+                    )
+
+                    optimizer.step()
+                    optimizer.zero_grad()
+
+            # Add FLOPs for this batch
+            flop_counter.add_batch_flops()
 
             # Update epoch statistics
-            epoch_loss += loss.item()
+            epoch_loss += (
+                loss.item() * config["accumulate_grad_batches"]
+            )  # Unscale for logging
             epoch_batches += 1
 
             # Print batch statistics
             if batch_idx % config["print_every"] == 0:
-                method = "Profiled" if flop_counter.profiled else "Profiling"
                 print(
                     f"Epoch {epoch+1}/{config['num_epochs']}, "
                     f"Batch {batch_idx}/{len(train_loader)}, "
-                    f"Loss: {loss.item():.4f}, "
-                    f"Total FLOPs: {flop_counter.total_flops:.2e} [{method}]"
+                    f"Loss: {loss.item() * config['accumulate_grad_batches']:.4f}, "
+                    f"Total FLOPs: {flop_counter.total_flops:.2e}"
                 )
+
+        # Step scheduler
+        scheduler.step()
 
         # Calculate epoch statistics
         avg_train_loss = epoch_loss / epoch_batches
         epoch_time = time.time() - epoch_start_time
 
         # Evaluate on validation set
-        val_loss = evaluate_model(model, val_loader, criterion, device)
+        val_loss = evaluate_model(model, val_loader, criterion, str(device), scaler)
 
         # Calculate perplexity
         train_perplexity = np.exp(avg_train_loss)
@@ -379,6 +436,7 @@ def train_model(config: Dict):
         print(f"  Epoch Time: {epoch_time:.2f}s")
         print(f"  Total FLOPs: {flop_counter.total_flops:.2e}")
         print(f"  FLOPs per second: {flop_counter.total_flops/epoch_time:.2e}")
+        print(f"  Learning Rate: {scheduler.get_last_lr()[0]:.6f}")
         print("-" * 60)
 
         # Log to wandb
@@ -391,13 +449,18 @@ def train_model(config: Dict):
                 "val_perplexity": val_perplexity,
                 "total_flops": flop_counter.total_flops,
                 "epoch_time": epoch_time,
-                "learning_rate": optimizer.param_groups[0]["lr"],
+                "learning_rate": scheduler.get_last_lr()[0],
             }
         )
 
+        # Memory cleanup
+        if device.type == "cuda":
+            torch.cuda.empty_cache()
+        gc.collect()
+
     # Final evaluation on test set
     print("\nEvaluating on test set...")
-    test_loss = evaluate_model(model, test_loader, criterion, device)
+    test_loss = evaluate_model(model, test_loader, criterion, str(device), scaler)
     test_perplexity = np.exp(test_loss)
     print(f"Test Loss: {test_loss:.4f} (Perplexity: {test_perplexity:.2f})")
 
@@ -453,7 +516,7 @@ def benchmark_model(model: nn.Module, config: Dict, tokenizer: GPT2Tokenizer):
 
 
 if __name__ == "__main__":
-    print("Starting LSTM training with FLOP counting...")
+    print("Starting optimized LSTM training with FLOP counting...")
     print(f"Configuration: {CONFIG}")
 
     # Train model

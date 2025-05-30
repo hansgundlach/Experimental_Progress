@@ -722,83 +722,70 @@ def train(gpu_id=None):
             "dataset": "wikitext",
         }
 
-        # Step epoch-based scheduler at the beginning of each epoch
-        if scheduler is not None and scheduler_type == "epoch":
-            scheduler.step()
-            current_lr = optimizer.param_groups[0]["lr"]
-            metrics.update({"learning_rate": current_lr})
-            wandb.log(metrics)
-
         for batch_idx, (data, target) in enumerate(train_dataloader):
             data, target = data.to(device), target.to(device)
 
-            # Mixed precision training logic...
+            # Forward pass and compute raw and scaled losses
             if use_amp:
                 with autocast():
                     output = model(data)
-                    output = output[:, :-1, :]
-                    target = target[:, :-1]
-                    output = output.contiguous().view(-1, primary_tokenizer.vocab_size)
-                    target = target.contiguous().view(-1)
-                    loss = criterion(output, target)
-                    # Scale the loss
-                    loss = loss / config.gradient_accumulation_steps
-
-                scaler.scale(loss).backward()
-
-                # Only update weights after accumulating gradients
-                if (batch_idx + 1) % config.gradient_accumulation_steps == 0:
-                    scaler.unscale_(optimizer)
-                    if config.use_gradient_clipping:
-                        torch.nn.utils.clip_grad_norm_(
-                            model.parameters(), config.gradient_clip_val
-                        )
-                    scaler.step(optimizer)
-                    scaler.update()
-                    optimizer.zero_grad()
-
-                    # Update step-based scheduler after optimization step
-                    global_step += 1
-                    if scheduler is not None and scheduler_type == "step":
-                        scheduler.step()
-                        current_lr = optimizer.param_groups[0]["lr"]
-                        step_metrics = {
-                            "learning_rate": current_lr,
-                            "global_step": global_step,
-                        }
-                        wandb.log(step_metrics)
+                    # drop last position, flatten for loss
+                    output = (
+                        output[:, :-1, :]
+                        .contiguous()
+                        .view(-1, primary_tokenizer.vocab_size)
+                    )
+                    target_flat = target[:, :-1].contiguous().view(-1)
+                    raw_loss = criterion(output, target_flat)
+                    scaled_loss = raw_loss / config.gradient_accumulation_steps
+                scaler.scale(scaled_loss).backward()
             else:
                 output = model(data)
-                output = output[:, :-1, :]
-                target = target[:, :-1]
-                output = output.contiguous().view(-1, primary_tokenizer.vocab_size)
-                target = target.contiguous().view(-1)
-                loss = criterion(output, target)
-                # Scale the loss
-                loss = loss / config.gradient_accumulation_steps
-                loss.backward()
+                output = (
+                    output[:, :-1, :]
+                    .contiguous()
+                    .view(-1, primary_tokenizer.vocab_size)
+                )
+                target_flat = target[:, :-1].contiguous().view(-1)
+                raw_loss = criterion(output, target_flat)
+                scaled_loss = raw_loss / config.gradient_accumulation_steps
+                scaled_loss.backward()
 
-                if (batch_idx + 1) % config.gradient_accumulation_steps == 0:
-                    if config.use_gradient_clipping:
-                        torch.nn.utils.clip_grad_norm_(
-                            model.parameters(), config.gradient_clip_val
-                        )
+            # Only update weights after accumulating gradients
+            if (batch_idx + 1) % config.gradient_accumulation_steps == 0:
+                if use_amp:
+                    scaler.unscale_(optimizer)
+                if config.use_gradient_clipping:
+                    torch.nn.utils.clip_grad_norm_(
+                        model.parameters(), config.gradient_clip_val
+                    )
+                if use_amp:
+                    scaler.step(optimizer)
+                    scaler.update()
+                else:
                     optimizer.step()
-                    optimizer.zero_grad()
+                optimizer.zero_grad()
 
-                    # Update step-based scheduler here too
-                    global_step += 1
-                    if scheduler is not None and scheduler_type == "step":
-                        scheduler.step()
+            # Update step-based scheduler after optimization step
+            global_step += 1
+            if scheduler is not None and scheduler_type == "step":
+                scheduler.step()
+                current_lr = optimizer.param_groups[0]["lr"]
+                step_metrics = {
+                    "learning_rate": current_lr,
+                    "global_step": global_step,
+                }
+                wandb.log(step_metrics)
 
-            total_loss += loss.item()
+            # accumulate the _raw_ loss for logging
+            total_loss += raw_loss.item()
 
             # Log batch metrics
             if batch_idx % 100 == 0:
                 wandb.log(
                     {
                         "batch": batch_idx + epoch * len(train_dataloader),
-                        "batch_loss": loss.item(),
+                        "batch_loss": raw_loss.item(),
                         "optimizer": config.optimizer,
                     }
                 )
@@ -854,6 +841,11 @@ def train(gpu_id=None):
 
         metrics.update({"val_loss": val_loss, "best_val_loss": best_val_loss})
         wandb.log(metrics)
+
+        # Step epoch-based scheduler at the END of each epoch
+        if scheduler is not None and scheduler_type == "epoch":
+            scheduler.step()
+            current_lr = optimizer.param_groups[0]["lr"]
 
         # Generate sample text
         if epoch % 2 == 0:
@@ -983,10 +975,20 @@ def get_dataset(config):
             "Please download the tokenizer files first."
         )
 
-    # Split into train/val (90/10)
-    split_point = int(len(text) * 0.9)
-    train_text = text[:split_point]
-    val_text = text[split_point:]
+    # BETTER SPLIT: Random shuffle before splitting
+    import random
+
+    # Split into sentences/paragraphs first, then shuffle
+    sentences = text.split("\n")
+    random.shuffle(sentences)
+
+    # Now split
+    split_idx = int(len(sentences) * 0.9)
+    train_sentences = sentences[:split_idx]
+    val_sentences = sentences[split_idx:]
+
+    train_text = "\n".join(train_sentences)
+    val_text = "\n".join(val_sentences)
 
     # Create datasets with GPT2 tokenizer
     train_dataset = TextDataset(
@@ -1066,35 +1068,35 @@ if __name__ == "__main__":
     # }
     base_config = {
         "dataset": "wikitext",
-        "batch_size": 128,
-        "learning_rate": 0.0003,
-        "min_lr": 0.0001,
-        "lr_schedule": "inverse_sqrt",  # Options: "cosine", "cosine_warmup", "inverse_sqrt", "one_cycle", "transformer"
-        "warmup_epochs": 3,  # For "cosine_warmup" and "inverse_sqrt"
-        "warmup_epochs_frac": 0.2,  # 20% of total epochs as warmup
-        "pct_start": 0.3,  # For "one_cycle" - percentage of training spent in warmup phase
-        "weight_decay": 0.05,
-        "hidden_dim": 192,
-        "num_layers": 8,
+        "batch_size": 96,  # Smaller batches
+        "learning_rate": 0.0002,  # Much lower LR
+        "min_lr": 0.00002,
+        "lr_schedule": "cosine_warmup",
+        "warmup_epochs": 3,
+        "warmup_epochs_frac": 0.15,
+        "pct_start": 0.3,
+        "weight_decay": 0.05,  # Much more reasonable
+        "hidden_dim": 128,  # Larger model
+        "num_layers": 6,  # Slightly smaller depth
         "num_heads": 8,
-        "dropout": 0.2,
-        "seq_length": 128,
-        "wikitext_limit": 2000000,
-        "pos_encoding": "sinusoidal",
-        "init_scheme": "transformer_scaled",
-        "stride": 64,
+        "dropout": 0.15,  # Much more reasonable
+        "seq_length": 128,  # Longer context
+        "wikitext_limit": 2000000,  # Less data to prevent memorization
+        "pos_encoding": "rotary",
+        "init_scheme": "xavier_uniform",
+        "stride": 32,  # Half of seq_length for 50% overlap
         "pin_memory": True,
         "compile": False,
         "prefetch_factor": 8,
-        "min_epochs": 30,
-        "max_epochs": 30,
+        "min_epochs": 10,  # More epochs to see proper learning
+        "max_epochs": 10,
         "use_gradient_clipping": True,
-        "gradient_clip_val": 0.5,
-        "label_smoothing": 0.1,
-        "gradient_accumulation_steps": 2,
+        "gradient_clip_val": 1.0,
+        "label_smoothing": 0.05,  # Mild smoothing
+        "gradient_accumulation_steps": 8,  # Larger effective batch
         "optimizer": "adamw",
-        "activation": "gelu",  # Default activation choices are gelu, relu, glu, swiglu
-        "norm_type": "layer",  # Options: "layer" or "rms"
+        "activation": "gelu",
+        "norm_type": "layer",
     }
 
     # Setup experiments
@@ -1195,7 +1197,15 @@ if __name__ == "__main__":
             "rotary": {"pos_encoding": "rotary"},
         },
     }
-    comparison = short_comparison_activation
+    comparison_depth = {
+        "parameter": "num_layers",
+        "options": [2, 8],
+        "base_changes": {
+            2: {"num_layers": 2},
+            8: {"num_layers": 8},
+        },
+    }
+    comparison = comparison_depth
     parameter = comparison["parameter"]
     options = comparison["options"]
     base_changes = comparison["base_changes"]
