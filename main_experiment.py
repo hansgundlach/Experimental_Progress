@@ -1069,39 +1069,39 @@ if __name__ == "__main__":
     base_config = {
         "dataset": "wikitext",
         "batch_size": 96,  # Smaller batches
-        "learning_rate": 0.0002,  # Much lower LR
-        "min_lr": 0.00002,
+        "learning_rate": 3e-4,  # Much lower LR
+        "min_lr": 1e-5,
         "lr_schedule": "cosine_warmup",
         "warmup_epochs": 3,
         "warmup_epochs_frac": 0.15,
         "pct_start": 0.3,
         "weight_decay": 0.05,  # Much more reasonable
-        "hidden_dim": 128,  # Larger model
+        "hidden_dim": 256,  # Larger model
         "num_layers": 6,  # Slightly smaller depth
         "num_heads": 8,
-        "dropout": 0.15,  # Much more reasonable
+        "dropout": 0.1,  # Much more reasonable
         "seq_length": 128,  # Longer context
-        "wikitext_limit": 2000000,  # Less data to prevent memorization
+        "wikitext_limit": 4000000,  # Less data to prevent memorization
         "pos_encoding": "rotary",
         "init_scheme": "xavier_uniform",
         "stride": 32,  # Half of seq_length for 50% overlap
         "pin_memory": True,
         "compile": False,
         "prefetch_factor": 8,
-        "min_epochs": 10,  # More epochs to see proper learning
-        "max_epochs": 10,
+        "min_epochs": 30,  # More epochs to see proper learning
+        "max_epochs": 30,
         "use_gradient_clipping": True,
         "gradient_clip_val": 1.0,
         "label_smoothing": 0.05,  # Mild smoothing
-        "gradient_accumulation_steps": 8,  # Larger effective batch
-        "optimizer": "adamw",
+        "gradient_accumulation_steps": 4,  # Larger effective batch
+        "optimizer": "adam",
         "activation": "gelu",
         "norm_type": "layer",
     }
 
     # Setup experiments
     # long_seeds = [42, 123, 789, 1000]
-    seeds = [789]
+    seeds = [789, 123]
 
     # comparing activation functions
     # comparison_activation = {
@@ -1145,11 +1145,13 @@ if __name__ == "__main__":
     short_comparison_lr_schedule = {
         "parameter": "lr_schedule",
         "options": [
+            "cosine",
             "cosine_warmup",
             "inverse_sqrt",
             "one_cycle",
         ],
         "base_changes": {
+            "cosine": {"lr_schedule": "cosine"},
             "cosine_warmup": {"lr_schedule": "cosine_warmup"},
             "inverse_sqrt": {"lr_schedule": "inverse_sqrt"},
             "one_cycle": {"lr_schedule": "one_cycle"},
@@ -1197,14 +1199,27 @@ if __name__ == "__main__":
             "rotary": {"pos_encoding": "rotary"},
         },
     }
+    # comparison_norms = {
+    #     "parameter": "norm_type",
+    #     "options": ["layer", "rms"],
+    #     "base_changes": {
+    #         "layer": {"norm_type": "layer"},
+    #         "rms": {"norm_type": "rms"},
+    #     },
+    # }
+
     comparison_depth = {
         "parameter": "num_layers",
-        "options": [2, 8],
+        "options": [2, 4, 8, 10],
         "base_changes": {
             2: {"num_layers": 2},
+            4: {"num_layers": 4},
             8: {"num_layers": 8},
+            10: {"num_layers": 10},
         },
     }
+    print("PRINTING BASE CONFIG")
+    print(base_config)
     comparison = comparison_depth
     parameter = comparison["parameter"]
     options = comparison["options"]
