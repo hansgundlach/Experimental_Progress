@@ -438,6 +438,10 @@ def get_device(gpu_id=None):
 
 
 def train(gpu_id=None):
+    # Set memory optimization flags for V100
+    if torch.cuda.is_available():
+        torch.backends.cudnn.benchmark = False  # Reduce memory fragmentation
+        torch.backends.cuda.max_split_size_mb = 128  # Reduce fragmentation
 
     # Get appropriate device
     device = get_device(gpu_id)
@@ -950,6 +954,11 @@ def train(gpu_id=None):
             print(f"**** Total FLOPS for batch 0: {total_flops:,} ****")
 
     # At the end of training, return the final values
+    # Clear GPU cache
+    if torch.cuda.is_available():
+        torch.cuda.empty_cache()
+        torch.cuda.synchronize()
+
     return {"val_loss": val_loss, "best_val_loss": best_val_loss}
 
 

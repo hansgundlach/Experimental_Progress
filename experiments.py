@@ -139,7 +139,7 @@ if __name__ == "__main__":
     # }
     base_config = {
         "dataset": "wikitext",
-        "batch_size": 128,  # Larger batches (Chinchilla used big batches)
+        "batch_size": 32,  # Larger batches (Chinchilla used big batches)
         "learning_rate": 6e-4,  # Scale with batch size (sqrt scaling)
         "min_lr": 1e-5,
         "lr_schedule": "cosine_warmup",
@@ -150,20 +150,20 @@ if __name__ == "__main__":
         "num_layers": 6,  # Fewer layers
         "num_heads": 8,  # Keep heads (64/8 = 8 dim per head)
         "dropout": 0.0,  # Chinchilla used little/no dropout
-        "seq_length": 256,  # Longer sequences (better data efficiency)
-        "wikitext_limit": 10**8,  # Use ALL of WikiText-103!
+        "seq_length": 128,  # Longer sequences (better data efficiency)
+        "wikitext_limit": 10**8,
         "pos_encoding": "rotary",
         "init_scheme": "transformer_scaled",
-        "stride": 128,  # 50% overlap
+        "stride": 64,  # 50% overlap
         "pin_memory": True,
         "compile": False,
         "prefetch_factor": 8,
-        "min_epochs": 10,  # MANY more epochs (see data 10-20x)
-        "max_epochs": 10,
+        "min_epochs": 5,  # MANY more epochs (see data 10-20x)
+        "max_epochs": 5,
         "use_gradient_clipping": True,
         "gradient_clip_val": 1.0,
         "label_smoothing": 0.0,  # Chinchilla didn't use this
-        "gradient_accumulation_steps": 2,
+        "gradient_accumulation_steps": 4,
         "optimizer": "adamw",  # Chinchilla used AdamW
         "activation": "gelu",
         "norm_type": "layer",
@@ -186,8 +186,9 @@ if __name__ == "__main__":
 
     short_comparison_activation = {
         "parameter": "activation",
-        "options": ["gelu", "relu", "swiglu"],
+        "options": ["glu", "gelu", "relu", "swiglu"],
         "base_changes": {
+            "glu": {"activation": "glu"},
             "gelu": {"activation": "gelu"},
             "relu": {"activation": "relu"},
             "swiglu": {"activation": "swiglu"},
@@ -289,7 +290,7 @@ if __name__ == "__main__":
     }
     print("PRINTING BASE CONFIG")
     print(base_config)
-    comparison = comparison_depth
+    comparison = comparison_gradient_clipping
     parameter = comparison["parameter"]
     options = comparison["options"]
     base_changes = comparison["base_changes"]
