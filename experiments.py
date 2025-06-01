@@ -143,7 +143,7 @@ if __name__ == "__main__":
         "learning_rate": 6e-4,  # Scale with batch size (sqrt scaling)
         "min_lr": 1e-5,
         "lr_schedule": "cosine_warmup",
-        "warmup_epochs": 5,
+        "warmup_epochs": 1,
         "warmup_epochs_frac": 0.1,  # Shorter warmup
         "weight_decay": 0.1,  # Standard Chinchilla weight decay
         "hidden_dim": 64,  # Much smaller model
@@ -170,7 +170,7 @@ if __name__ == "__main__":
     }
     # Setup experiments
     # long_seeds = [42, 123, 789, 1000]
-    seeds = [789, 123]
+    seeds = [789]
 
     # comparing activation functions
     # comparison_activation = {
@@ -269,14 +269,14 @@ if __name__ == "__main__":
             "rotary": {"pos_encoding": "rotary"},
         },
     }
-    # comparison_norms = {
-    #     "parameter": "norm_type",
-    #     "options": ["layer", "rms"],
-    #     "base_changes": {
-    #         "layer": {"norm_type": "layer"},
-    #         "rms": {"norm_type": "rms"},
-    #     },
-    # }
+    comparison_norms = {
+        "parameter": "norm_type",
+        "options": ["layer", "rms"],
+        "base_changes": {
+            "layer": {"norm_type": "layer"},
+            "rms": {"norm_type": "rms"},
+        },
+    }
 
     comparison_depth = {
         "parameter": "num_layers",
@@ -290,7 +290,7 @@ if __name__ == "__main__":
     }
     print("PRINTING BASE CONFIG")
     print(base_config)
-    comparison = comparison_gradient_clipping
+    comparison = comparison_norms
     parameter = comparison["parameter"]
     options = comparison["options"]
     base_changes = comparison["base_changes"]

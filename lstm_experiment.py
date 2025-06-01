@@ -22,6 +22,9 @@ CONFIG = {
     "num_layers": 2,
     "dropout": 0.2,
     "learning_rate": 0.001,
+    "lr_schedule": "constant",
+    "step_size": 10,
+    "gamma": 0.1,
     "num_epochs": 20,
     "train_split": 0.8,
     "val_split": 0.1,
@@ -30,6 +33,9 @@ CONFIG = {
     "wandb_project": "lstm-wikitext",
     "wandb_offline": True,
     "print_every": 100,  # Print loss every N batches
+    # Gradient clipping settings
+    "use_gradient_clipping": True,
+    "gradient_clip_val": 1.0,
 }
 
 
@@ -130,6 +136,12 @@ class FLOPCounter:
             with record_function("backward_pass"):
                 optimizer.zero_grad()
                 loss.backward()
+                # Gradient clipping
+                if self.config.get("use_gradient_clipping", False):
+                    torch.nn.utils.clip_grad_norm_(
+                        self.model.parameters(),
+                        self.config.get("gradient_clip_val", 1.0),
+                    )
                 optimizer.step()
 
         # Extract FLOP count from profiler
@@ -304,6 +316,22 @@ def train_model(config: Dict):
     criterion = nn.CrossEntropyLoss()
     optimizer = optim.Adam(model.parameters(), lr=config["learning_rate"])
 
+    # Set up LR scheduler
+    if config.get("lr_schedule") == "step":
+        scheduler = optim.lr_scheduler.StepLR(
+            optimizer,
+            step_size=config.get("step_size", 10),
+            gamma=config.get("gamma", 0.1),
+        )
+    elif config.get("lr_schedule") == "cosine":
+        scheduler = optim.lr_scheduler.CosineAnnealingLR(
+            optimizer,
+            T_max=config["num_epochs"],
+            eta_min=config.get("min_lr", 0),
+        )
+    else:
+        scheduler = None
+
     print(f"Model parameters: {sum(p.numel() for p in model.parameters()):,}")
     print(f"Training on {len(train_loader)} batches per epoch")
     print(f"FLOP counting method: Profile first batch, then extrapolate")
@@ -343,6 +371,11 @@ def train_model(config: Dict):
 
                 # Backward pass
                 loss.backward()
+                # Gradient clipping
+                if config.get("use_gradient_clipping", False):
+                    torch.nn.utils.clip_grad_norm_(
+                        model.parameters(), config.get("gradient_clip_val", 1.0)
+                    )
                 optimizer.step()
 
             # Update epoch statistics
@@ -394,6 +427,10 @@ def train_model(config: Dict):
                 "learning_rate": optimizer.param_groups[0]["lr"],
             }
         )
+
+        # Step scheduler once per epoch
+        if scheduler is not None:
+            scheduler.step()
 
     # Final evaluation on test set
     print("\nEvaluating on test set...")

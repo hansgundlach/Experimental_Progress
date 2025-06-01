@@ -19,6 +19,7 @@ from torch.nn.functional import scaled_dot_product_attention
 from torch.nn import LayerNorm, Linear, Dropout, ModuleList
 from transformers import GPT2Tokenizer
 import time
+import random
 from transformers.models.llama.modeling_llama import (
     LlamaRotaryEmbedding,
     apply_rotary_pos_emb,
@@ -224,6 +225,20 @@ class SinusoidalPositionalEmbedding(nn.Module):
         return x + self.pe[:, :seq_len, :]
 
 
+class RMSNorm(nn.Module):
+    """Root‐Mean‐Square Layer Norm: a lightweight LayerNorm variant."""
+
+    def __init__(self, dim, eps=1e-8):
+        super().__init__()
+        self.eps = eps
+        self.weight = nn.Parameter(torch.ones(dim))
+
+    def forward(self, x):
+        # compute RMS over last dimension
+        rms = x.pow(2).mean(-1, keepdim=True).add(self.eps).rsqrt()
+        return x * rms * self.weight
+
+
 class SimpleTransformerLayer(nn.Module):
     def __init__(self, hidden_dim, num_heads, dropout=0.1, config=None):
         super().__init__()
@@ -235,11 +250,11 @@ class SimpleTransformerLayer(nn.Module):
         self.use_rotary = config.pos_encoding == "rotary"
 
         # Choose normalization type
-        norm_layer = (
-            nn.RMSNorm
-            if getattr(config, "norm_type", "layer") == "rms"
-            else nn.LayerNorm
-        )
+        if getattr(config, "norm_type", "layer") == "rms":
+            norm_layer = RMSNorm
+        else:
+            norm_layer = nn.LayerNorm
+
         self.norm1 = norm_layer(hidden_dim)
         self.norm2 = norm_layer(hidden_dim)
 
@@ -440,7 +455,9 @@ def get_device(gpu_id=None):
 def train(gpu_id=None):
     # Set memory optimization flags for V100
     if torch.cuda.is_available():
-        torch.backends.cudnn.benchmark = False  # Reduce memory fragmentation
+        # just added to let cuda optimize kernel selection
+        torch.backends.cudnn.benchmark = True
+        torch.backends.cudnn.deterministic = False
         torch.backends.cuda.max_split_size_mb = 128  # Reduce fragmentation
 
     # Get appropriate device
@@ -977,7 +994,6 @@ def get_dataset(config):
         )
 
     # BETTER SPLIT: Random shuffle before splitting
-    import random
 
     # Split into sentences/paragraphs first, then shuffle
     sentences = text.split("\n")
