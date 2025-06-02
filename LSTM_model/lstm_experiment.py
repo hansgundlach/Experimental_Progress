@@ -122,7 +122,7 @@ class FLOPCounter:
         self.vocab_size = len(tokenizer)
         self.total_flops = 0
         self.flops_per_batch = None  # Will be set after profiling one batch
-        self.time_per_batch = None  # NEW: Will store time per batch
+        self.time_per_batch = None  # Will store time per batch
         self.profiled = False
 
     def profile_one_batch(self, inputs, targets, hidden, optimizer, criterion):
@@ -130,6 +130,15 @@ class FLOPCounter:
         print(
             "  [PROFILER] Profiling one batch to determine FLOPs and timing per batch..."
         )
+
+        # FIX: Move inputs and targets to the correct device
+        device = next(self.model.parameters()).device
+        inputs = inputs.to(device, non_blocking=True)
+        targets = targets.to(device, non_blocking=True)
+
+        # Ensure data transfer is complete
+        if device.type == "cuda":
+            torch.cuda.synchronize()
 
         # Start timing the entire batch
         batch_start_time = time.time()
@@ -157,7 +166,7 @@ class FLOPCounter:
                 optimizer.step()
 
         # Synchronize CUDA operations before measuring time
-        if torch.cuda.is_available():
+        if device.type == "cuda":
             torch.cuda.synchronize()
 
         # Calculate batch time
@@ -276,13 +285,12 @@ def load_and_preprocess_data(
     val_dataset = WikiTextDataset(val_data, config["sequence_length"])
     test_dataset = WikiTextDataset(test_data, config["sequence_length"])
 
-    # NEW: Optimize DataLoader settings
-    # Determine optimal number of workers
+    # CONSERVATIVE: Determine optimal number of workers for Supercloud
     if config.get("num_workers") == "auto":
-        # Use half the CPU cores, but cap at 8 to avoid overhead
-        num_workers = min(mp.cpu_count() // 2, 8)
-        # On single-core systems or when debugging, use 0 workers
-        if mp.cpu_count() <= 2:
+        # Be more conservative on shared systems like Supercloud
+        num_workers = min(mp.cpu_count() // 4, 4)  # Changed: more conservative
+        # On systems with issues, fall back to 0
+        if mp.cpu_count() <= 4:
             num_workers = 0
     else:
         num_workers = config.get("num_workers", 0)
@@ -290,7 +298,7 @@ def load_and_preprocess_data(
     # Check if we're on CUDA for pin_memory optimization
     pin_memory = config.get("pin_memory", False) and torch.cuda.is_available()
 
-    # Only use persistent_workers if num_workers > 0
+    # Only use persistent_workers if num_workers > 0 and not on potentially problematic systems
     persistent_workers = config.get("persistent_workers", False) and num_workers > 0
 
     # Prefetch factor (only relevant when num_workers > 0)
@@ -430,40 +438,63 @@ def train_model(config: Dict):
         epoch_loss = 0
         epoch_batches = 0
 
+        # Only track timing for non-profiled batches
+        batch_times = []
+        data_times = []
+        compute_times = []
+
         for batch_idx, (inputs, targets) in enumerate(train_loader):
-            inputs, targets = inputs.to(device), targets.to(device)
             batch_size, sequence_length = inputs.size()
 
-            # Initialize hidden state
-            hidden = model.init_hidden(batch_size, device)
-
-            # Profile first batch, then extrapolate for the rest
+            # Only profile the very first batch of the very first epoch
             if not flop_counter.profiled:
-                # Profile the first batch to get accurate FLOP count
+                # PROFILING BATCH - includes timing measurement
+                hidden = model.init_hidden(batch_size, config["device"])
                 loss = flop_counter.profile_one_batch(
                     inputs, targets, hidden, optimizer, criterion
                 )
             else:
-                # Use profiled FLOP count and do normal training
-                flop_counter.add_batch_flops()
+                # NORMAL TRAINING BATCHES - simple timing measurement
+                total_batch_start = time.time()
+
+                # Data transfer timing
+                data_start = time.time()
+                inputs, targets = inputs.to(
+                    config["device"], non_blocking=True
+                ), targets.to(config["device"], non_blocking=True)
+                if torch.cuda.is_available():
+                    torch.cuda.synchronize()
+                data_time = time.time() - data_start
+
+                # Computation timing
+                compute_start = time.time()
+                hidden = model.init_hidden(batch_size, config["device"])
 
                 # Normal training step
+                flop_counter.add_batch_flops()
                 optimizer.zero_grad()
-
-                # Forward pass
                 outputs, _ = model(inputs, hidden)
                 outputs = outputs.view(-1, model.vocab_size)
                 targets_reshaped = targets.view(-1)
                 loss = criterion(outputs, targets_reshaped)
-
-                # Backward pass
                 loss.backward()
-                # Gradient clipping
+
                 if config.get("use_gradient_clipping", False):
                     torch.nn.utils.clip_grad_norm_(
                         model.parameters(), config.get("gradient_clip_val", 1.0)
                     )
                 optimizer.step()
+
+                if torch.cuda.is_available():
+                    torch.cuda.synchronize()
+                compute_time = time.time() - compute_start
+
+                total_batch_time = time.time() - total_batch_start
+
+                # Store timing data
+                batch_times.append(total_batch_time)
+                data_times.append(data_time)
+                compute_times.append(compute_time)
 
             # Update epoch statistics
             epoch_loss += loss.item()
@@ -471,20 +502,43 @@ def train_model(config: Dict):
 
             # Print batch statistics
             if batch_idx % config["print_every"] == 0:
-                method = "Profiled" if flop_counter.profiled else "Profiling"
-                print(
-                    f"Epoch {epoch+1}/{config['num_epochs']}, "
-                    f"Batch {batch_idx}/{len(train_loader)}, "
-                    f"Loss: {loss.item():.4f}, "
-                    f"Total FLOPs: {flop_counter.total_flops:.2e} [{method}]"
-                )
+                if flop_counter.profiled and len(batch_times) > 0:
+                    # Show recent timing stats (last 10 batches)
+                    recent_batch_time = np.mean(batch_times[-10:])
+                    recent_data_time = np.mean(data_times[-10:])
+                    recent_compute_time = np.mean(compute_times[-10:])
+
+                    print(
+                        f"Epoch {epoch+1}/{config['num_epochs']}, "
+                        f"Batch {batch_idx}/{len(train_loader)}, "
+                        f"Loss: {loss.item():.4f}"
+                    )
+                    print(
+                        f"  Recent avg: Total={recent_batch_time:.4f}s, "
+                        f"Data={recent_data_time:.4f}s, Compute={recent_compute_time:.4f}s"
+                    )
+                else:
+                    print(
+                        f"Epoch {epoch+1}/{config['num_epochs']}, "
+                        f"Batch {batch_idx}/{len(train_loader)}, "
+                        f"Loss: {loss.item():.4f} [Profiling]"
+                    )
 
         # Calculate epoch statistics
         avg_train_loss = epoch_loss / epoch_batches
         epoch_time = time.time() - epoch_start_time
 
+        # Calculate average timings for this epoch (excluding profiled batch)
+        if len(batch_times) > 0:
+            avg_batch_time = np.mean(batch_times)
+            avg_data_time = np.mean(data_times)
+            avg_compute_time = np.mean(compute_times)
+            data_percentage = (avg_data_time / avg_batch_time) * 100
+        else:
+            avg_batch_time = avg_data_time = avg_compute_time = data_percentage = 0
+
         # Evaluate on validation set
-        val_loss = evaluate_model(model, val_loader, criterion, device)
+        val_loss = evaluate_model(model, val_loader, criterion, config["device"])
 
         # Calculate perplexity
         train_perplexity = np.exp(avg_train_loss)
@@ -497,19 +551,24 @@ def train_model(config: Dict):
         )
         print(f"  Validation Loss: {val_loss:.4f} (Perplexity: {val_perplexity:.2f})")
         print(f"  Epoch Time: {epoch_time:.2f}s")
-        print(f"  Total FLOPs: {flop_counter.total_flops:.2e}")
-        print(f"  FLOPs per second: {flop_counter.total_flops/epoch_time:.2e}")
 
-        # NEW: Add profiled timing information
-        if flop_counter.profiled and flop_counter.time_per_batch:
-            print(f"  Profiled time per batch: {flop_counter.time_per_batch:.4f}s")
+        if len(batch_times) > 0:
             print(
-                f"  Profiled FLOPs per second: {flop_counter.flops_per_batch / flop_counter.time_per_batch:.2e}"
+                f"  Avg Batch Time: {avg_batch_time:.4f}s (Data: {avg_data_time:.4f}s, Compute: {avg_compute_time:.4f}s)"
+            )
+            print(f"  Data Loading: {data_percentage:.1f}% of batch time")
+
+        # Show profiled timing info (only from first batch)
+        if flop_counter.profiled and flop_counter.time_per_batch:
+            print(
+                f"  Profiled compute time (first batch): {flop_counter.time_per_batch:.4f}s"
             )
 
+        print(f"  Total FLOPs: {flop_counter.total_flops:.2e}")
+        print(f"  FLOPs per second: {flop_counter.total_flops/epoch_time:.2e}")
         print("-" * 60)
 
-        # Log to wandb (add timing info)
+        # Log to wandb
         log_dict = {
             "epoch": epoch + 1,
             "train_loss": avg_train_loss,
@@ -521,11 +580,22 @@ def train_model(config: Dict):
             "learning_rate": optimizer.param_groups[0]["lr"],
         }
 
-        # Add profiled timing metrics if available
+        # Add timing metrics if available
+        if len(batch_times) > 0:
+            log_dict.update(
+                {
+                    "avg_batch_time": avg_batch_time,
+                    "avg_data_time": avg_data_time,
+                    "avg_compute_time": avg_compute_time,
+                    "data_loading_percentage": data_percentage,
+                }
+            )
+
+        # Add profiled timing (only from first batch)
         if flop_counter.profiled and flop_counter.time_per_batch:
             log_dict.update(
                 {
-                    "profiled_time_per_batch": flop_counter.time_per_batch,
+                    "profiled_compute_time": flop_counter.time_per_batch,
                     "profiled_flops_per_second": flop_counter.flops_per_batch
                     / flop_counter.time_per_batch,
                 }
