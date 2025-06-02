@@ -11,6 +11,7 @@ from typing import Dict, List, Tuple
 from transformers import GPT2Tokenizer
 from torch.profiler import profile, record_function, ProfilerActivity
 import multiprocessing as mp
+from torch.cuda.amp import autocast, GradScaler
 
 # Configuration
 CONFIG = {
@@ -42,6 +43,9 @@ CONFIG = {
     "pin_memory": True,  # Faster GPU memory transfer
     "persistent_workers": True,  # Keep data loading workers alive between epochs
     "prefetch_factor": 4,  # Number of batches to prefetch per worker
+    # NEW: Mixed precision settings
+    "use_amp": False,  # Enable Automatic Mixed Precision
+    "amp_opt_level": "O1",  # Not used with native AMP, but kept for reference
 }
 
 
@@ -121,17 +125,19 @@ class FLOPCounter:
         self.tokenizer = tokenizer
         self.vocab_size = len(tokenizer)
         self.total_flops = 0
-        self.flops_per_batch = None  # Will be set after profiling one batch
-        self.time_per_batch = None  # Will store time per batch
+        self.flops_per_batch = None
+        self.time_per_batch = None
         self.profiled = False
 
-    def profile_one_batch(self, inputs, targets, hidden, optimizer, criterion):
-        """Profile one batch to get accurate FLOP count and timing, then use for extrapolation"""
+    def profile_one_batch(
+        self, inputs, targets, hidden, optimizer, criterion, scaler=None
+    ):
+        """Profile one batch with mixed precision support"""
         print(
             "  [PROFILER] Profiling one batch to determine FLOPs and timing per batch..."
         )
 
-        # FIX: Move inputs and targets to the correct device
+        # Move inputs and targets to the correct device
         device = next(self.model.parameters()).device
         inputs = inputs.to(device, non_blocking=True)
         targets = targets.to(device, non_blocking=True)
@@ -149,21 +155,43 @@ class FLOPCounter:
             with_flops=True,
         ) as prof:
             with record_function("forward_pass"):
-                outputs, _ = self.model(inputs, hidden)
-                outputs = outputs.view(-1, self.model.vocab_size)
-                targets_reshaped = targets.view(-1)
-                loss = criterion(outputs, targets_reshaped)
+                # NEW: Use autocast for mixed precision
+                if scaler is not None:
+                    with autocast():
+                        outputs, _ = self.model(inputs, hidden)
+                        outputs = outputs.view(-1, self.model.vocab_size)
+                        targets_reshaped = targets.view(-1)
+                        loss = criterion(outputs, targets_reshaped)
+                else:
+                    outputs, _ = self.model(inputs, hidden)
+                    outputs = outputs.view(-1, self.model.vocab_size)
+                    targets_reshaped = targets.view(-1)
+                    loss = criterion(outputs, targets_reshaped)
 
             with record_function("backward_pass"):
                 optimizer.zero_grad()
-                loss.backward()
-                # Gradient clipping
-                if self.config.get("use_gradient_clipping", False):
-                    torch.nn.utils.clip_grad_norm_(
-                        self.model.parameters(),
-                        self.config.get("gradient_clip_val", 1.0),
-                    )
-                optimizer.step()
+
+                # NEW: Mixed precision backward pass
+                if scaler is not None:
+                    scaler.scale(loss).backward()
+                    # Gradient clipping with scaler
+                    if self.config.get("use_gradient_clipping", False):
+                        scaler.unscale_(optimizer)
+                        torch.nn.utils.clip_grad_norm_(
+                            self.model.parameters(),
+                            self.config.get("gradient_clip_val", 1.0),
+                        )
+                    scaler.step(optimizer)
+                    scaler.update()
+                else:
+                    loss.backward()
+                    # Regular gradient clipping
+                    if self.config.get("use_gradient_clipping", False):
+                        torch.nn.utils.clip_grad_norm_(
+                            self.model.parameters(),
+                            self.config.get("gradient_clip_val", 1.0),
+                        )
+                    optimizer.step()
 
         # Synchronize CUDA operations before measuring time
         if device.type == "cuda":
@@ -197,7 +225,10 @@ class FLOPCounter:
             )
 
         # Report timing information
-        print(f"  [PROFILER] Time per batch: {self.time_per_batch:.4f} seconds")
+        amp_status = "with AMP" if scaler is not None else "without AMP"
+        print(
+            f"  [PROFILER] Time per batch ({amp_status}): {self.time_per_batch:.4f} seconds"
+        )
         print(
             f"  [PROFILER] FLOPs per second: {self.flops_per_batch / self.time_per_batch:.2e}"
         )
@@ -379,8 +410,45 @@ def evaluate_model(
     return total_loss / total_batches
 
 
+def evaluate_model_amp(
+    model: nn.Module,
+    data_loader: DataLoader,
+    criterion: nn.Module,
+    device: str,
+    use_amp: bool = False,
+) -> float:
+    """Evaluate model with mixed precision support"""
+    model.eval()
+    total_loss = 0
+    total_batches = 0
+
+    with torch.no_grad():
+        for batch_idx, (inputs, targets) in enumerate(data_loader):
+            inputs, targets = inputs.to(device), targets.to(device)
+            batch_size = inputs.size(0)
+
+            hidden = model.init_hidden(batch_size, device)
+
+            if use_amp:
+                with autocast():
+                    outputs, _ = model(inputs, hidden)
+                    outputs = outputs.view(-1, model.vocab_size)
+                    targets = targets.view(-1)
+                    loss = criterion(outputs, targets)
+            else:
+                outputs, _ = model(inputs, hidden)
+                outputs = outputs.view(-1, model.vocab_size)
+                targets = targets.view(-1)
+                loss = criterion(outputs, targets)
+
+            total_loss += loss.item()
+            total_batches += 1
+
+    return total_loss / total_batches
+
+
 def train_model(config: Dict):
-    """Main training function"""
+    """Main training function with mixed precision support"""
     # Initialize wandb
     if config["wandb_offline"]:
         os.environ["WANDB_MODE"] = "offline"
@@ -396,7 +464,7 @@ def train_model(config: Dict):
         config
     )
 
-    # Initialize model using GPT-2 tokenizer vocab size
+    # Initialize model
     model = LSTMLanguageModel(
         vocab_size=preprocessor.vocab_size,
         hidden_size=config["hidden_size"],
@@ -411,6 +479,12 @@ def train_model(config: Dict):
     criterion = nn.CrossEntropyLoss()
     optimizer = optim.Adam(model.parameters(), lr=config["learning_rate"])
 
+    # NEW: Initialize mixed precision scaler
+    use_amp = config.get("use_amp", False) and device.type == "cuda"
+    scaler = GradScaler() if use_amp else None
+
+    print(f"Mixed Precision: {'Enabled' if use_amp else 'Disabled'}")
+
     # Set up LR scheduler
     if config.get("lr_schedule") == "step":
         scheduler = optim.lr_scheduler.StepLR(
@@ -420,16 +494,13 @@ def train_model(config: Dict):
         )
     elif config.get("lr_schedule") == "cosine":
         scheduler = optim.lr_scheduler.CosineAnnealingLR(
-            optimizer,
-            T_max=config["num_epochs"],
-            eta_min=config.get("min_lr", 0),
+            optimizer, T_max=config["num_epochs"], eta_min=config.get("min_lr", 0)
         )
     else:
         scheduler = None
 
     print(f"Model parameters: {sum(p.numel() for p in model.parameters()):,}")
     print(f"Training on {len(train_loader)} batches per epoch")
-    print(f"FLOP counting method: Profile first batch, then extrapolate")
 
     # Training loop
     for epoch in range(config["num_epochs"]):
@@ -438,63 +509,59 @@ def train_model(config: Dict):
         epoch_loss = 0
         epoch_batches = 0
 
-        # Only track timing for non-profiled batches
-        batch_times = []
-        data_times = []
-        compute_times = []
-
         for batch_idx, (inputs, targets) in enumerate(train_loader):
             batch_size, sequence_length = inputs.size()
 
-            # Only profile the very first batch of the very first epoch
+            # Only profile the very first batch
             if not flop_counter.profiled:
-                # PROFILING BATCH - includes timing measurement
-                hidden = model.init_hidden(batch_size, config["device"])
+                # PROFILING BATCH
+                hidden = model.init_hidden(batch_size, device)
                 loss = flop_counter.profile_one_batch(
-                    inputs, targets, hidden, optimizer, criterion
+                    inputs, targets, hidden, optimizer, criterion, scaler
                 )
             else:
-                # NORMAL TRAINING BATCHES - simple timing measurement
-                total_batch_start = time.time()
+                # NORMAL TRAINING BATCHES - Zero overhead with mixed precision
+                inputs, targets = inputs.to(device, non_blocking=True), targets.to(
+                    device, non_blocking=True
+                )
+                hidden = model.init_hidden(batch_size, device)
 
-                # Data transfer timing
-                data_start = time.time()
-                inputs, targets = inputs.to(
-                    config["device"], non_blocking=True
-                ), targets.to(config["device"], non_blocking=True)
-                if torch.cuda.is_available():
-                    torch.cuda.synchronize()
-                data_time = time.time() - data_start
-
-                # Computation timing
-                compute_start = time.time()
-                hidden = model.init_hidden(batch_size, config["device"])
-
-                # Normal training step
                 flop_counter.add_batch_flops()
                 optimizer.zero_grad()
-                outputs, _ = model(inputs, hidden)
-                outputs = outputs.view(-1, model.vocab_size)
-                targets_reshaped = targets.view(-1)
-                loss = criterion(outputs, targets_reshaped)
-                loss.backward()
 
-                if config.get("use_gradient_clipping", False):
-                    torch.nn.utils.clip_grad_norm_(
-                        model.parameters(), config.get("gradient_clip_val", 1.0)
-                    )
-                optimizer.step()
+                # NEW: Mixed precision forward pass
+                if use_amp:
+                    with autocast():
+                        outputs, _ = model(inputs, hidden)
+                        outputs = outputs.view(-1, model.vocab_size)
+                        targets_reshaped = targets.view(-1)
+                        loss = criterion(outputs, targets_reshaped)
 
-                if torch.cuda.is_available():
-                    torch.cuda.synchronize()
-                compute_time = time.time() - compute_start
+                    # Mixed precision backward pass
+                    scaler.scale(loss).backward()
 
-                total_batch_time = time.time() - total_batch_start
+                    # Gradient clipping with scaler
+                    if config.get("use_gradient_clipping", False):
+                        scaler.unscale_(optimizer)
+                        torch.nn.utils.clip_grad_norm_(
+                            model.parameters(), config.get("gradient_clip_val", 1.0)
+                        )
 
-                # Store timing data
-                batch_times.append(total_batch_time)
-                data_times.append(data_time)
-                compute_times.append(compute_time)
+                    scaler.step(optimizer)
+                    scaler.update()
+                else:
+                    # Regular precision
+                    outputs, _ = model(inputs, hidden)
+                    outputs = outputs.view(-1, model.vocab_size)
+                    targets_reshaped = targets.view(-1)
+                    loss = criterion(outputs, targets_reshaped)
+                    loss.backward()
+
+                    if config.get("use_gradient_clipping", False):
+                        torch.nn.utils.clip_grad_norm_(
+                            model.parameters(), config.get("gradient_clip_val", 1.0)
+                        )
+                    optimizer.step()
 
             # Update epoch statistics
             epoch_loss += loss.item()
@@ -502,43 +569,20 @@ def train_model(config: Dict):
 
             # Print batch statistics
             if batch_idx % config["print_every"] == 0:
-                if flop_counter.profiled and len(batch_times) > 0:
-                    # Show recent timing stats (last 10 batches)
-                    recent_batch_time = np.mean(batch_times[-10:])
-                    recent_data_time = np.mean(data_times[-10:])
-                    recent_compute_time = np.mean(compute_times[-10:])
-
-                    print(
-                        f"Epoch {epoch+1}/{config['num_epochs']}, "
-                        f"Batch {batch_idx}/{len(train_loader)}, "
-                        f"Loss: {loss.item():.4f}"
-                    )
-                    print(
-                        f"  Recent avg: Total={recent_batch_time:.4f}s, "
-                        f"Data={recent_data_time:.4f}s, Compute={recent_compute_time:.4f}s"
-                    )
-                else:
-                    print(
-                        f"Epoch {epoch+1}/{config['num_epochs']}, "
-                        f"Batch {batch_idx}/{len(train_loader)}, "
-                        f"Loss: {loss.item():.4f} [Profiling]"
-                    )
+                amp_status = "[AMP]" if use_amp else ""
+                status = "[Profiling]" if not flop_counter.profiled else amp_status
+                print(
+                    f"Epoch {epoch+1}/{config['num_epochs']}, "
+                    f"Batch {batch_idx}/{len(train_loader)}, "
+                    f"Loss: {loss.item():.4f} {status}"
+                )
 
         # Calculate epoch statistics
         avg_train_loss = epoch_loss / epoch_batches
         epoch_time = time.time() - epoch_start_time
 
-        # Calculate average timings for this epoch (excluding profiled batch)
-        if len(batch_times) > 0:
-            avg_batch_time = np.mean(batch_times)
-            avg_data_time = np.mean(data_times)
-            avg_compute_time = np.mean(compute_times)
-            data_percentage = (avg_data_time / avg_batch_time) * 100
-        else:
-            avg_batch_time = avg_data_time = avg_compute_time = data_percentage = 0
-
-        # Evaluate on validation set
-        val_loss = evaluate_model(model, val_loader, criterion, config["device"])
+        # Evaluate on validation set (with mixed precision)
+        val_loss = evaluate_model_amp(model, val_loader, criterion, device, use_amp)
 
         # Calculate perplexity
         train_perplexity = np.exp(avg_train_loss)
@@ -552,16 +596,10 @@ def train_model(config: Dict):
         print(f"  Validation Loss: {val_loss:.4f} (Perplexity: {val_perplexity:.2f})")
         print(f"  Epoch Time: {epoch_time:.2f}s")
 
-        if len(batch_times) > 0:
-            print(
-                f"  Avg Batch Time: {avg_batch_time:.4f}s (Data: {avg_data_time:.4f}s, Compute: {avg_compute_time:.4f}s)"
-            )
-            print(f"  Data Loading: {data_percentage:.1f}% of batch time")
-
-        # Show profiled timing info (only from first batch)
         if flop_counter.profiled and flop_counter.time_per_batch:
+            print(f"  Profiled compute time: {flop_counter.time_per_batch:.4f}s")
             print(
-                f"  Profiled compute time (first batch): {flop_counter.time_per_batch:.4f}s"
+                f"  Profiled FLOPs per second: {flop_counter.flops_per_batch / flop_counter.time_per_batch:.2e}"
             )
 
         print(f"  Total FLOPs: {flop_counter.total_flops:.2e}")
@@ -578,20 +616,9 @@ def train_model(config: Dict):
             "total_flops": flop_counter.total_flops,
             "epoch_time": epoch_time,
             "learning_rate": optimizer.param_groups[0]["lr"],
+            "mixed_precision": use_amp,
         }
 
-        # Add timing metrics if available
-        if len(batch_times) > 0:
-            log_dict.update(
-                {
-                    "avg_batch_time": avg_batch_time,
-                    "avg_data_time": avg_data_time,
-                    "avg_compute_time": avg_compute_time,
-                    "data_loading_percentage": data_percentage,
-                }
-            )
-
-        # Add profiled timing (only from first batch)
         if flop_counter.profiled and flop_counter.time_per_batch:
             log_dict.update(
                 {
@@ -603,13 +630,13 @@ def train_model(config: Dict):
 
         wandb.log(log_dict)
 
-        # Step scheduler once per epoch
+        # Step scheduler
         if scheduler is not None:
             scheduler.step()
 
-    # Final evaluation on test set
+    # Final evaluation
     print("\nEvaluating on test set...")
-    test_loss = evaluate_model(model, test_loader, criterion, device)
+    test_loss = evaluate_model_amp(model, test_loader, criterion, device, use_amp)
     test_perplexity = np.exp(test_loss)
     print(f"Test Loss: {test_loss:.4f} (Perplexity: {test_perplexity:.2f})")
 
@@ -622,7 +649,6 @@ def train_model(config: Dict):
     )
 
     wandb.finish()
-
     return model, flop_counter.total_flops
 
 
