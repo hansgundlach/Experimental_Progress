@@ -10,6 +10,7 @@ from collections import Counter
 from typing import Dict, List, Tuple
 from transformers import GPT2Tokenizer
 from torch.profiler import profile, record_function, ProfilerActivity
+import multiprocessing as mp
 
 # Configuration
 CONFIG = {
@@ -36,6 +37,11 @@ CONFIG = {
     # Gradient clipping settings
     "use_gradient_clipping": True,
     "gradient_clip_val": 1.0,
+    # NEW: Data loading optimization settings
+    "num_workers": "auto",  # Will be set automatically based on CPU cores
+    "pin_memory": True,  # Faster GPU memory transfer
+    "persistent_workers": True,  # Keep data loading workers alive between epochs
+    "prefetch_factor": 4,  # Number of batches to prefetch per worker
 }
 
 
@@ -116,11 +122,17 @@ class FLOPCounter:
         self.vocab_size = len(tokenizer)
         self.total_flops = 0
         self.flops_per_batch = None  # Will be set after profiling one batch
+        self.time_per_batch = None  # NEW: Will store time per batch
         self.profiled = False
 
     def profile_one_batch(self, inputs, targets, hidden, optimizer, criterion):
-        """Profile one batch to get accurate FLOP count, then use for extrapolation"""
-        print("  [PROFILER] Profiling one batch to determine FLOPs per batch...")
+        """Profile one batch to get accurate FLOP count and timing, then use for extrapolation"""
+        print(
+            "  [PROFILER] Profiling one batch to determine FLOPs and timing per batch..."
+        )
+
+        # Start timing the entire batch
+        batch_start_time = time.time()
 
         with profile(
             activities=[ProfilerActivity.CPU, ProfilerActivity.CUDA],
@@ -144,6 +156,14 @@ class FLOPCounter:
                     )
                 optimizer.step()
 
+        # Synchronize CUDA operations before measuring time
+        if torch.cuda.is_available():
+            torch.cuda.synchronize()
+
+        # Calculate batch time
+        batch_end_time = time.time()
+        self.time_per_batch = batch_end_time - batch_start_time
+
         # Extract FLOP count from profiler
         total_flops = 0
         flop_events = 0
@@ -166,6 +186,12 @@ class FLOPCounter:
             print(
                 f"  [PROFILER] No FLOP events found, using manual estimate: {self.flops_per_batch:.2e}"
             )
+
+        # Report timing information
+        print(f"  [PROFILER] Time per batch: {self.time_per_batch:.4f} seconds")
+        print(
+            f"  [PROFILER] FLOPs per second: {self.flops_per_batch / self.time_per_batch:.2e}"
+        )
 
         self.profiled = True
         self.total_flops += self.flops_per_batch
@@ -198,11 +224,23 @@ class FLOPCounter:
             self.total_flops += self.flops_per_batch
         return self.flops_per_batch
 
+    def get_timing_info(self):
+        """Get timing information from profiling"""
+        return {
+            "time_per_batch": self.time_per_batch,
+            "flops_per_batch": self.flops_per_batch,
+            "flops_per_second": (
+                self.flops_per_batch / self.time_per_batch
+                if self.time_per_batch
+                else None
+            ),
+        }
+
 
 def load_and_preprocess_data(
     config: Dict,
 ) -> Tuple[DataLoader, DataLoader, DataLoader, TextPreprocessor]:
-    """Load and preprocess the WikiText data"""
+    """Load and preprocess the WikiText data with optimized DataLoaders"""
     print("Loading and preprocessing data...")
 
     # Load text data
@@ -238,13 +276,62 @@ def load_and_preprocess_data(
     val_dataset = WikiTextDataset(val_data, config["sequence_length"])
     test_dataset = WikiTextDataset(test_data, config["sequence_length"])
 
-    # Create data loaders
+    # NEW: Optimize DataLoader settings
+    # Determine optimal number of workers
+    if config.get("num_workers") == "auto":
+        # Use half the CPU cores, but cap at 8 to avoid overhead
+        num_workers = min(mp.cpu_count() // 2, 8)
+        # On single-core systems or when debugging, use 0 workers
+        if mp.cpu_count() <= 2:
+            num_workers = 0
+    else:
+        num_workers = config.get("num_workers", 0)
+
+    # Check if we're on CUDA for pin_memory optimization
+    pin_memory = config.get("pin_memory", False) and torch.cuda.is_available()
+
+    # Only use persistent_workers if num_workers > 0
+    persistent_workers = config.get("persistent_workers", False) and num_workers > 0
+
+    # Prefetch factor (only relevant when num_workers > 0)
+    prefetch_factor = config.get("prefetch_factor", 2) if num_workers > 0 else 2
+
+    print(f"DataLoader optimization settings:")
+    print(f"  num_workers: {num_workers}")
+    print(f"  pin_memory: {pin_memory}")
+    print(f"  persistent_workers: {persistent_workers}")
+    print(f"  prefetch_factor: {prefetch_factor}")
+
+    # Create optimized data loaders
     train_loader = DataLoader(
-        train_dataset, batch_size=config["batch_size"], shuffle=True
+        train_dataset,
+        batch_size=config["batch_size"],
+        shuffle=True,
+        num_workers=num_workers,
+        pin_memory=pin_memory,
+        persistent_workers=persistent_workers,
+        prefetch_factor=prefetch_factor,
+        drop_last=True,  # Drop incomplete batches for consistent timing
     )
-    val_loader = DataLoader(val_dataset, batch_size=config["batch_size"], shuffle=False)
+
+    val_loader = DataLoader(
+        val_dataset,
+        batch_size=config["batch_size"],
+        shuffle=False,
+        num_workers=num_workers,
+        pin_memory=pin_memory,
+        persistent_workers=persistent_workers,
+        prefetch_factor=prefetch_factor,
+    )
+
     test_loader = DataLoader(
-        test_dataset, batch_size=config["batch_size"], shuffle=False
+        test_dataset,
+        batch_size=config["batch_size"],
+        shuffle=False,
+        num_workers=num_workers,
+        pin_memory=pin_memory,
+        persistent_workers=persistent_workers,
+        prefetch_factor=prefetch_factor,
     )
 
     print(
@@ -412,21 +499,39 @@ def train_model(config: Dict):
         print(f"  Epoch Time: {epoch_time:.2f}s")
         print(f"  Total FLOPs: {flop_counter.total_flops:.2e}")
         print(f"  FLOPs per second: {flop_counter.total_flops/epoch_time:.2e}")
+
+        # NEW: Add profiled timing information
+        if flop_counter.profiled and flop_counter.time_per_batch:
+            print(f"  Profiled time per batch: {flop_counter.time_per_batch:.4f}s")
+            print(
+                f"  Profiled FLOPs per second: {flop_counter.flops_per_batch / flop_counter.time_per_batch:.2e}"
+            )
+
         print("-" * 60)
 
-        # Log to wandb
-        wandb.log(
-            {
-                "epoch": epoch + 1,
-                "train_loss": avg_train_loss,
-                "val_loss": val_loss,
-                "train_perplexity": train_perplexity,
-                "val_perplexity": val_perplexity,
-                "total_flops": flop_counter.total_flops,
-                "epoch_time": epoch_time,
-                "learning_rate": optimizer.param_groups[0]["lr"],
-            }
-        )
+        # Log to wandb (add timing info)
+        log_dict = {
+            "epoch": epoch + 1,
+            "train_loss": avg_train_loss,
+            "val_loss": val_loss,
+            "train_perplexity": train_perplexity,
+            "val_perplexity": val_perplexity,
+            "total_flops": flop_counter.total_flops,
+            "epoch_time": epoch_time,
+            "learning_rate": optimizer.param_groups[0]["lr"],
+        }
+
+        # Add profiled timing metrics if available
+        if flop_counter.profiled and flop_counter.time_per_batch:
+            log_dict.update(
+                {
+                    "profiled_time_per_batch": flop_counter.time_per_batch,
+                    "profiled_flops_per_second": flop_counter.flops_per_batch
+                    / flop_counter.time_per_batch,
+                }
+            )
+
+        wandb.log(log_dict)
 
         # Step scheduler once per epoch
         if scheduler is not None:
