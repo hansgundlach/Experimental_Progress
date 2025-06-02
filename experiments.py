@@ -139,7 +139,7 @@ if __name__ == "__main__":
     # }
     base_config = {
         "dataset": "wikitext",
-        "batch_size": 32,  # Larger batches (Chinchilla used big batches)
+        "batch_size": 32,  # Larger batches (Chinchilla used big batches) size of each mini batch
         "learning_rate": 6e-4,  # Scale with batch size (sqrt scaling)
         "min_lr": 1e-5,
         "lr_schedule": "cosine_warmup",

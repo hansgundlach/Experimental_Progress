@@ -12,22 +12,23 @@ from transformers import GPT2Tokenizer
 from torch.profiler import profile, record_function, ProfilerActivity
 import multiprocessing as mp
 from torch.cuda.amp import autocast, GradScaler
+import math
 
 # Configuration
 CONFIG = {
     "data_path": "../Datasets/wikitext.txt",
     "tokenizer_path": "../gpt2_tokenizer",
-    "max_characters": 2e5,  # Maximum number of characters to use from dataset
+    "max_characters": 3 * 1e8,  # Maximum number of characters to use from dataset
     "sequence_length": 128,
-    "batch_size": 32,
-    "hidden_size": 512,
+    "batch_size": 32,  # Keep physical batch size small
+    "hidden_size": 64,
     "num_layers": 2,
     "dropout": 0.2,
-    "learning_rate": 0.001,
-    "lr_schedule": "constant",
+    "learning_rate": 0.001 * math.sqrt(4),  # Scale by sqrt of accumulation steps
+    "lr_schedule": "cosine",
     "step_size": 10,
     "gamma": 0.1,
-    "num_epochs": 20,
+    "num_epochs": 5,
     "train_split": 0.8,
     "val_split": 0.1,
     "test_split": 0.1,
@@ -44,8 +45,11 @@ CONFIG = {
     "persistent_workers": True,  # Keep data loading workers alive between epochs
     "prefetch_factor": 4,  # Number of batches to prefetch per worker
     # NEW: Mixed precision settings
-    "use_amp": False,  # Enable Automatic Mixed Precision
+    "use_amp": True,  # Enable Automatic Mixed Precision
     "amp_opt_level": "O1",  # Not used with native AMP, but kept for reference
+    # NEW: Gradient accumulation settings
+    "gradient_accumulation_steps": 4,  # Simulate 4x larger batch size (32*4 = 128)
+    "effective_batch_size": 128,  # For tracking only - computed from batch_size * gradient_accumulation_steps
 }
 
 
@@ -448,10 +452,15 @@ def evaluate_model_amp(
 
 
 def train_model(config: Dict):
-    """Main training function with mixed precision support"""
+    """Main training function with mixed precision and gradient accumulation"""
     # Initialize wandb
     if config["wandb_offline"]:
         os.environ["WANDB_MODE"] = "offline"
+
+    # Calculate effective batch size
+    gradient_accumulation_steps = config.get("gradient_accumulation_steps", 1)
+    effective_batch_size = config["batch_size"] * gradient_accumulation_steps
+    config["effective_batch_size"] = effective_batch_size  # Store for reporting
 
     wandb.init(project=config["wandb_project"], config=config)
 
@@ -479,11 +488,14 @@ def train_model(config: Dict):
     criterion = nn.CrossEntropyLoss()
     optimizer = optim.Adam(model.parameters(), lr=config["learning_rate"])
 
-    # NEW: Initialize mixed precision scaler
+    # Initialize mixed precision scaler
     use_amp = config.get("use_amp", False) and device.type == "cuda"
     scaler = GradScaler() if use_amp else None
 
     print(f"Mixed Precision: {'Enabled' if use_amp else 'Disabled'}")
+    print(
+        f"Gradient Accumulation: {gradient_accumulation_steps} steps (Effective batch size: {effective_batch_size})"
+    )
 
     # Set up LR scheduler
     if config.get("lr_schedule") == "step":
@@ -508,80 +520,108 @@ def train_model(config: Dict):
         epoch_start_time = time.time()
         epoch_loss = 0
         epoch_batches = 0
+        optimizer.zero_grad()  # Zero gradients at the start of epoch
 
         for batch_idx, (inputs, targets) in enumerate(train_loader):
             batch_size, sequence_length = inputs.size()
 
-            # Only profile the very first batch
+            # Profile only the very first batch of training
             if not flop_counter.profiled:
-                # PROFILING BATCH
                 hidden = model.init_hidden(batch_size, device)
                 loss = flop_counter.profile_one_batch(
                     inputs, targets, hidden, optimizer, criterion, scaler
                 )
-            else:
-                # NORMAL TRAINING BATCHES - Zero overhead with mixed precision
-                inputs, targets = inputs.to(device, non_blocking=True), targets.to(
-                    device, non_blocking=True
-                )
-                hidden = model.init_hidden(batch_size, device)
-
-                flop_counter.add_batch_flops()
+                # Re-zero gradients after profiling
                 optimizer.zero_grad()
+                # Update epoch statistics for profiled batch
+                epoch_loss += loss.item()
+                epoch_batches += 1
+                continue
 
-                # NEW: Mixed precision forward pass
+            # Move data to device
+            inputs, targets = inputs.to(device, non_blocking=True), targets.to(
+                device, non_blocking=True
+            )
+            hidden = model.init_hidden(batch_size, device)
+
+            # Track FLOP count
+            flop_counter.add_batch_flops()
+
+            # Forward pass with mixed precision
+            if use_amp:
+                with autocast():
+                    outputs, _ = model(inputs, hidden)
+                    outputs = outputs.view(-1, model.vocab_size)
+                    targets_reshaped = targets.view(-1)
+                    # Scale loss by accumulation steps
+                    loss = (
+                        criterion(outputs, targets_reshaped)
+                        / gradient_accumulation_steps
+                    )
+
+                # Mixed precision backward pass
+                scaler.scale(loss).backward()
+            else:
+                # Regular precision
+                outputs, _ = model(inputs, hidden)
+                outputs = outputs.view(-1, model.vocab_size)
+                targets_reshaped = targets.view(-1)
+                # Scale loss by accumulation steps
+                loss = (
+                    criterion(outputs, targets_reshaped) / gradient_accumulation_steps
+                )
+                loss.backward()
+
+            # Update epoch statistics
+            epoch_loss += (
+                loss.item() * gradient_accumulation_steps
+            )  # Scale back for logging
+            epoch_batches += 1
+
+            # Step optimizer after accumulation steps
+            if (batch_idx + 1) % gradient_accumulation_steps == 0 or (
+                batch_idx + 1 == len(train_loader)
+            ):
+                # Apply gradient clipping and optimizer step
                 if use_amp:
-                    with autocast():
-                        outputs, _ = model(inputs, hidden)
-                        outputs = outputs.view(-1, model.vocab_size)
-                        targets_reshaped = targets.view(-1)
-                        loss = criterion(outputs, targets_reshaped)
-
-                    # Mixed precision backward pass
-                    scaler.scale(loss).backward()
-
-                    # Gradient clipping with scaler
                     if config.get("use_gradient_clipping", False):
                         scaler.unscale_(optimizer)
                         torch.nn.utils.clip_grad_norm_(
                             model.parameters(), config.get("gradient_clip_val", 1.0)
                         )
-
                     scaler.step(optimizer)
                     scaler.update()
                 else:
-                    # Regular precision
-                    outputs, _ = model(inputs, hidden)
-                    outputs = outputs.view(-1, model.vocab_size)
-                    targets_reshaped = targets.view(-1)
-                    loss = criterion(outputs, targets_reshaped)
-                    loss.backward()
-
                     if config.get("use_gradient_clipping", False):
                         torch.nn.utils.clip_grad_norm_(
                             model.parameters(), config.get("gradient_clip_val", 1.0)
                         )
                     optimizer.step()
 
-            # Update epoch statistics
-            epoch_loss += loss.item()
-            epoch_batches += 1
+                # Zero gradients after optimization step
+                optimizer.zero_grad()
 
             # Print batch statistics
             if batch_idx % config["print_every"] == 0:
+                accum_status = f"[{(batch_idx % gradient_accumulation_steps) + 1}/{gradient_accumulation_steps}]"
                 amp_status = "[AMP]" if use_amp else ""
-                status = "[Profiling]" if not flop_counter.profiled else amp_status
+                status = (
+                    "[Profiling]"
+                    if not flop_counter.profiled
+                    else f"{amp_status} {accum_status}"
+                )
+
                 print(
                     f"Epoch {epoch+1}/{config['num_epochs']}, "
                     f"Batch {batch_idx}/{len(train_loader)}, "
-                    f"Loss: {loss.item():.4f} {status}"
+                    f"Loss: {loss.item() * gradient_accumulation_steps:.4f} {status}"
                 )
 
         # Calculate epoch statistics
         avg_train_loss = epoch_loss / epoch_batches
         epoch_time = time.time() - epoch_start_time
 
-        # Evaluate on validation set (with mixed precision)
+        # Evaluate on validation set (no gradient accumulation needed here)
         val_loss = evaluate_model_amp(model, val_loader, criterion, device, use_amp)
 
         # Calculate perplexity
@@ -595,6 +635,9 @@ def train_model(config: Dict):
         )
         print(f"  Validation Loss: {val_loss:.4f} (Perplexity: {val_perplexity:.2f})")
         print(f"  Epoch Time: {epoch_time:.2f}s")
+        print(
+            f"  Effective Batch Size: {effective_batch_size} (Physical: {config['batch_size']} × {gradient_accumulation_steps})"
+        )
 
         if flop_counter.profiled and flop_counter.time_per_batch:
             print(f"  Profiled compute time: {flop_counter.time_per_batch:.4f}s")
@@ -617,6 +660,7 @@ def train_model(config: Dict):
             "epoch_time": epoch_time,
             "learning_rate": optimizer.param_groups[0]["lr"],
             "mixed_precision": use_amp,
+            "effective_batch_size": effective_batch_size,
         }
 
         if flop_counter.profiled and flop_counter.time_per_batch:
@@ -630,7 +674,7 @@ def train_model(config: Dict):
 
         wandb.log(log_dict)
 
-        # Step scheduler
+        # Step scheduler once per epoch
         if scheduler is not None:
             scheduler.step()
 
