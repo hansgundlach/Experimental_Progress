@@ -13,11 +13,11 @@ from torch.profiler import profile, record_function, ProfilerActivity
 
 # Configuration
 CONFIG = {
-    "data_path": "Datasets/wikitext.txt",
-    "tokenizer_path": "gpt2_tokenizer",
+    "data_path": "../Datasets/wikitext.txt",
+    "tokenizer_path": "../gpt2_tokenizer",
     "max_characters": 2e5,  # Maximum number of characters to use from dataset
     "sequence_length": 128,
-    "batch_size": 256,
+    "batch_size": 32,
     "hidden_size": 512,
     "num_layers": 2,
     "dropout": 0.2,

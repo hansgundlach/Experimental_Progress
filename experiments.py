@@ -151,7 +151,7 @@ if __name__ == "__main__":
         "num_heads": 8,  # Keep heads (64/8 = 8 dim per head)
         "dropout": 0.0,  # Chinchilla used little/no dropout
         "seq_length": 128,  # Longer sequences (better data efficiency)
-        "wikitext_limit": 10**8,
+        "wikitext_limit": 3 * 10**8,
         "pos_encoding": "rotary",
         "init_scheme": "transformer_scaled",
         "stride": 64,  # 50% overlap
@@ -170,7 +170,7 @@ if __name__ == "__main__":
     }
     # Setup experiments
     # long_seeds = [42, 123, 789, 1000]
-    seeds = [789]
+    seeds = [789, 42]
 
     # comparing activation functions
     # comparison_activation = {
@@ -284,13 +284,14 @@ if __name__ == "__main__":
         "base_changes": {
             2: {"num_layers": 2},
             4: {"num_layers": 4},
+            6: {"num_layers": 6},
             8: {"num_layers": 8},
             10: {"num_layers": 10},
         },
     }
     print("PRINTING BASE CONFIG")
     print(base_config)
-    comparison = comparison_norms
+    comparison = comparison_depth
     parameter = comparison["parameter"]
     options = comparison["options"]
     base_changes = comparison["base_changes"]
