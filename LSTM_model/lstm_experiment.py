@@ -21,17 +21,17 @@ from torch.utils.data.distributed import DistributedSampler
 CONFIG = {
     "data_path": "../Datasets/wikitext.txt",
     "tokenizer_path": "../gpt2_tokenizer",
-    "max_characters": 3 * 1e4,  # Maximum number of characters to use from dataset
+    "max_characters": 5 * 1e7,  # Maximum number of characters to use from dataset
     "sequence_length": 128,
-    "batch_size": 32,  # Keep physical batch size small
-    "hidden_size": 64,
+    "batch_size": 256,  # Keep physical batch size small
+    "hidden_size": 16,
     "num_layers": 2,
     "dropout": 0.2,
     "learning_rate": 0.001 * math.sqrt(4),  # Scale by sqrt of accumulation steps
     "lr_schedule": "cosine",
     "step_size": 10,
     "gamma": 0.1,
-    "num_epochs": 2,
+    "num_epochs": 5,
     "train_split": 0.8,
     "val_split": 0.1,
     "test_split": 0.1,
@@ -48,12 +48,50 @@ CONFIG = {
     "persistent_workers": True,  # Keep data loading workers alive between epochs
     "prefetch_factor": 4,  # Number of batches to prefetch per worker
     # NEW: Mixed precision settings
-    "use_amp": True,  # Enable Automatic Mixed Precision
+    "use_amp": False,  # Enable Automatic Mixed Precision
     "amp_opt_level": "O1",  # Not used with native AMP, but kept for reference
     # NEW: Gradient accumulation settings
-    "gradient_accumulation_steps": 4,  # Simulate 4x larger batch size (32*4 = 128)
-    "effective_batch_size": 128,  # For tracking only - computed from batch_size * gradient_accumulation_steps
+    "gradient_accumulation_steps": 2,  # Simulate 4x larger batch size (32*4 = 128)# For tracking only - computed from batch_size * gradient_accumulation_steps
 }
+
+# old large 5-6M param config:
+# CONFIG = {
+#     "data_path": "../Datasets/wikitext.txt",
+#     "tokenizer_path": "../gpt2_tokenizer",
+#     "max_characters": 3 * 1e8,  # Maximum number of characters to use from dataset
+#     "sequence_length": 128,
+#     "batch_size": 32,  # Keep physical batch size small
+#     "hidden_size": 64,
+#     "num_layers": 2,
+#     "dropout": 0.2,
+#     "learning_rate": 0.001 * math.sqrt(4),  # Scale by sqrt of accumulation steps
+#     "lr_schedule": "cosine",
+#     "step_size": 10,
+#     "gamma": 0.1,
+#     "num_epochs": 4,
+#     "train_split": 0.8,
+#     "val_split": 0.1,
+#     "test_split": 0.1,
+#     "device": "cuda" if torch.cuda.is_available() else "cpu",
+#     "wandb_project": "lstm-wikitext",
+#     "wandb_offline": True,
+#     "print_every": 100,  # Print loss every N batches
+#     # Gradient clipping settings
+#     "use_gradient_clipping": True,
+#     "gradient_clip_val": 1.0,
+#     # NEW: Data loading optimization settings
+#     "num_workers": "auto",  # Will be set automatically based on CPU cores
+#     "pin_memory": True,  # Faster GPU memory transfer
+#     "persistent_workers": True,  # Keep data loading workers alive between epochs
+#     "prefetch_factor": 4,  # Number of batches to prefetch per worker
+#     # NEW: Mixed precision settings
+#     "use_amp": True,  # Enable Automatic Mixed Precision
+#     "amp_opt_level": "O1",  # Not used with native AMP, but kept for reference
+#     # NEW: Gradient accumulation settings
+#     "gradient_accumulation_steps": 4,  # Simulate 4x larger batch size (32*4 = 128)
+#     "effective_batch_size": 128,  # For tracking only - computed from batch_size * gradient_accumulation_steps
+# }
+
 
 cudnn.benchmark = True
 
