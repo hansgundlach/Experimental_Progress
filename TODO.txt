@@ -1,5 +1,9 @@
 
 #
+run again with c4
+be able to run chinchilla level experiment complexity 
+be able to run parallelized version of llstm 
+be able to do experiments with different lstm configs 
 
 
 

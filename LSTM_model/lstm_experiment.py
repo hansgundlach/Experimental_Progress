@@ -13,12 +13,15 @@ from torch.profiler import profile, record_function, ProfilerActivity
 import multiprocessing as mp
 from torch.cuda.amp import autocast, GradScaler
 import math
+import torch.backends.cudnn as cudnn
+import torch.distributed as dist
+from torch.utils.data.distributed import DistributedSampler
 
 # Configuration
 CONFIG = {
     "data_path": "../Datasets/wikitext.txt",
     "tokenizer_path": "../gpt2_tokenizer",
-    "max_characters": 3 * 1e8,  # Maximum number of characters to use from dataset
+    "max_characters": 3 * 1e4,  # Maximum number of characters to use from dataset
     "sequence_length": 128,
     "batch_size": 32,  # Keep physical batch size small
     "hidden_size": 64,
@@ -28,7 +31,7 @@ CONFIG = {
     "lr_schedule": "cosine",
     "step_size": 10,
     "gamma": 0.1,
-    "num_epochs": 5,
+    "num_epochs": 2,
     "train_split": 0.8,
     "val_split": 0.1,
     "test_split": 0.1,
@@ -51,6 +54,8 @@ CONFIG = {
     "gradient_accumulation_steps": 4,  # Simulate 4x larger batch size (32*4 = 128)
     "effective_batch_size": 128,  # For tracking only - computed from batch_size * gradient_accumulation_steps
 }
+
+cudnn.benchmark = True
 
 
 class WikiTextDataset(Dataset):
@@ -115,7 +120,9 @@ class LSTMLanguageModel(nn.Module):
         output = self.linear(lstm_out)
         return output, hidden
 
-    def init_hidden(self, batch_size, device):
+    def init_hidden(
+        self, batch_size: int, device: torch.device
+    ) -> Tuple[torch.Tensor, torch.Tensor]:
         return (
             torch.zeros(self.num_layers, batch_size, self.hidden_size).to(device),
             torch.zeros(self.num_layers, batch_size, self.hidden_size).to(device),
@@ -132,6 +139,13 @@ class FLOPCounter:
         self.flops_per_batch = None
         self.time_per_batch = None
         self.profiled = False
+
+    def get_model_vocab_size(self):
+        # Handle wrapped models (DataParallel or DistributedDataParallel)
+        if hasattr(self.model, "module"):
+            return self.model.module.vocab_size
+        else:
+            return self.model.vocab_size
 
     def profile_one_batch(
         self, inputs, targets, hidden, optimizer, criterion, scaler=None
@@ -153,6 +167,8 @@ class FLOPCounter:
         # Start timing the entire batch
         batch_start_time = time.time()
 
+        vocab_size = self.get_model_vocab_size()
+
         with profile(
             activities=[ProfilerActivity.CPU, ProfilerActivity.CUDA],
             record_shapes=True,
@@ -163,12 +179,12 @@ class FLOPCounter:
                 if scaler is not None:
                     with autocast():
                         outputs, _ = self.model(inputs, hidden)
-                        outputs = outputs.view(-1, self.model.vocab_size)
+                        outputs = outputs.view(-1, vocab_size)
                         targets_reshaped = targets.view(-1)
                         loss = criterion(outputs, targets_reshaped)
                 else:
                     outputs, _ = self.model(inputs, hidden)
-                    outputs = outputs.view(-1, self.model.vocab_size)
+                    outputs = outputs.view(-1, vocab_size)
                     targets_reshaped = targets.view(-1)
                     loss = criterion(outputs, targets_reshaped)
 
@@ -345,17 +361,34 @@ def load_and_preprocess_data(
     print(f"  persistent_workers: {persistent_workers}")
     print(f"  prefetch_factor: {prefetch_factor}")
 
-    # Create optimized data loaders
-    train_loader = DataLoader(
-        train_dataset,
-        batch_size=config["batch_size"],
-        shuffle=True,
-        num_workers=num_workers,
-        pin_memory=pin_memory,
-        persistent_workers=persistent_workers,
-        prefetch_factor=prefetch_factor,
-        drop_last=True,  # Drop incomplete batches for consistent timing
-    )
+    # Create optimized data loaders (use sampler under DDP)
+    if dist.is_initialized():
+        train_sampler = DistributedSampler(
+            train_dataset,
+            num_replicas=dist.get_world_size(),
+            rank=dist.get_rank(),
+        )
+        train_loader = DataLoader(
+            train_dataset,
+            batch_size=config["batch_size"],
+            sampler=train_sampler,
+            num_workers=num_workers,
+            pin_memory=pin_memory,
+            persistent_workers=persistent_workers,
+            prefetch_factor=prefetch_factor,
+            drop_last=True,
+        )
+    else:
+        train_loader = DataLoader(
+            train_dataset,
+            batch_size=config["batch_size"],
+            shuffle=True,
+            num_workers=num_workers,
+            pin_memory=pin_memory,
+            persistent_workers=persistent_workers,
+            prefetch_factor=prefetch_factor,
+            drop_last=True,
+        )
 
     val_loader = DataLoader(
         val_dataset,
@@ -388,23 +421,44 @@ def load_and_preprocess_data(
 
 
 def evaluate_model(
-    model: nn.Module, data_loader: DataLoader, criterion: nn.Module, device: str
+    model: nn.Module,
+    data_loader: DataLoader,
+    criterion: nn.Module,
+    device: torch.device,
 ) -> float:
     """Evaluate model on validation/test set"""
     model.eval()
     total_loss = 0
     total_batches = 0
 
+    # Helper function to handle DataParallel or DDP wrapping
+    def get_hidden(batch_size):
+        if isinstance(model, nn.DataParallel) or isinstance(
+            model, torch.nn.parallel.DistributedDataParallel
+        ):
+            return model.module.init_hidden(batch_size, device)
+        else:
+            return model.init_hidden(batch_size, device)
+
+    # Helper function to get vocab size
+    def get_vocab_size():
+        if isinstance(model, nn.DataParallel) or isinstance(
+            model, torch.nn.parallel.DistributedDataParallel
+        ):
+            return model.module.vocab_size
+        else:
+            return model.vocab_size
+
     with torch.no_grad():
         for batch_idx, (inputs, targets) in enumerate(data_loader):
             inputs, targets = inputs.to(device), targets.to(device)
             batch_size = inputs.size(0)
 
-            hidden = model.init_hidden(batch_size, device)
+            hidden = get_hidden(batch_size)
             outputs, _ = model(inputs, hidden)
 
             # Reshape for loss calculation
-            outputs = outputs.view(-1, model.vocab_size)
+            outputs = outputs.view(-1, get_vocab_size())
             targets = targets.view(-1)
 
             loss = criterion(outputs, targets)
@@ -418,7 +472,7 @@ def evaluate_model_amp(
     model: nn.Module,
     data_loader: DataLoader,
     criterion: nn.Module,
-    device: str,
+    device: torch.device,
     use_amp: bool = False,
 ) -> float:
     """Evaluate model with mixed precision support"""
@@ -426,22 +480,40 @@ def evaluate_model_amp(
     total_loss = 0
     total_batches = 0
 
+    # Helper function to handle DataParallel or DDP wrapping
+    def get_hidden(batch_size):
+        if isinstance(model, nn.DataParallel) or isinstance(
+            model, torch.nn.parallel.DistributedDataParallel
+        ):
+            return model.module.init_hidden(batch_size, device)
+        else:
+            return model.init_hidden(batch_size, device)
+
+    # Helper function to get vocab size
+    def get_vocab_size():
+        if isinstance(model, nn.DataParallel) or isinstance(
+            model, torch.nn.parallel.DistributedDataParallel
+        ):
+            return model.module.vocab_size
+        else:
+            return model.vocab_size
+
     with torch.no_grad():
         for batch_idx, (inputs, targets) in enumerate(data_loader):
             inputs, targets = inputs.to(device), targets.to(device)
             batch_size = inputs.size(0)
 
-            hidden = model.init_hidden(batch_size, device)
+            hidden = get_hidden(batch_size)
 
             if use_amp:
                 with autocast():
                     outputs, _ = model(inputs, hidden)
-                    outputs = outputs.view(-1, model.vocab_size)
+                    outputs = outputs.view(-1, get_vocab_size())
                     targets = targets.view(-1)
                     loss = criterion(outputs, targets)
             else:
                 outputs, _ = model(inputs, hidden)
-                outputs = outputs.view(-1, model.vocab_size)
+                outputs = outputs.view(-1, get_vocab_size())
                 targets = targets.view(-1)
                 loss = criterion(outputs, targets)
 
@@ -451,7 +523,7 @@ def evaluate_model_amp(
     return total_loss / total_batches
 
 
-def train_model(config: Dict):
+def train_model(config: Dict, local_rank=0):
     """Main training function with mixed precision and gradient accumulation"""
     # Initialize wandb
     if config["wandb_offline"]:
@@ -480,6 +552,25 @@ def train_model(config: Dict):
         num_layers=config["num_layers"],
         dropout=config["dropout"],
     ).to(device)
+
+    # Use DataParallel if multiple GPUs are available and NOT using DDP
+    if torch.cuda.device_count() > 1 and not dist.is_initialized():
+        print(f"Using {torch.cuda.device_count()} GPUs with DataParallel")
+        model = nn.DataParallel(model)
+    elif dist.is_initialized():
+        print(f"Using DistributedDataParallel for training")
+        model = torch.nn.parallel.DistributedDataParallel(
+            model, device_ids=[local_rank], output_device=local_rank
+        )
+
+    # Helper function to handle DataParallel or DDP wrapping
+    def init_hidden(batch_size):
+        if isinstance(model, nn.DataParallel) or isinstance(
+            model, torch.nn.parallel.DistributedDataParallel
+        ):
+            return model.module.init_hidden(batch_size, device)
+        else:
+            return model.init_hidden(batch_size, device)
 
     # Initialize FLOP counter
     flop_counter = FLOPCounter(model, config, preprocessor.tokenizer)
@@ -514,8 +605,20 @@ def train_model(config: Dict):
     print(f"Model parameters: {sum(p.numel() for p in model.parameters()):,}")
     print(f"Training on {len(train_loader)} batches per epoch")
 
+    # Add this function inside train_model
+    def get_vocab_size():
+        if isinstance(model, nn.DataParallel) or isinstance(
+            model, torch.nn.parallel.DistributedDataParallel
+        ):
+            return model.module.vocab_size
+        else:
+            return model.vocab_size
+
     # Training loop
     for epoch in range(config["num_epochs"]):
+        # reshuffle for DDP
+        if dist.is_initialized():
+            train_loader.sampler.set_epoch(epoch)
         model.train()
         epoch_start_time = time.time()
         epoch_loss = 0
@@ -527,7 +630,7 @@ def train_model(config: Dict):
 
             # Profile only the very first batch of training
             if not flop_counter.profiled:
-                hidden = model.init_hidden(batch_size, device)
+                hidden = init_hidden(batch_size)
                 loss = flop_counter.profile_one_batch(
                     inputs, targets, hidden, optimizer, criterion, scaler
                 )
@@ -542,7 +645,7 @@ def train_model(config: Dict):
             inputs, targets = inputs.to(device, non_blocking=True), targets.to(
                 device, non_blocking=True
             )
-            hidden = model.init_hidden(batch_size, device)
+            hidden = init_hidden(batch_size)
 
             # Track FLOP count
             flop_counter.add_batch_flops()
@@ -551,7 +654,7 @@ def train_model(config: Dict):
             if use_amp:
                 with autocast():
                     outputs, _ = model(inputs, hidden)
-                    outputs = outputs.view(-1, model.vocab_size)
+                    outputs = outputs.view(-1, get_vocab_size())
                     targets_reshaped = targets.view(-1)
                     # Scale loss by accumulation steps
                     loss = (
@@ -564,7 +667,7 @@ def train_model(config: Dict):
             else:
                 # Regular precision
                 outputs, _ = model(inputs, hidden)
-                outputs = outputs.view(-1, model.vocab_size)
+                outputs = outputs.view(-1, get_vocab_size())
                 targets_reshaped = targets.view(-1)
                 # Scale loss by accumulation steps
                 loss = (
@@ -701,6 +804,15 @@ def benchmark_model(model: nn.Module, config: Dict, tokenizer: GPT2Tokenizer):
     device = torch.device(config["device"])
     model.eval()
 
+    # Function to handle DataParallel or DDP wrapping
+    def init_hidden(batch_size):
+        if isinstance(model, nn.DataParallel) or isinstance(
+            model, torch.nn.parallel.DistributedDataParallel
+        ):
+            return model.module.init_hidden(batch_size, device)
+        else:
+            return model.init_hidden(batch_size, device)
+
     # Create dummy input using tokenizer vocab size
     dummy_input = torch.randint(
         0, len(tokenizer), (config["batch_size"], config["sequence_length"])
@@ -709,7 +821,7 @@ def benchmark_model(model: nn.Module, config: Dict, tokenizer: GPT2Tokenizer):
     # Warmup
     with torch.no_grad():
         for _ in range(10):
-            hidden = model.init_hidden(config["batch_size"], device)
+            hidden = init_hidden(config["batch_size"])
             _ = model(dummy_input, hidden)
 
     # Benchmark
@@ -718,7 +830,7 @@ def benchmark_model(model: nn.Module, config: Dict, tokenizer: GPT2Tokenizer):
 
     with torch.no_grad():
         for _ in range(100):
-            hidden = model.init_hidden(config["batch_size"], device)
+            hidden = init_hidden(config["batch_size"])
             _ = model(dummy_input, hidden)
 
     torch.cuda.synchronize() if device.type == "cuda" else None
@@ -735,11 +847,47 @@ def benchmark_model(model: nn.Module, config: Dict, tokenizer: GPT2Tokenizer):
 
 
 if __name__ == "__main__":
-    print("Starting LSTM training with FLOP counting...")
+    # Check if we're running in distributed mode
+    # Look for SLURM variables
+    use_ddp = (
+        "SLURM_JOB_ID" in os.environ and int(os.environ.get("SLURM_NTASKS", 1)) > 1
+    ) or ("LOCAL_RANK" in os.environ and int(os.environ.get("WORLD_SIZE", 1)) > 1)
+    local_rank = 0
+
+    if use_ddp:
+        # Get local rank from SLURM or PyTorch
+        if "SLURM_LOCALID" in os.environ:
+            local_rank = int(os.environ["SLURM_LOCALID"])
+        else:
+            local_rank = int(os.environ.get("LOCAL_RANK", 0))
+
+        # Initialize process group
+        torch.cuda.set_device(local_rank)
+        # Make sure these environment variables are set
+        if "MASTER_ADDR" not in os.environ:
+            os.environ["MASTER_ADDR"] = "localhost"
+        if "MASTER_PORT" not in os.environ:
+            os.environ["MASTER_PORT"] = "29500"
+
+        dist.init_process_group(
+            backend="nccl",
+            init_method="env://",
+            world_size=int(
+                os.environ.get("SLURM_NTASKS", os.environ.get("WORLD_SIZE", 1))
+            ),
+            rank=int(os.environ.get("SLURM_PROCID", os.environ.get("RANK", 0))),
+        )
+        CONFIG["device"] = f"cuda:{local_rank}"
+        print(f"Starting LSTM training under DDP: rank {local_rank}")
+    else:
+        # Single GPU mode
+        CONFIG["device"] = "cuda:0" if torch.cuda.is_available() else "cpu"
+        print("Starting LSTM training in single GPU mode…")
+
     print(f"Configuration: {CONFIG}")
 
-    # Train model
-    trained_model, total_flops = train_model(CONFIG)
+    # Train model with local rank
+    trained_model, total_flops = train_model(CONFIG, local_rank)
 
     # Get the tokenizer for benchmarking (offline mode)
     tokenizer = GPT2Tokenizer.from_pretrained(

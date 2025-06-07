@@ -229,11 +229,10 @@ if __name__ == "__main__":
     }
     comparison_optimizer = {
         "parameter": "optimizer",
-        "options": ["adamw", "adam", "sgd"],
+        "options": ["adamw", "adam"],
         "base_changes": {
             "adamw": {"optimizer": "adamw"},
             "adam": {"optimizer": "adam"},
-            "sgd": {"optimizer": "sgd"},
         },
     }
     comparison_init_scheme = {
@@ -289,9 +288,21 @@ if __name__ == "__main__":
             10: {"num_layers": 10},
         },
     }
+
+    # Add learning rate sweep for SGD optimizer
+    comparison_lr = {
+        "parameter": "learning_rate",
+        "options": [1e-5, 1e-4, 1e-3, 1e-2],
+        "base_changes": {
+            1e-5: {"learning_rate": 1e-5},
+            1e-4: {"learning_rate": 1e-4},
+            1e-3: {"learning_rate": 1e-3},
+            1e-2: {"learning_rate": 1e-2},
+        },
+    }
     print("PRINTING BASE CONFIG")
     print(base_config)
-    comparison = comparison_depth
+    comparison = comparison_lr
     parameter = comparison["parameter"]
     options = comparison["options"]
     base_changes = comparison["base_changes"]

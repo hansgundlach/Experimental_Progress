@@ -5,6 +5,7 @@
 #SBATCH --partition=xeon-g6-volta
 #SBATCH --gres=gpu:volta:2
 #SBATCH --mem=32G
+#SBATCH --ntasks-per-node=2
 
 # Create logs directory name with timestamp
 LOG_DIR="logs/$(date +%d-%H)"
@@ -12,10 +13,6 @@ mkdir -p "$LOG_DIR"
 
 # Move SLURM output files to log directory
 trap 'mv slurm-${SLURM_JOB_ID}.* "$LOG_DIR/"' EXIT
-
-# Create logs directory name with timestamp
-LOG_DIR="logs/$(date +%d-%H)"
-mkdir -p $LOG_DIR
 
 echo "Job started at $(date)"
 echo "Working directory: $PWD"
@@ -53,7 +50,17 @@ echo "Checking GPU availability..."
 python check_gpu.py || exit 1
 
 # Run the main experiment
-echo "Running main experiment..."
-python lstm_experiment.py --device cuda:0 2>&1 | tee "$LOG_DIR/$SLURM_JOB_ID.log"
+echo "Running distributed experiment…"
 
-echo "Job ended at $(date)"
+# Hard-code number of GPUs per node
+NUM_GPUS=2
+
+# Method 1: Simple option - run separate instances and use SLURM for orchestration
+echo "Using SLURM for process coordination"
+
+# Launch processes directly using srun
+srun --ntasks=$NUM_GPUS --ntasks-per-node=$NUM_GPUS \
+     --export=ALL,MASTER_ADDR=$(hostname),MASTER_PORT=$(shuf -i 29500-65000 -n 1) \
+     python lstm_experiment.py 2>&1 | tee "$LOG_DIR/$SLURM_JOB_ID.log"
+
+echo "Job ended at $(date)" 
