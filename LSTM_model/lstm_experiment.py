@@ -57,6 +57,8 @@ CONFIG = {
     # NEW: whether to compile the model (PyTorch 2.0+)
     "use_compile": False,
     "seed": 789,
+    "optimizer": "adamw",  # NEW: choose from "adam", "adamw", or "sgd"
+    "weight_decay": 0.1,
 }
 
 # old large 5-6M param config:
@@ -638,7 +640,25 @@ def train_model(config: Dict, local_rank=0):
 
     # Loss and optimizer
     criterion = nn.CrossEntropyLoss()
-    optimizer = optim.Adam(model.parameters(), lr=config["learning_rate"])
+    # Select optimizer based on config
+    opt_name = config.get("optimizer", "adam").lower()
+    if opt_name == "adam":
+        optimizer = optim.Adam(model.parameters(), lr=config["learning_rate"])
+    elif opt_name == "adamw":
+        optimizer = optim.AdamW(
+            model.parameters(),
+            lr=config["learning_rate"],
+            weight_decay=config.get("weight_decay", 0.0),
+        )
+    elif opt_name == "sgd":
+        optimizer = optim.SGD(
+            model.parameters(),
+            lr=config["learning_rate"],
+            momentum=config.get("momentum", 0.9),
+            weight_decay=config.get("weight_decay", 0.0),
+        )
+    else:
+        raise ValueError(f"Unsupported optimizer: {config['optimizer']}")
 
     # Initialize mixed precision scaler
     use_amp = config.get("use_amp", False) and device.type == "cuda"
