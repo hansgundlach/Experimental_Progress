@@ -51,7 +51,9 @@ CONFIG = {
     "use_amp": False,  # Enable Automatic Mixed Precision
     "amp_opt_level": "O1",  # Not used with native AMP, but kept for reference
     # NEW: Gradient accumulation settings
-    "gradient_accumulation_steps": 2,  # Simulate 4x larger batch size (32*4 = 128)# For tracking only - computed from batch_size * gradient_accumulation_steps
+    "gradient_accumulation_steps": 2,  # For tracking only
+    # NEW: whether to compile the model (PyTorch 2.0+)
+    "use_compile": False,
 }
 
 # old large 5-6M param config:
@@ -591,7 +593,7 @@ def train_model(config: Dict, local_rank=0):
         dropout=config["dropout"],
     ).to(device)
 
-    # Use DataParallel if multiple GPUs are available and NOT using DDP
+    # Use DataParallel or DDP if requested
     if torch.cuda.device_count() > 1 and not dist.is_initialized():
         print(f"Using {torch.cuda.device_count()} GPUs with DataParallel")
         model = nn.DataParallel(model)
@@ -600,6 +602,12 @@ def train_model(config: Dict, local_rank=0):
         model = torch.nn.parallel.DistributedDataParallel(
             model, device_ids=[local_rank], output_device=local_rank
         )
+
+    # NEW: compile the model (must be after any parallel wrappers)
+    if config.get("use_compile", False):
+        print("🔧 Compiling model with torch.compile() …")
+        # you can pass mode/backend args here, e.g. backend="inductor", mode="max-autotune"
+        model = torch.compile(model)
 
     # Helper function to handle DataParallel or DDP wrapping
     def init_hidden(batch_size):
