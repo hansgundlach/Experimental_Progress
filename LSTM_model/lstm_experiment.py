@@ -59,6 +59,7 @@ CONFIG = {
     "seed": 789,
     "optimizer": "adamw",  # NEW: choose from "adam", "adamw", or "sgd"
     "weight_decay": 0.1,
+    "stride": 64,  # NEW: sliding-window stride to match transformer
 }
 
 # old large 5-6M param config:
@@ -104,20 +105,23 @@ cudnn.benchmark = True
 
 
 class WikiTextDataset(Dataset):
-    def __init__(self, text_data: List[int], sequence_length: int):
+    """Dataset of fixed‐length sequences with configurable stride."""
+
+    def __init__(self, text_data: List[int], sequence_length: int, stride: int = 1):
         self.data = text_data
         self.sequence_length = sequence_length
+        self.stride = stride
 
     def __len__(self):
-        return len(self.data) - self.sequence_length
+        # number of windows we can slide over the data
+        return (len(self.data) - self.sequence_length) // self.stride
 
     def __getitem__(self, idx):
-        return (
-            torch.tensor(self.data[idx : idx + self.sequence_length], dtype=torch.long),
-            torch.tensor(
-                self.data[idx + 1 : idx + self.sequence_length + 1], dtype=torch.long
-            ),
-        )
+        start = idx * self.stride
+        end = start + self.sequence_length
+        seq = torch.tensor(self.data[start:end], dtype=torch.long)
+        tgt = torch.tensor(self.data[start + 1 : end + 1], dtype=torch.long)
+        return seq, tgt
 
 
 class TextPreprocessor:
@@ -376,10 +380,13 @@ def load_and_preprocess_data(
     val_data = indices[train_len : train_len + val_len]
     test_data = indices[train_len + val_len :]
 
-    # Create datasets
-    train_dataset = WikiTextDataset(train_data, config["sequence_length"])
-    val_dataset = WikiTextDataset(val_data, config["sequence_length"])
-    test_dataset = WikiTextDataset(test_data, config["sequence_length"])
+    # Create datasets with same sliding‐window stride as transformer
+    stride = config.get("stride", 1)
+    train_dataset = WikiTextDataset(
+        train_data, config["sequence_length"], stride=stride
+    )
+    val_dataset = WikiTextDataset(val_data, config["sequence_length"], stride=stride)
+    test_dataset = WikiTextDataset(test_data, config["sequence_length"], stride=stride)
 
     # CONSERVATIVE: Determine optimal number of workers for Supercloud
     if config.get("num_workers") == "auto":
@@ -421,7 +428,7 @@ def load_and_preprocess_data(
             pin_memory=pin_memory,
             persistent_workers=persistent_workers,
             prefetch_factor=prefetch_factor,
-            drop_last=True,
+            drop_last=False,
         )
     else:
         train_loader = DataLoader(
@@ -432,7 +439,7 @@ def load_and_preprocess_data(
             pin_memory=pin_memory,
             persistent_workers=persistent_workers,
             prefetch_factor=prefetch_factor,
-            drop_last=True,
+            drop_last=False,
         )
 
     val_loader = DataLoader(
