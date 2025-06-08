@@ -16,17 +16,19 @@ import math
 import torch.backends.cudnn as cudnn
 import torch.distributed as dist
 from torch.utils.data.distributed import DistributedSampler
+import random  # NEW: for reproducible seeding
 
 # Configuration
+# has 1.66 total params
 CONFIG = {
     "data_path": "../Datasets/wikitext.txt",
     "tokenizer_path": "../gpt2_tokenizer",
-    "max_characters": 5 * 1e7,  # Maximum number of characters to use from dataset
+    "max_characters": 5 * 1e4,  # Maximum number of characters to use from dataset
     "sequence_length": 128,
     "batch_size": 256,  # Keep physical batch size small
     "hidden_size": 16,
     "num_layers": 2,
-    "dropout": 0.2,
+    "dropout": 0.0,  # dropout zer here to match transformer but may need to adjust for LSTM
     "learning_rate": 0.001 * math.sqrt(4),  # Scale by sqrt of accumulation steps
     "lr_schedule": "cosine",
     "step_size": 10,
@@ -54,6 +56,7 @@ CONFIG = {
     "gradient_accumulation_steps": 2,  # For tracking only
     # NEW: whether to compile the model (PyTorch 2.0+)
     "use_compile": False,
+    "seed": 789,
 }
 
 # old large 5-6M param config:
@@ -575,6 +578,18 @@ def train_model(config: Dict, local_rank=0):
     config["effective_batch_size"] = effective_batch_size  # Store for reporting
 
     wandb.init(project=config["wandb_project"], config=config)
+
+    # === Seed everything exactly as in transformer.train() ===
+    seed = wandb.config.seed
+    torch.manual_seed(seed)
+    np.random.seed(seed)
+    random.seed(seed)
+    if torch.cuda.is_available():
+        torch.cuda.manual_seed(seed)
+        torch.cuda.manual_seed_all(seed)
+        torch.backends.cudnn.benchmark = True
+        torch.backends.cudnn.deterministic = False
+        torch.backends.cuda.max_split_size_mb = 128
 
     # Set device
     device = torch.device(config["device"])

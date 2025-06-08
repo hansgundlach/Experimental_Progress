@@ -1,4 +1,10 @@
 
+
+# TODO be able to sampel with a given random seed from LSTM 
+
+
+
+
 #
 run again with c4
 be able to run chinchilla level experiment complexity 

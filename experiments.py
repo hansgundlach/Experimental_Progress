@@ -70,107 +70,76 @@ if __name__ == "__main__":
     # Detect available compute resources
     n_gpus = torch.cuda.device_count()
     # Base configuration for all experiments
-    # small base config
-    # base_config = {
-    #     "dataset": "wikitext",
-    #     "batch_size": 128,
-    #     "learning_rate": 0.0001,
-    #     "min_lr": 0.0001,
-    #     "lr_schedule": "inverse_sqrt",  # Options: "cosine", "cosine_warmup", "inverse_sqrt", "one_cycle", "transformer"
-    #     "warmup_epochs": 3,  # For "cosine_warmup" and "inverse_sqrt"
-    #     "warmup_epochs_frac": 0.2,  # 20% of total epochs as warmup
-    #     "pct_start": 0.3,  # For "one_cycle" - percentage of training spent in warmup phase
-    #     "weight_decay": 0.2,
-    #     "hidden_dim": 128,
-    #     "num_layers": 8,
-    #     "num_heads": 8,
-    #     "dropout": 0.5,
-    #     "seq_length": 128,
-    #     "wikitext_limit": 1000000,
-    #     "pos_encoding": "sinusoidal",
-    #     "init_scheme": "transformer_scaled",
-    #     "stride": 64,
-    #     "pin_memory": True,
-    #     "compile": False,
-    #     "prefetch_factor": 8,
-    #     "min_epochs": 30,
-    #     "max_epochs": 30,
-    #     "use_gradient_clipping": True,
-    #     "gradient_clip_val": 0.5,
-    #     "label_smoothing": 0.2,
-    #     "gradient_accumulation_steps": 2,
-    #     "optimizer": "adamw",
-    #     "activation": "gelu",  # Default activation choices are gelu, relu, glu, swiglu
-    #     "norm_type": "layer",  # Options: "layer" or "rms"
-    # }
 
-    # normal config
+    # best base config
     # base_config = {
     #     "dataset": "wikitext",
-    #     "batch_size": 96,  # Smaller batches
-    #     "learning_rate": 3e-4,  # Much lower LR
+    #     "batch_size": 32,  # Larger batches (Chinchilla used big batches) size of each mini batch
+    #     "learning_rate": 6e-4,  # Scale with batch size (sqrt scaling)
     #     "min_lr": 1e-5,
     #     "lr_schedule": "cosine_warmup",
-    #     "warmup_epochs": 3,
-    #     "warmup_epochs_frac": 0.15,
-    #     "pct_start": 0.3,
-    #     "weight_decay": 0.05,  # Much more reasonable
-    #     "hidden_dim": 256,  # Larger model
-    #     "num_layers": 6,  # Slightly smaller depth
-    #     "num_heads": 8,
-    #     "dropout": 0.1,  # Much more reasonable
-    #     "seq_length": 128,  # Longer context
-    #     "wikitext_limit": 5000000,  # Less data to prevent memorization
+    #     "warmup_epochs": 1,
+    #     "warmup_epochs_frac": 0.1,  # Shorter warmup
+    #     "weight_decay": 0.1,  # Standard Chinchilla weight decay
+    #     "hidden_dim": 64,  # Much smaller model
+    #     "num_layers": 6,  # Fewer layers
+    #     "num_heads": 8,  # Keep heads (64/8 = 8 dim per head)
+    #     "dropout": 0.0,  # Chinchilla used little/no dropout
+    #     "seq_length": 128,  # Longer sequences (better data efficiency)
+    #     "wikitext_limit": 3 * 10**8,
     #     "pos_encoding": "rotary",
-    #     "init_scheme": "xavier_uniform",
-    #     "stride": 32,  # Half of seq_length for 50% overlap
+    #     "init_scheme": "transformer_scaled",
+    #     "stride": 64,  # 50% overlap
     #     "pin_memory": True,
     #     "compile": False,
     #     "prefetch_factor": 8,
-    #     "min_epochs": 30,  # More epochs to see proper learning
-    #     "max_epochs": 30,
+    #     "min_epochs": 5,  # MANY more epochs (see data 10-20x)
+    #     "max_epochs": 5,
     #     "use_gradient_clipping": True,
     #     "gradient_clip_val": 1.0,
-    #     "label_smoothing": 0.05,  # Mild smoothing
-    #     "gradient_accumulation_steps": 4,  # Larger effective batch
-    #     "optimizer": "adam",
+    #     "label_smoothing": 0.0,  # Chinchilla didn't use this
+    #     "gradient_accumulation_steps": 4,
+    #     "optimizer": "adamw",  # Chinchilla used AdamW
     #     "activation": "gelu",
     #     "norm_type": "layer",
     # }
+
+    # small config used to compare to lstm
     base_config = {
         "dataset": "wikitext",
-        "batch_size": 32,  # Larger batches (Chinchilla used big batches) size of each mini batch
-        "learning_rate": 6e-4,  # Scale with batch size (sqrt scaling)
+        "batch_size": 256,
+        "learning_rate": 0.001 * math.sqrt(4),
         "min_lr": 1e-5,
-        "lr_schedule": "cosine_warmup",
+        "lr_schedule": "cosine",
         "warmup_epochs": 1,
-        "warmup_epochs_frac": 0.1,  # Shorter warmup
-        "weight_decay": 0.1,  # Standard Chinchilla weight decay
-        "hidden_dim": 64,  # Much smaller model
-        "num_layers": 6,  # Fewer layers
-        "num_heads": 8,  # Keep heads (64/8 = 8 dim per head)
-        "dropout": 0.0,  # Chinchilla used little/no dropout
-        "seq_length": 128,  # Longer sequences (better data efficiency)
-        "wikitext_limit": 3 * 10**8,
-        "pos_encoding": "rotary",
-        "init_scheme": "transformer_scaled",
-        "stride": 64,  # 50% overlap
+        "warmup_epochs_frac": 0.1,
+        "weight_decay": 0.1,
+        "hidden_dim": 16,  # reduced from 64 → yields ~1.6M params
+        "num_layers": 2,  # shallow network
+        "num_heads": 4,  # must divide hidden_dim
+        "dropout": 0.0,
+        "seq_length": 128,
+        "wikitext_limit": 5 * 10**7,
+        "pos_encoding": "sinusoidal",
+        "init_scheme": "xavier_uniform",
+        "stride": 64,
         "pin_memory": True,
         "compile": False,
         "prefetch_factor": 8,
-        "min_epochs": 5,  # MANY more epochs (see data 10-20x)
+        "min_epochs": 5,
         "max_epochs": 5,
         "use_gradient_clipping": True,
         "gradient_clip_val": 1.0,
-        "label_smoothing": 0.0,  # Chinchilla didn't use this
+        "label_smoothing": 0.0,
         "gradient_accumulation_steps": 4,
-        "optimizer": "adamw",  # Chinchilla used AdamW
+        "optimizer": "adamw",
         "activation": "gelu",
         "norm_type": "layer",
     }
+
     # Setup experiments
     # long_seeds = [42, 123, 789, 1000]
-    seeds = [789, 42]
+    seeds = [789]
 
     # comparing activation functions
     # comparison_activation = {
@@ -300,9 +269,19 @@ if __name__ == "__main__":
             1e-2: {"learning_rate": 1e-2},
         },
     }
+
+    # run once
+    comparison_null = {
+        "parameter": "norm_type",
+        "options": ["layer"],
+        "base_changes": {
+            "layer": {"norm_type": "layer"},
+        },
+    }
+
     print("PRINTING BASE CONFIG")
     print(base_config)
-    comparison = comparison_lr
+    comparison = comparison_null
     parameter = comparison["parameter"]
     options = comparison["options"]
     base_changes = comparison["base_changes"]
