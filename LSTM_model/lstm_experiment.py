@@ -352,7 +352,7 @@ def load_and_preprocess_data(
     """Load and preprocess the WikiText data with optimized DataLoaders"""
     print("Loading and preprocessing data...")
 
-    # Load text data
+    # Load raw text
     with open(config["data_path"], "r", encoding="utf-8") as f:
         text = f.read()
 
@@ -365,22 +365,23 @@ def load_and_preprocess_data(
     else:
         print(f"Using full dataset: {len(text)} characters")
 
-    # Initialize preprocessor with GPT-2 tokenizer
+    # Replace contiguous‐stream split with sentence‐level shuffle+split (to match transformer)
+    sentences = text.split("\n")
+    random.shuffle(sentences)
+    n = len(sentences)
+    n_train = int(n * config["train_split"])
+    n_val = int(n * config["val_split"])
+    train_text = "\n".join(sentences[:n_train])
+    val_text = "\n".join(sentences[n_train : n_train + n_val])
+    test_text = "\n".join(sentences[n_train + n_val :])
+
+    # Tokenize each split
     preprocessor = TextPreprocessor(config["tokenizer_path"])
+    train_data = preprocessor.text_to_indices(train_text)
+    val_data = preprocessor.text_to_indices(val_text)
+    test_data = preprocessor.text_to_indices(test_text)
 
-    # Convert text to indices using GPT-2 tokenizer
-    indices = preprocessor.text_to_indices(text)
-
-    # Split data
-    total_len = len(indices)
-    train_len = int(total_len * config["train_split"])
-    val_len = int(total_len * config["val_split"])
-
-    train_data = indices[:train_len]
-    val_data = indices[train_len : train_len + val_len]
-    test_data = indices[train_len + val_len :]
-
-    # Create datasets with same sliding‐window stride as transformer
+    # Create sliding‐window datasets with same stride as transformer
     stride = config.get("stride", 1)
     train_dataset = WikiTextDataset(
         train_data, config["sequence_length"], stride=stride
