@@ -23,7 +23,7 @@ import random  # NEW: for reproducible seeding
 CONFIG = {
     "data_path": "../Datasets/wikitext.txt",
     "tokenizer_path": "../gpt2_tokenizer",
-    "max_characters": 5 * 1e4,  # Maximum number of characters to use from dataset
+    "max_characters": 5 * 1e7,  # Maximum number of characters to use from dataset
     "sequence_length": 128,
     "batch_size": 256,  # Keep physical batch size small
     "hidden_size": 16,
