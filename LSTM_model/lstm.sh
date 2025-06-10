@@ -61,6 +61,6 @@ echo "Using SLURM for process coordination"
 # Launch processes directly using srun
 srun --ntasks=$NUM_GPUS --ntasks-per-node=$NUM_GPUS \
      --export=ALL,MASTER_ADDR=$(hostname),MASTER_PORT=$(shuf -i 29500-65000 -n 1) \
-     python lstm_experiment.py 2>&1 | tee "$LOG_DIR/$SLURM_JOB_ID.log"
+     python lstm_experiments.py 2>&1 | tee "$LOG_DIR/$SLURM_JOB_ID.log"
 
 echo "Job ended at $(date)" 

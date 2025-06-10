@@ -18,6 +18,7 @@ import torch.distributed as dist
 from torch.utils.data.distributed import DistributedSampler
 import random  # NEW: for reproducible seeding
 import copy
+import csv
 
 
 cudnn.benchmark = True
@@ -438,6 +439,8 @@ def evaluate_model(
             total_loss += loss.item()
             total_batches += 1
 
+    if total_batches == 0:
+        return float("nan")
     return total_loss / total_batches
 
 
@@ -493,14 +496,40 @@ def evaluate_model_amp(
             total_loss += loss.item()
             total_batches += 1
 
+    if total_batches == 0:
+        return float("nan")
     return total_loss / total_batches
 
 
-def train_model(config: Dict, local_rank=0, run_name: str = None):
+def train_model(
+    config: Dict, local_rank=0, run_name: str = None, csv_log_path: str = None
+):
     """Main training function with mixed precision and gradient accumulation"""
     # Initialize wandb
     if config["wandb_offline"]:
         os.environ["WANDB_MODE"] = "offline"
+
+    is_main_process = not dist.is_initialized() or dist.get_rank() == 0
+
+    # CSV Logging Setup
+    csv_log_interval = config.get("csv_log_interval")
+    csv_file = None
+    csv_writer = None
+    if is_main_process and csv_log_path and csv_log_interval:
+        try:
+            os.makedirs(os.path.dirname(csv_log_path), exist_ok=True)
+            csv_file = open(csv_log_path, "w", newline="")
+            csv_writer = csv.writer(csv_file)
+            csv_writer.writerow(
+                ["step", "training_loss", "validation_loss", "total_flops_profiler"]
+            )
+            csv_file.flush()  # Immediately write header to disk
+            print(f"Logging training progress to {csv_log_path}")
+        except IOError as e:
+            print(
+                f"Warning: Could not open {csv_log_path} for writing. CSV logging disabled. Error: {e}"
+            )
+            csv_writer = None
 
     # Calculate effective batch size
     gradient_accumulation_steps = config.get("gradient_accumulation_steps", 1)
@@ -713,6 +742,30 @@ def train_model(config: Dict, local_rank=0, run_name: str = None):
                 # Zero gradients after optimization step
                 optimizer.zero_grad()
 
+            # Log to CSV if enabled
+            if csv_writer and (batch_idx + 1) % csv_log_interval == 0:
+                current_step = batch_idx + 1
+                current_train_loss = loss.item() * gradient_accumulation_steps
+
+                # Temporarily switch to eval mode for validation
+                model.eval()
+                with torch.no_grad():
+                    current_val_loss = evaluate_model_amp(
+                        model, val_loader, criterion, device, use_amp
+                    )
+                model.train()
+
+                total_flops = flop_counter.total_flops
+                csv_writer.writerow(
+                    [
+                        current_step,
+                        f"{current_train_loss:.4f}",
+                        f"{current_val_loss:.4f}",
+                        f"{total_flops:.2e}",
+                    ]
+                )
+                csv_file.flush()  # Immediately write row to disk
+
             # Print batch statistics
             if batch_idx % config["print_every"] == 0:
                 accum_status = f"[{(batch_idx % gradient_accumulation_steps) + 1}/{gradient_accumulation_steps}]"
@@ -822,6 +875,9 @@ def train_model(config: Dict, local_rank=0, run_name: str = None):
             "final_total_flops_theoretical": total_flops_theoretical,
         }
     )
+
+    if csv_file:
+        csv_file.close()
 
     wandb.finish()
     return model, results

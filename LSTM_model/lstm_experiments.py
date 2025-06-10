@@ -11,7 +11,7 @@ from lstm_training import train_model
 CONFIG = {
     "data_path": "../Datasets/wikitext.txt",
     "tokenizer_path": "../gpt2_tokenizer",
-    "max_characters": 5 * 1e4,  # Maximum number of characters to use from dataset
+    "max_characters": 5 * 1e6,  # Maximum number of characters to use from dataset
     "sequence_length": 128,
     "batch_size": 256,  # Keep physical batch size small
     "hidden_size": 16,
@@ -28,10 +28,13 @@ CONFIG = {
     "device": "cuda" if torch.cuda.is_available() else "cpu",
     "wandb_project": "lstm-wikitext",
     "wandb_offline": True,
-    "print_every": 100,  # Print loss every N batches
+    "print_every": 1,  # Print loss every N batches
     # Gradient clipping settings
     "use_gradient_clipping": True,
     "gradient_clip_val": 1.0,
+    # NEW: CSV logging settings
+    "results_folder": "Experiments_Folder",
+    "csv_log_interval": 1,  # Log every 100 steps
     # NEW: Data loading optimization settings
     "num_workers": "auto",  # Will be set automatically based on CPU cores
     "pin_memory": True,  # Faster GPU memory transfer
@@ -100,7 +103,7 @@ EXPERIMENTS = [
             },
             {
                 "label": "My label for sub experiment 2",
-                "overrides": {"sequence_length": 150},
+                "overrides": {"sequence_length": 64},
             },
             {
                 "label": "My label for sub experiment 3",
@@ -152,7 +155,25 @@ def run_experiment_suite(base_config, local_rank=0):
                 for key, value in overrides.items():
                     print(f"  {key}: {value}")
 
-            _, results = train_model(current_config, local_rank, run_name=sub_exp_name)
+            # Create path for CSV logger (only for the main process)
+            csv_log_path = None
+            if is_main_process:
+                results_folder = current_config.get("results_folder", "results")
+                exp_folder_path = os.path.join(results_folder, exp_name)
+
+                # Sanitize the label to create a valid filename
+                sanitized_label = "".join(
+                    c for c in sub_exp_name if c.isalnum() or c in (" ", "_")
+                ).rstrip()
+                csv_filename = f"{sanitized_label.replace(' ', '_')}.csv"
+                csv_log_path = os.path.join(exp_folder_path, csv_filename)
+
+            _, results = train_model(
+                current_config,
+                local_rank,
+                run_name=sub_exp_name,
+                csv_log_path=csv_log_path,
+            )
             overall_results[exp_name][sub_exp_name] = results
 
             if is_main_process:
