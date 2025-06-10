@@ -72,74 +72,74 @@ if __name__ == "__main__":
     # Base configuration for all experiments
 
     # best base config
+    base_config = {
+        "dataset": "wikitext",
+        "batch_size": 32,  # Larger batches (Chinchilla used big batches) size of each mini batch
+        "learning_rate": 6e-4,  # Scale with batch size (sqrt scaling)
+        "min_lr": 1e-5,
+        "lr_schedule": "cosine_warmup",
+        "warmup_epochs": 1,
+        "warmup_epochs_frac": 0.1,  # Shorter warmup
+        "weight_decay": 0.1,  # Standard Chinchilla weight decay
+        "hidden_dim": 64,  # Much smaller model
+        "num_layers": 6,  # Fewer layers
+        "num_heads": 8,  # Keep heads (64/8 = 8 dim per head)
+        "dropout": 0.0,  # Chinchilla used little/no dropout
+        "seq_length": 128,  # Longer sequences (better data efficiency)
+        "wikitext_limit": 3 * 10**8,
+        "pos_encoding": "rotary",
+        "init_scheme": "transformer_scaled",
+        "stride": 64,  # 50% overlap
+        "pin_memory": True,
+        "compile": False,
+        "prefetch_factor": 8,
+        "min_epochs": 5,  # MANY more epochs (see data 10-20x)
+        "max_epochs": 5,
+        "use_gradient_clipping": True,
+        "gradient_clip_val": 1.0,
+        "label_smoothing": 0.0,  # Chinchilla didn't use this
+        "gradient_accumulation_steps": 4,
+        "optimizer": "adam",  # Chinchilla used AdamW, I keep getting worse performance with it
+        "activation": "relu",  # chinchilla used gelu but I get better performance with relu
+        "norm_type": "layer",
+    }
+
+    # small config used to compare to lstm
     # base_config = {
     #     "dataset": "wikitext",
-    #     "batch_size": 32,  # Larger batches (Chinchilla used big batches) size of each mini batch
-    #     "learning_rate": 6e-4,  # Scale with batch size (sqrt scaling)
+    #     "batch_size": 256,
+    #     "learning_rate": 0.001 * math.sqrt(4),
     #     "min_lr": 1e-5,
-    #     "lr_schedule": "cosine_warmup",
+    #     "lr_schedule": "cosine",
     #     "warmup_epochs": 1,
-    #     "warmup_epochs_frac": 0.1,  # Shorter warmup
-    #     "weight_decay": 0.1,  # Standard Chinchilla weight decay
-    #     "hidden_dim": 64,  # Much smaller model
-    #     "num_layers": 6,  # Fewer layers
-    #     "num_heads": 8,  # Keep heads (64/8 = 8 dim per head)
-    #     "dropout": 0.0,  # Chinchilla used little/no dropout
-    #     "seq_length": 128,  # Longer sequences (better data efficiency)
-    #     "wikitext_limit": 3 * 10**8,
-    #     "pos_encoding": "rotary",
-    #     "init_scheme": "transformer_scaled",
-    #     "stride": 64,  # 50% overlap
+    #     "warmup_epochs_frac": 0.1,
+    #     "weight_decay": 0.1,
+    #     "hidden_dim": 16,  # reduced from 64 → yields ~1.6M params
+    #     "num_layers": 2,  # shallow network
+    #     "num_heads": 4,  # must divide hidden_dim
+    #     "dropout": 0.0,
+    #     "seq_length": 128,
+    #     "wikitext_limit": 5 * 10**7,
+    #     "pos_encoding": "sinusoidal",
+    #     "init_scheme": "xavier_uniform",
+    #     "stride": 64,
     #     "pin_memory": True,
     #     "compile": False,
     #     "prefetch_factor": 8,
-    #     "min_epochs": 5,  # MANY more epochs (see data 10-20x)
+    #     "min_epochs": 5,
     #     "max_epochs": 5,
     #     "use_gradient_clipping": True,
     #     "gradient_clip_val": 1.0,
-    #     "label_smoothing": 0.0,  # Chinchilla didn't use this
+    #     "label_smoothing": 0.0,
     #     "gradient_accumulation_steps": 4,
-    #     "optimizer": "adamw",  # Chinchilla used AdamW
+    #     "optimizer": "adamw",
     #     "activation": "gelu",
     #     "norm_type": "layer",
     # }
 
-    # small config used to compare to lstm
-    base_config = {
-        "dataset": "wikitext",
-        "batch_size": 256,
-        "learning_rate": 0.001 * math.sqrt(4),
-        "min_lr": 1e-5,
-        "lr_schedule": "cosine",
-        "warmup_epochs": 1,
-        "warmup_epochs_frac": 0.1,
-        "weight_decay": 0.1,
-        "hidden_dim": 16,  # reduced from 64 → yields ~1.6M params
-        "num_layers": 2,  # shallow network
-        "num_heads": 4,  # must divide hidden_dim
-        "dropout": 0.0,
-        "seq_length": 128,
-        "wikitext_limit": 5 * 10**7,
-        "pos_encoding": "sinusoidal",
-        "init_scheme": "xavier_uniform",
-        "stride": 64,
-        "pin_memory": True,
-        "compile": False,
-        "prefetch_factor": 8,
-        "min_epochs": 5,
-        "max_epochs": 5,
-        "use_gradient_clipping": True,
-        "gradient_clip_val": 1.0,
-        "label_smoothing": 0.0,
-        "gradient_accumulation_steps": 4,
-        "optimizer": "adamw",
-        "activation": "gelu",
-        "norm_type": "layer",
-    }
-
     # Setup experiments
     # long_seeds = [42, 123, 789, 1000]
-    seeds = [789]
+    seeds = [789, 123]
 
     # comparing activation functions
     # comparison_activation = {
@@ -281,7 +281,7 @@ if __name__ == "__main__":
 
     print("PRINTING BASE CONFIG")
     print(base_config)
-    comparison = comparison_null
+    comparison = comparison_optimizer
     parameter = comparison["parameter"]
     options = comparison["options"]
     base_changes = comparison["base_changes"]
