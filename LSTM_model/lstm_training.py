@@ -766,6 +766,15 @@ def train_model(
                 )
                 csv_file.flush()  # Immediately write row to disk
 
+                # ALSO: log validation loss and cumulative FLOPs to W&B
+                wandb.log(
+                    {
+                        "validation_loss": current_val_loss,
+                        "total_flops_profiler": total_flops,
+                    },
+                    step=current_step,
+                )
+
             # Print batch statistics
             if batch_idx % config["print_every"] == 0:
                 accum_status = f"[{(batch_idx % gradient_accumulation_steps) + 1}/{gradient_accumulation_steps}]"
