@@ -17,13 +17,14 @@ import torch.backends.cudnn as cudnn
 import torch.distributed as dist
 from torch.utils.data.distributed import DistributedSampler
 import random  # NEW: for reproducible seeding
+import copy
 
 # Configuration
 # has 1.66 total params
 CONFIG = {
     "data_path": "../Datasets/wikitext.txt",
     "tokenizer_path": "../gpt2_tokenizer",
-    "max_characters": 5 * 1e7,  # Maximum number of characters to use from dataset
+    "max_characters": 5 * 1e4,  # Maximum number of characters to use from dataset
     "sequence_length": 128,
     "batch_size": 256,  # Keep physical batch size small
     "hidden_size": 16,
@@ -33,7 +34,7 @@ CONFIG = {
     "lr_schedule": "cosine",
     "step_size": 10,
     "gamma": 0.1,
-    "num_epochs": 5,
+    "num_epochs": 1,
     "train_split": 0.8,
     "val_split": 0.1,
     "test_split": 0.1,
@@ -113,8 +114,9 @@ class WikiTextDataset(Dataset):
         self.stride = stride
 
     def __len__(self):
-        # number of windows we can slide over the data
-        return (len(self.data) - self.sequence_length) // self.stride
+        # number of windows we can slide over the data, never negative
+        raw = (len(self.data) - self.sequence_length) // self.stride
+        return max(0, raw)
 
     def __getitem__(self, idx):
         start = idx * self.stride
@@ -576,7 +578,7 @@ def evaluate_model_amp(
     return total_loss / total_batches
 
 
-def train_model(config: Dict, local_rank=0):
+def train_model(config: Dict, local_rank=0, run_name: str = None):
     """Main training function with mixed precision and gradient accumulation"""
     # Initialize wandb
     if config["wandb_offline"]:
@@ -587,7 +589,7 @@ def train_model(config: Dict, local_rank=0):
     effective_batch_size = config["batch_size"] * gradient_accumulation_steps
     config["effective_batch_size"] = effective_batch_size  # Store for reporting
 
-    wandb.init(project=config["wandb_project"], config=config)
+    wandb.init(project=config["wandb_project"], config=config, name=run_name)
 
     # === Seed everything exactly as in transformer.train() ===
     seed = wandb.config.seed
@@ -876,16 +878,35 @@ def train_model(config: Dict, local_rank=0):
     test_perplexity = np.exp(test_loss)
     print(f"Test Loss: {test_loss:.4f} (Perplexity: {test_perplexity:.2f})")
 
+    # Calculate theoretical FLOPs
+    flops_per_batch_manual = (
+        flop_counter.count_forward_flops_manual(
+            config["batch_size"], config["sequence_length"]
+        )
+        * 3
+    )  # x3 for fwd+bwd
+    total_training_steps = len(train_loader) * config["num_epochs"]
+    total_flops_theoretical = flops_per_batch_manual * total_training_steps
+
+    results = {
+        "final_train_loss": avg_train_loss,
+        "final_val_loss": val_loss,
+        "test_loss": test_loss,
+        "total_flops_profiler": flop_counter.total_flops,
+        "total_flops_theoretical": total_flops_theoretical,
+    }
+
     wandb.log(
         {
             "test_loss": test_loss,
             "test_perplexity": test_perplexity,
             "final_total_flops": flop_counter.total_flops,
+            "final_total_flops_theoretical": total_flops_theoretical,
         }
     )
 
     wandb.finish()
-    return model, flop_counter.total_flops
+    return model, results
 
 
 def benchmark_model(model: nn.Module, config: Dict, tokenizer: GPT2Tokenizer):
@@ -935,6 +956,96 @@ def benchmark_model(model: nn.Module, config: Dict, tokenizer: GPT2Tokenizer):
     return avg_inference_time, throughput
 
 
+# ========= Experiment definitions (customize labels & overrides below) =========
+EXPERIMENTS = [
+    {
+        "name": "Diag_experiment_1",
+        "subexperiments": [
+            {
+                "label": "My label for sub experiment 1",
+                "overrides": {"learning_rate": 1e-2},
+            },
+            {
+                "label": "My label for sub experiment 2",
+                "overrides": {"sequence_length": 150},
+            },
+            {
+                "label": "My label for sub experiment 3",
+                "overrides": {"lr_schedule": "cosine", "step_size": 20},
+            },
+        ],
+    },
+    # – Add more experiments here, e.g.
+    # {
+    #   "name": "Another_experiment",
+    #   "subexperiments": [
+    #     { "label": "foo", "overrides": {...} },
+    #     …
+    #   ]
+    # },
+]
+# ============================================================================
+
+
+def run_experiment_suite(base_config, local_rank=0):
+    """Runs a suite of experiments with different configurations."""
+    is_main_process = not dist.is_initialized() or dist.get_rank() == 0
+
+    overall_results = {}
+
+    for exp in EXPERIMENTS:
+        exp_name = exp["name"]
+        sub_experiments = exp["subexperiments"]
+        if is_main_process:
+            print(f"\n{'='*20} Running Experiment: {exp_name} {'='*20}")
+        overall_results[exp_name] = {}
+
+        for sub in sub_experiments:
+            sub_exp_name = sub["label"]
+            overrides = sub["overrides"]
+            if is_main_process:
+                print(f"\n--- Running Sub-Experiment: {sub_exp_name} ---")
+
+            current_config = copy.deepcopy(base_config)
+            current_config.update(overrides)
+
+            # Group them under a sub‐project if you like:
+            current_config["wandb_project"] = (
+                f"{base_config['wandb_project']}-{exp_name}"
+            )
+
+            if is_main_process:
+                print("Configuration overrides:")
+                for key, value in overrides.items():
+                    print(f"  {key}: {value}")
+
+            _, results = train_model(current_config, local_rank, run_name=sub_exp_name)
+            overall_results[exp_name][sub_exp_name] = results
+
+            if is_main_process:
+                time.sleep(2)  # cleaner logging
+
+    # Print summary of results
+    if is_main_process:
+        print(f"\n{'='*20} Experiment Suite Summary {'='*20}")
+        for exp_name, sub_results in overall_results.items():
+            print(f"\nResults of '{exp_name}':")
+            for sub_exp_name, result_metrics in sub_results.items():
+                print(f"  '{sub_exp_name}':")
+                print(
+                    f"    - Final Training Loss: {result_metrics['final_train_loss']:.4f}"
+                )
+                print(
+                    f"    - Final Validation Loss: {result_metrics['final_val_loss']:.4f}"
+                )
+                print(
+                    f"    - Total FLOPs (Profiler): {result_metrics['total_flops_profiler']:.2e}"
+                )
+                print(
+                    f"    - Total FLOPs (Theoretical): {result_metrics['total_flops_theoretical']:.2e}"
+                )
+
+
 if __name__ == "__main__":
     # Check if we're running in distributed mode
     # Look for SLURM variables
@@ -975,19 +1086,4 @@ if __name__ == "__main__":
 
     print(f"Configuration: {CONFIG}")
 
-    # Train model with local rank
-    trained_model, total_flops = train_model(CONFIG, local_rank)
-
-    # Get the tokenizer for benchmarking (offline mode)
-    tokenizer = GPT2Tokenizer.from_pretrained(
-        CONFIG["tokenizer_path"], local_files_only=True, use_fast=False
-    )
-
-    # Benchmark model
-    inference_time, throughput = benchmark_model(trained_model, CONFIG, tokenizer)
-
-    print(f"\nTraining completed!")
-    print(f"Total FLOPs used in training: {total_flops:.2e}")
-    print(
-        f"Final benchmark - Inference time: {inference_time*1000:.2f}ms, Throughput: {throughput:.2f} samples/s"
-    )
+    run_experiment_suite(CONFIG, local_rank)
