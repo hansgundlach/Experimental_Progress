@@ -11,7 +11,7 @@ from lstm_training import train_model
 CONFIG = {
     "data_path": "../Datasets/wikitext.txt",
     "tokenizer_path": "../gpt2_tokenizer",
-    "max_characters": 5 * 1e6,  # Maximum number of characters to use from dataset
+    "max_characters": 5 * 1e7,  # Maximum number of characters to use from dataset
     "sequence_length": 128,
     "batch_size": 256,  # Keep physical batch size small
     "hidden_size": 16,
@@ -21,20 +21,20 @@ CONFIG = {
     "lr_schedule": "cosine",
     "step_size": 10,
     "gamma": 0.1,
-    "num_epochs": 1,
+    "num_epochs": 5,
     "train_split": 0.8,
     "val_split": 0.1,
     "test_split": 0.1,
     "device": "cuda" if torch.cuda.is_available() else "cpu",
     "wandb_project": "lstm-wikitext",
     "wandb_offline": True,
-    "print_every": 1,  # Print loss every N batches
+    "print_every": 100,  # Print loss every N batches
     # Gradient clipping settings
     "use_gradient_clipping": True,
     "gradient_clip_val": 1.0,
     # NEW: CSV logging settings
     "results_folder": "Experiments_Folder",
-    "csv_log_interval": 1,  # Log every 100 steps
+    "csv_log_interval": 100,  # Log every 100 steps
     # NEW: Data loading optimization settings
     "num_workers": "auto",  # Will be set automatically based on CPU cores
     "pin_memory": True,  # Faster GPU memory transfer
@@ -95,19 +95,11 @@ CONFIG = {
 # ========= Experiment definitions (customize labels & overrides below) =========
 EXPERIMENTS = [
     {
-        "name": "Diag_experiment_1",
+        "name": "LSTM_benchmark",
         "subexperiments": [
             {
-                "label": "My label for sub experiment 1",
-                "overrides": {"learning_rate": 1e-2},
-            },
-            {
-                "label": "My label for sub experiment 2",
-                "overrides": {"sequence_length": 64},
-            },
-            {
-                "label": "My label for sub experiment 3",
-                "overrides": {"lr_schedule": "cosine", "step_size": 20},
+                "label": "LSTM_1.6M_Benchmark",
+                "overrides": {"learning_rate": 0.001 * math.sqrt(4)},
             },
         ],
     },
@@ -120,6 +112,36 @@ EXPERIMENTS = [
     #   ]
     # },
 ]
+# =====
+
+
+# EXPERIMENTS = [
+#     {
+#         "name": "Diag_experiment_1",
+#         "subexperiments": [
+#             {
+#                 "label": "My label for sub experiment 1",
+#                 "overrides": {"learning_rate": 1e-2},
+#             },
+#             {
+#                 "label": "My label for sub experiment 2",
+#                 "overrides": {"sequence_length": 64},
+#             },
+#             {
+#                 "label": "My label for sub experiment 3",
+#                 "overrides": {"lr_schedule": "cosine", "step_size": 20},
+#             },
+#         ],
+#     },
+#     # – Add more experiments here, e.g.
+#     # {
+#     #   "name": "Another_experiment",
+#     #   "subexperiments": [
+#     #     { "label": "foo", "overrides": {...} },
+#     #     …
+#     #   ]
+#     # },
+# ]
 # ============================================================================
 
 

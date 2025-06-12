@@ -17,10 +17,24 @@ def run_experiments_on_gpu(gpu_id, experiments, parameter, project_name, base_co
 
     for exp in experiments:
         try:
+            # Create path for CSV logger
+            csv_log_path = None
+            results_folder = base_config.get("results_folder", "results")
+            csv_log_interval = base_config.get("csv_log_interval")
+
+            if results_folder and csv_log_interval:
+                exp_folder_name = parameter  # e.g., "activation"
+                # Sanitize option value for filename
+                option_val_str = str(exp[parameter]).replace("/", "_")
+                sub_exp_filename = f"{option_val_str}_seed_{exp['seed']}.csv"
+                csv_log_path = os.path.join(
+                    results_folder, exp_folder_name, sub_exp_filename
+                )
+
             with wandb.init(
                 project=project_name, config={**base_config, **exp}, reinit=True
             ) as run:
-                training_results = train(gpu_id=gpu_id)
+                training_results = train(gpu_id=gpu_id, csv_log_path=csv_log_path)
 
                 # Use the current parameter type instead of hardcoding "activation"
                 param_value = exp[parameter]
@@ -72,74 +86,77 @@ if __name__ == "__main__":
     # Base configuration for all experiments
 
     # best base config
-    base_config = {
-        "dataset": "wikitext",
-        "batch_size": 32,  # Larger batches (Chinchilla used big batches) size of each mini batch
-        "learning_rate": 6e-4,  # Scale with batch size (sqrt scaling)
-        "min_lr": 1e-5,
-        "lr_schedule": "cosine_warmup",
-        "warmup_epochs": 1,
-        "warmup_epochs_frac": 0.1,  # Shorter warmup
-        "weight_decay": 0.1,  # Standard Chinchilla weight decay
-        "hidden_dim": 64,  # Much smaller model
-        "num_layers": 6,  # Fewer layers
-        "num_heads": 8,  # Keep heads (64/8 = 8 dim per head)
-        "dropout": 0.0,  # Chinchilla used little/no dropout
-        "seq_length": 128,  # Longer sequences (better data efficiency)
-        "wikitext_limit": 3 * 10**8,
-        "pos_encoding": "rotary",
-        "init_scheme": "transformer_scaled",
-        "stride": 64,  # 50% overlap
-        "pin_memory": True,
-        "compile": False,
-        "prefetch_factor": 8,
-        "min_epochs": 5,  # MANY more epochs (see data 10-20x)
-        "max_epochs": 5,
-        "use_gradient_clipping": True,
-        "gradient_clip_val": 1.0,
-        "label_smoothing": 0.0,  # Chinchilla didn't use this
-        "gradient_accumulation_steps": 4,
-        "optimizer": "adam",  # Chinchilla used AdamW, I keep getting worse performance with it
-        "activation": "relu",  # chinchilla used gelu but I get better performance with relu
-        "norm_type": "layer",
-    }
-
-    # small config used to compare to lstm
     # base_config = {
     #     "dataset": "wikitext",
-    #     "batch_size": 256,
-    #     "learning_rate": 0.001 * math.sqrt(4),
+    #     "batch_size": 32,  # Larger batches (Chinchilla used big batches) size of each mini batch
+    #     "learning_rate": 6e-4,  # Scale with batch size (sqrt scaling)
     #     "min_lr": 1e-5,
-    #     "lr_schedule": "cosine",
+    #     "lr_schedule": "cosine_warmup",
     #     "warmup_epochs": 1,
-    #     "warmup_epochs_frac": 0.1,
-    #     "weight_decay": 0.1,
-    #     "hidden_dim": 16,  # reduced from 64 → yields ~1.6M params
-    #     "num_layers": 2,  # shallow network
-    #     "num_heads": 4,  # must divide hidden_dim
-    #     "dropout": 0.0,
-    #     "seq_length": 128,
-    #     "wikitext_limit": 5 * 10**7,
-    #     "pos_encoding": "sinusoidal",
-    #     "init_scheme": "xavier_uniform",
-    #     "stride": 64,
+    #     "warmup_epochs_frac": 0.1,  # Shorter warmup
+    #     "weight_decay": 0.1,  # Standard Chinchilla weight decay
+    #     "hidden_dim": 64,  # Much smaller model
+    #     "num_layers": 6,  # Fewer layers
+    #     "num_heads": 8,  # Keep heads (64/8 = 8 dim per head)
+    #     "dropout": 0.0,  # Chinchilla used little/no dropout
+    #     "seq_length": 128,  # Longer sequences (better data efficiency)
+    #     "wikitext_limit": 3 * 10**8,
+    #     "pos_encoding": "rotary",
+    #     "init_scheme": "transformer_scaled",
+    #     "stride": 64,  # 50% overlap
     #     "pin_memory": True,
     #     "compile": False,
     #     "prefetch_factor": 8,
-    #     "min_epochs": 5,
+    #     "min_epochs": 5,  # MANY more epochs (see data 10-20x)
     #     "max_epochs": 5,
     #     "use_gradient_clipping": True,
     #     "gradient_clip_val": 1.0,
-    #     "label_smoothing": 0.0,
+    #     "label_smoothing": 0.0,  # Chinchilla didn't use this
     #     "gradient_accumulation_steps": 4,
-    #     "optimizer": "adamw",
-    #     "activation": "gelu",
+    #     "optimizer": "adam",  # Chinchilla used AdamW, I keep getting worse performance with it
+    #     "activation": "relu",  # chinchilla used gelu but I get better performance with relu
     #     "norm_type": "layer",
+    #     # NEW: CSV logging settings
+    #     "results_folder": "Former_Experiments_Folder",
+    #     "csv_log_interval": 100,  # Log every N steps
     # }
+
+    # small config used to compare to lstm
+    base_config = {
+        "dataset": "wikitext",
+        "batch_size": 256,
+        "learning_rate": 0.001 * math.sqrt(4),
+        "min_lr": 1e-5,
+        "lr_schedule": "cosine",
+        "warmup_epochs": 1,
+        "warmup_epochs_frac": 0.1,
+        "weight_decay": 0.1,
+        "hidden_dim": 16,  # reduced from 64 → yields ~1.6M params
+        "num_layers": 2,  # shallow network
+        "num_heads": 4,  # must divide hidden_dim
+        "dropout": 0.0,
+        "seq_length": 128,
+        "wikitext_limit": 5 * 10**7,
+        "pos_encoding": "sinusoidal",
+        "init_scheme": "xavier_uniform",
+        "stride": 64,
+        "pin_memory": True,
+        "compile": False,
+        "prefetch_factor": 8,
+        "min_epochs": 5,
+        "max_epochs": 5,
+        "use_gradient_clipping": True,
+        "gradient_clip_val": 1.0,
+        "label_smoothing": 0.0,
+        "gradient_accumulation_steps": 4,
+        "optimizer": "adamw",
+        "activation": "gelu",
+        "norm_type": "layer",
+    }
 
     # Setup experiments
     # long_seeds = [42, 123, 789, 1000]
-    seeds = [789, 123]
+    seeds = [789]
 
     # comparing activation functions
     # comparison_activation = {
@@ -362,8 +379,21 @@ if __name__ == "__main__":
         device = torch.device("cuda:0")
         for exp in experiments:
             config = {**base_config, **exp}
+
+            # Create path for CSV logger
+            csv_log_path = None
+            results_folder = config.get("results_folder", "results")
+            csv_log_interval = config.get("csv_log_interval")
+            if results_folder and csv_log_interval:
+                exp_folder_name = parameter
+                option_val_str = str(exp[parameter]).replace("/", "_")
+                sub_exp_filename = f"{option_val_str}_seed_{exp['seed']}.csv"
+                csv_log_path = os.path.join(
+                    results_folder, exp_folder_name, sub_exp_filename
+                )
+
             with wandb.init(project=project_name, config=config):
-                train(gpu_id=0)
+                train(gpu_id=0, csv_log_path=csv_log_path)
                 final_loss = wandb.run.summary["val_loss"]
                 best_val_loss = wandb.run.summary["best_val_loss"]
                 final_losses[exp[parameter]][exp["seed"]] = {
@@ -376,8 +406,21 @@ if __name__ == "__main__":
         print("Running on CPU")
         for exp in experiments:
             config = {**base_config, **exp}
+
+            # Create path for CSV logger
+            csv_log_path = None
+            results_folder = config.get("results_folder", "results")
+            csv_log_interval = config.get("csv_log_interval")
+            if results_folder and csv_log_interval:
+                exp_folder_name = parameter
+                option_val_str = str(exp[parameter]).replace("/", "_")
+                sub_exp_filename = f"{option_val_str}_seed_{exp['seed']}.csv"
+                csv_log_path = os.path.join(
+                    results_folder, exp_folder_name, sub_exp_filename
+                )
+
             with wandb.init(project=project_name, config=config):
-                train()
+                train(csv_log_path=csv_log_path)
                 final_loss = wandb.run.summary["val_loss"]
                 best_val_loss = wandb.run.summary["best_val_loss"]
                 final_losses[exp[parameter]][exp["seed"]] = {

@@ -156,6 +156,27 @@ def evaluate_perplexity(model, dataloader, criterion, device):
     return perplexity
 
 
+def evaluate_loss(model, dataloader, criterion, device, vocab_size, use_amp):
+    """Calculate loss on a dataset with optional AMP"""
+    model.eval()
+    total_loss = 0
+    total_batches = 0
+    with torch.no_grad(), autocast(enabled=use_amp):
+        for data, target in dataloader:
+            data, target = data.to(device), target.to(device)
+            output = model(data)
+            output = output[:, :-1, :].contiguous().view(-1, vocab_size)
+            target = target[:, :-1].contiguous().view(-1)
+            loss = criterion(output, target)
+            total_loss += loss.item()
+            total_batches += 1
+
+    if total_batches == 0:
+        return float("nan")
+
+    return total_loss / total_batches
+
+
 # swiglu implmentation adds extra computation so not directly comparable to gelu, relu, silu, glu
 class SwiGLU(nn.Module):
     def __init__(self, dim, hidden_dim=None, dropout=0.0):
@@ -452,7 +473,7 @@ def get_device(gpu_id=None):
         return torch.device("cpu")
 
 
-def train(gpu_id=None):
+def train(gpu_id=None, csv_log_path=None):
     # Set memory optimization flags for V100
     if torch.cuda.is_available():
         # just added to let cuda optimize kernel selection
@@ -466,6 +487,28 @@ def train(gpu_id=None):
 
     # Remove the wandb.init() call from here since it's now handled in run_experiments_on_gpu
     config = wandb.config  # This will use the existing run's config
+
+    # CSV Logging Setup
+    csv_writer = None
+    csv_file = None
+    csv_log_interval = config.get("csv_log_interval")
+
+    if csv_log_path and csv_log_interval:
+        try:
+            os.makedirs(os.path.dirname(csv_log_path), exist_ok=True)
+            csv_file = open(csv_log_path, "w", newline="")
+            csv_writer = csv.writer(csv_file)
+            csv_writer.writerow(
+                ["step", "training_loss", "validation_loss", "total_flops_profiler"]
+            )
+            csv_file.flush()  # Immediately write header to disk
+            print(f"Logging training progress to {csv_log_path}")
+        except (IOError, OSError) as e:
+            print(
+                f"Warning: Could not open {csv_log_path} for writing. CSV logging disabled. Error: {e}"
+            )
+            csv_writer = None
+
     # random seeding to make experiments more reproducable
     seed = config.seed
     torch.manual_seed(seed)
@@ -475,7 +518,6 @@ def train(gpu_id=None):
         torch.cuda.manual_seed(seed)
         torch.cuda.manual_seed_all(seed)
 
-    # Only use GradScaler when using CUDA
     # Only use GradScaler when using CUDA
     use_amp = device.type == "cuda"
     scaler = GradScaler() if use_amp else None
@@ -863,6 +905,32 @@ def train(gpu_id=None):
                     }
                 )
 
+            # Log to CSV if enabled
+            if csv_writer and (global_step % csv_log_interval == 0):
+                current_train_loss = raw_loss.item()
+                # Run validation
+                current_val_loss = evaluate_loss(
+                    model,
+                    val_dataloader,
+                    criterion,
+                    device,
+                    len(primary_tokenizer),
+                    use_amp,
+                )
+                model.train()  # Switch back to train mode
+
+                total_flops_profiler = flops_per_step * global_step
+
+                csv_writer.writerow(
+                    [
+                        global_step,
+                        f"{current_train_loss:.4f}",
+                        f"{current_val_loss:.4f}",
+                        f"{total_flops_profiler:.2e}",
+                    ]
+                )
+                csv_file.flush()
+
         # Update metrics with loss after training loop
         avg_loss = total_loss / len(train_dataloader)
         metrics = {
@@ -874,20 +942,9 @@ def train(gpu_id=None):
 
         # Validation phase
         model.eval()
-        val_loss = 0
-        with torch.no_grad():
-            for data, target in val_dataloader:
-                data, target = data.to(device), target.to(device)
-                output = model(data)
-                output = (
-                    output[:, :-1, :]
-                    .contiguous()
-                    .view(-1, primary_tokenizer.vocab_size)
-                )
-                target = target[:, :-1].contiguous().view(-1)
-                val_loss += criterion(output, target).item()
-
-        val_loss /= len(val_dataloader)
+        val_loss = evaluate_loss(
+            model, val_dataloader, criterion, device, len(primary_tokenizer), use_amp
+        )
         if val_loss < best_val_loss:
             best_val_loss = val_loss
             # don't need to save the model state dict, because we don't use it for anything
@@ -971,6 +1028,9 @@ def train(gpu_id=None):
             print(f"**** Total FLOPS for batch 0: {total_flops:,} ****")
 
     # At the end of training, return the final values
+    # Close CSV file if it was opened
+    if csv_file:
+        csv_file.close()
     # Clear GPU cache
     if torch.cuda.is_available():
         torch.cuda.empty_cache()
