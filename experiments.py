@@ -7,6 +7,8 @@ import os
 import numpy as np
 from core import *  # Import everything from core
 import copy
+import argparse
+import multiprocessing as mp
 
 
 def run_experiments_on_gpu(gpu_id, sub_experiments, project_name_base):
@@ -66,6 +68,20 @@ def run_experiments_on_gpu(gpu_id, sub_experiments, project_name_base):
 
 
 if __name__ == "__main__":
+    parser = argparse.ArgumentParser(description="Run Transformer Experiments")
+    parser.add_argument(
+        "--job_id",
+        type=int,
+        default=0,
+        help="The ID of the current job in a SLURM job array.",
+    )
+    parser.add_argument(
+        "--total_jobs",
+        type=int,
+        default=1,
+        help="The total number of jobs in the SLURM job array.",
+    )
+    args = parser.parse_args()
 
     wandb.login()
     timestamp = datetime.datetime.now().strftime("%m%d_%H%M")
@@ -78,7 +94,7 @@ if __name__ == "__main__":
 
     # Base configuration for all experiments
     base_config = {
-        "dataset": "wikitext",
+        "dataset": "c4_subset",
         "batch_size": 256,
         "learning_rate": 0.001 * math.sqrt(4),
         "min_lr": 1e-5,
@@ -91,7 +107,7 @@ if __name__ == "__main__":
         "num_heads": 4,  # must divide hidden_di
         "dropout": 0.0,
         "seq_length": 128,
-        "wikitext_limit": 5 * 10**5,
+        "wikitext_limit": 5 * 10**6,
         "pos_encoding": "sinusoidal",
         "init_scheme": "xavier_uniform",
         "stride": 64,
@@ -109,7 +125,7 @@ if __name__ == "__main__":
         "norm_type": "layer",
         # NEW: CSV logging settings
         "results_folder": "Former_Experiments_Folder",
-        "csv_log_interval": 100,  # Log every N optimizer steps
+        "csv_log_interval": 10,  # Log every N optimizer steps
         "seed": 789,
     }
 
@@ -175,21 +191,37 @@ if __name__ == "__main__":
                 }
             )
 
+    # Slice the experiments based on the job array ID
+    if args.total_jobs > 1:
+        print(
+            f"Job Array Mode: Running slice {args.job_id} of {args.total_jobs} total jobs."
+        )
+        num_exps = len(all_sub_experiments)
+        exps_per_job = (num_exps + args.total_jobs - 1) // args.total_jobs
+        start_idx = args.job_id * exps_per_job
+        end_idx = min(start_idx + exps_per_job, num_exps)
+        my_sub_experiments = all_sub_experiments[start_idx:end_idx]
+        print(
+            f"This job will run {len(my_sub_experiments)} experiments (indices {start_idx} to {end_idx-1})."
+        )
+    else:
+        my_sub_experiments = all_sub_experiments
+
     # Run experiments
     overall_results = {}
     if n_gpus > 1:
         total_start_time = time.time()
         print(
-            f"\nRunning {len(all_sub_experiments)} total sub-experiments across {n_gpus} GPUs"
+            f"\nRunning {len(my_sub_experiments)} total sub-experiments across {n_gpus} GPUs on this node"
         )
         processes = []
         results_queue = mp.Queue()
-        experiments_per_gpu = (len(all_sub_experiments) + n_gpus - 1) // n_gpus
+        experiments_per_gpu = (len(my_sub_experiments) + n_gpus - 1) // n_gpus
 
         for gpu_id in range(n_gpus):
             start_idx = gpu_id * experiments_per_gpu
-            end_idx = min(start_idx + experiments_per_gpu, len(all_sub_experiments))
-            gpu_experiments = all_sub_experiments[start_idx:end_idx]
+            end_idx = min(start_idx + experiments_per_gpu, len(my_sub_experiments))
+            gpu_experiments = my_sub_experiments[start_idx:end_idx]
 
             if not gpu_experiments:
                 continue
@@ -231,7 +263,7 @@ if __name__ == "__main__":
         gpu_id = 0 if torch.cuda.is_available() else None
         print(f"Running on single device (GPU: {gpu_id})")
         overall_results = run_experiments_on_gpu(
-            gpu_id, all_sub_experiments, project_name_base
+            gpu_id, my_sub_experiments, project_name_base
         )
 
     # Print final summary of results
@@ -259,5 +291,7 @@ if __name__ == "__main__":
             else:
                 print("    - Experiment failed to produce results.")
 
-    print("\nTOTAL SUB-EXPERIMENTS CREATED:")
+    print("\nTOTAL SUB-EXPERIMENTS CREATED (ACROSS ALL JOBS):")
     print(f"Number of sub-experiments: {len(all_sub_experiments)}")
+    if args.total_jobs > 1:
+        print(f"THIS JOB RAN: {len(my_sub_experiments)} sub-experiments.")

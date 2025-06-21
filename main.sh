@@ -1,59 +1,41 @@
 #!/bin/bash
-#SBATCH --job-name=gpu_job
-#SBATCH --output=slurm-%j.out
-#SBATCH --error=slurm-%j.err
+#SBATCH --job-name=gpu_job_array
+#SBATCH --output=slurm-array-%A_task-%a.out
+#SBATCH --error=slurm-array-%A_task-%a.err
 #SBATCH --partition=xeon-g6-volta
+#SBATCH --nodes=1
 #SBATCH --gres=gpu:volta:2
 #SBATCH --mem=32G
+#SBATCH --array=0-1
 
 # Create logs directory name with timestamp
 LOG_DIR="logs/$(date +%d-%H)"
 mkdir -p "$LOG_DIR"
 
 # Move SLURM output files to log directory
-trap 'mv slurm-${SLURM_JOB_ID}.* "$LOG_DIR/"' EXIT
+# Note: This will run at the end of EACH job in the array
+trap 'mv slurm-array-${SLURM_ARRAY_JOB_ID}_task-${SLURM_ARRAY_TASK_ID}.* "$LOG_DIR/"' EXIT
 
-# Create logs directory name with timestamp
-LOG_DIR="logs/$(date +%d-%H)"
-mkdir -p $LOG_DIR
-
-echo "Job started at $(date)"
+echo "Job array ${SLURM_ARRAY_JOB_ID}, Task ${SLURM_ARRAY_TASK_ID} started at $(date)"
 echo "Working directory: $PWD"
-echo "SLURM_JOB_ID: $SLURM_JOB_ID"
 echo "Log directory: $LOG_DIR"
 
 # Clear modules and load required ones
 module purge
 # module load anaconda/2023a-pytorch
-conda activate flashconda
+conda activate llm_training
 
 # Print GPU allocation info
-echo "GPU allocation:"
+echo "GPU allocation for this task:":Q
 nvidia-smi || echo "nvidia-smi not found"
-
-# Create a simple GPU check script
-cat > check_gpu.py << 'EOF'
-import torch
-import sys
-import os
-
-print("PyTorch version:", torch.__version__)
-print("CUDA available:", torch.cuda.is_available())
-if torch.cuda.is_available():
-    print(f"CUDA devices: {torch.cuda.device_count()}")
-    for i in range(torch.cuda.device_count()):
-        print(f"Device {i}: {torch.cuda.get_device_name(i)}")
-else:
-    print("ERROR: CUDA is not available!")
-    sys.exit(1)
-EOF
 
 # Check GPU availability
 echo "Checking GPU availability..."
-python check_gpu.py || exit 1
+# No need for check_gpu.py, our python script handles GPU detection.
 
-# Run the main experiment
-echo "Running main experiment..."
-python experiments.py --device cuda:0 2>&1 | tee "$LOG_DIR/$SLURM_JOB_ID.log"
+# Run the main experiment, passing the array info
+TOTAL_JOBS=${SLURM_ARRAY_TASK_COUNT:-2} # Default to 2 if not set
+echo "Running experiment slice ${SLURM_ARRAY_TASK_ID} of ${TOTAL_JOBS}..."
+python experiments.py --job_id ${SLURM_ARRAY_TASK_ID} --total_jobs ${TOTAL_JOBS} 2>&1 | tee "$LOG_DIR/job_${SLURM_ARRAY_JOB_ID}_task_${SLURM_ARRAY_TASK_ID}.log"
 
-echo "Job ended at $(date)"
+echo "Job task ${SLURM_ARRAY_TASK_ID} ended at $(date)" 
