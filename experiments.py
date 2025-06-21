@@ -6,68 +6,58 @@ import time
 import os
 import numpy as np
 from core import *  # Import everything from core
+import copy
 
 
-def run_experiments_on_gpu(gpu_id, experiments, parameter, project_name, base_config):
+def run_experiments_on_gpu(gpu_id, sub_experiments, project_name_base):
     print(f"\nGPU {gpu_id} STARTING:")
-    print(f"Number of experiments on GPU: {len(experiments)}")
-    print("Experiments:", [(exp[parameter], exp["seed"]) for exp in experiments])
+    print(f"Number of experiments on GPU: {len(sub_experiments)}")
     start_time = time.time()
     results = {}
 
-    for exp in experiments:
+    for sub_exp in sub_experiments:
         try:
-            # Create path for CSV logger
-            csv_log_path = None
-            results_folder = base_config.get("results_folder", "results")
-            csv_log_interval = base_config.get("csv_log_interval")
+            config = sub_exp["config"]
+            exp_name = sub_exp["exp_name"]
+            sub_label = sub_exp["sub_label"]
+            csv_log_path = sub_exp["csv_log_path"]
+            project_name = f"{project_name_base}-{exp_name}"
 
-            if results_folder and csv_log_interval:
-                exp_folder_name = parameter  # e.g., "activation"
-                # Sanitize option value for filename
-                option_val_str = str(exp[parameter]).replace("/", "_")
-                sub_exp_filename = f"{option_val_str}_seed_{exp['seed']}.csv"
-                csv_log_path = os.path.join(
-                    results_folder, exp_folder_name, sub_exp_filename
-                )
+            print(f"\nRunning sub-experiment: {exp_name} -> {sub_label}")
 
             with wandb.init(
-                project=project_name, config={**base_config, **exp}, reinit=True
+                project=project_name, config=config, name=sub_label, reinit=True
             ) as run:
                 training_results = train(gpu_id=gpu_id, csv_log_path=csv_log_path)
 
-                # Use the current parameter type instead of hardcoding "activation"
-                param_value = exp[parameter]
-                seed = exp["seed"]
-                if param_value not in results:
-                    results[param_value] = {}
-                results[param_value][seed] = {
-                    "final_loss": training_results["val_loss"],
-                    "best_loss": training_results["best_val_loss"],
-                }
+                if exp_name not in results:
+                    results[exp_name] = {}
+                results[exp_name][sub_label] = training_results
 
                 wandb.log(
                     {
-                        "final_val_loss": training_results["val_loss"],
+                        "final_train_loss": training_results["final_train_loss"],
+                        "final_val_loss": training_results["final_val_loss"],
                         "best_val_loss": training_results["best_val_loss"],
                     }
                 )
                 run.finish()
 
-                print(f"Completed experiment: {param_value} seed {seed}")
-                print(
-                    f"Results: final_loss={training_results['val_loss']:.4f}, best_loss={training_results['best_val_loss']:.4f}"
-                )
+                print(f"Completed sub-experiment: {exp_name} -> {sub_label}")
+                print(f"Results: {training_results}")
 
         except Exception as e:
-            print(f"Error in experiment {exp} on GPU {gpu_id}: {str(e)}")
-            param_value = exp[parameter]
-            seed = exp["seed"]
-            if param_value not in results:
-                results[param_value] = {}
-            results[param_value][seed] = {
-                "final_loss": float("nan"),
-                "best_loss": float("nan"),
+            print(f"Error in sub-experiment {sub_exp} on GPU {gpu_id}: {str(e)}")
+            exp_name = sub_exp.get("exp_name", "unknown_exp")
+            sub_label = sub_exp.get("sub_label", "unknown_sub_exp")
+            if exp_name not in results:
+                results[exp_name] = {}
+            results[exp_name][sub_label] = {
+                "final_train_loss": float("nan"),
+                "final_val_loss": float("nan"),
+                "best_val_loss": float("nan"),
+                "total_flops_profiler": 0,
+                "total_flops_theoretical": 0,
             }
 
     elapsed = time.time() - start_time
@@ -79,49 +69,14 @@ if __name__ == "__main__":
 
     wandb.login()
     timestamp = datetime.datetime.now().strftime("%m%d_%H%M")
-    project_name = f"transformer_experiments_{timestamp}"
+    project_name_base = f"transformer_experiments_{timestamp}"
 
     # Detect available compute resources
     n_gpus = torch.cuda.device_count()
+    if n_gpus == 0:
+        print("Warning: No GPUs detected. Running on CPU.")
+
     # Base configuration for all experiments
-
-    # best base config
-    # base_config = {
-    #     "dataset": "wikitext",
-    #     "batch_size": 32,  # Larger batches (Chinchilla used big batches) size of each mini batch
-    #     "learning_rate": 6e-4,  # Scale with batch size (sqrt scaling)
-    #     "min_lr": 1e-5,
-    #     "lr_schedule": "cosine_warmup",
-    #     "warmup_epochs": 1,
-    #     "warmup_epochs_frac": 0.1,  # Shorter warmup
-    #     "weight_decay": 0.1,  # Standard Chinchilla weight decay
-    #     "hidden_dim": 64,  # Much smaller model
-    #     "num_layers": 6,  # Fewer layers
-    #     "num_heads": 8,  # Keep heads (64/8 = 8 dim per head)
-    #     "dropout": 0.0,  # Chinchilla used little/no dropout
-    #     "seq_length": 128,  # Longer sequences (better data efficiency)
-    #     "wikitext_limit": 3 * 10**8,
-    #     "pos_encoding": "rotary",
-    #     "init_scheme": "transformer_scaled",
-    #     "stride": 64,  # 50% overlap
-    #     "pin_memory": True,
-    #     "compile": False,
-    #     "prefetch_factor": 8,
-    #     "min_epochs": 5,  # MANY more epochs (see data 10-20x)
-    #     "max_epochs": 5,
-    #     "use_gradient_clipping": True,
-    #     "gradient_clip_val": 1.0,
-    #     "label_smoothing": 0.0,  # Chinchilla didn't use this
-    #     "gradient_accumulation_steps": 4,
-    #     "optimizer": "adam",  # Chinchilla used AdamW, I keep getting worse performance with it
-    #     "activation": "relu",  # chinchilla used gelu but I get better performance with relu
-    #     "norm_type": "layer",
-    #     # NEW: CSV logging settings
-    #     "results_folder": "Former_Experiments_Folder",
-    #     "csv_log_interval": 100,  # Log every N steps
-    # }
-
-    # small config used to compare to lstm
     base_config = {
         "dataset": "wikitext",
         "batch_size": 256,
@@ -133,10 +88,10 @@ if __name__ == "__main__":
         "weight_decay": 0.1,
         "hidden_dim": 16,  # reduced from 64 → yields ~1.6M params
         "num_layers": 2,  # shallow network
-        "num_heads": 4,  # must divide hidden_dim
+        "num_heads": 4,  # must divide hidden_di
         "dropout": 0.0,
         "seq_length": 128,
-        "wikitext_limit": 5 * 10**7,
+        "wikitext_limit": 5 * 10**5,
         "pos_encoding": "sinusoidal",
         "init_scheme": "xavier_uniform",
         "stride": 64,
@@ -152,345 +107,157 @@ if __name__ == "__main__":
         "optimizer": "adamw",
         "activation": "gelu",
         "norm_type": "layer",
+        # NEW: CSV logging settings
+        "results_folder": "Former_Experiments_Folder",
+        "csv_log_interval": 100,  # Log every N optimizer steps
+        "seed": 789,
     }
 
-    # Setup experiments
-    # long_seeds = [42, 123, 789, 1000]
-    seeds = [789]
+    # Define the experiment suite
+    EXPERIMENTS = [
+        {
+            "name": "Diag_experiment_1",
+            "subexperiments": [
+                {
+                    "label": "High_Learning_Rate",
+                    "overrides": {"learning_rate": 1e-2},
+                },
+                {
+                    "label": "Longer_Sequence_Length",
+                    "overrides": {"seq_length": 256},
+                },
+                {
+                    "label": "Inverse_Sqrt_LR_Schedule",
+                    "overrides": {"lr_schedule": "inverse_sqrt"},
+                },
+                {"label": "Baseline_Run", "overrides": {}},
+            ],
+        },
+        {
+            "name": "Activation_Functions_Comparison",
+            "subexperiments": [
+                {"label": "GELU", "overrides": {"activation": "gelu"}},
+                {"label": "ReLU", "overrides": {"activation": "relu"}},
+                {"label": "SwiGLU", "overrides": {"activation": "swiglu"}},
+            ],
+        },
+    ]
 
-    # comparing activation functions
-    # comparison_activation = {
-    #     "parameter": "activation",
-    #     "options": ["gelu", "relu", "swiglu"],
-    #     "base_changes": {
-    #         "gelu": {"activation": "gelu"},
-    #         "relu": {"activation": "relu"},
-    #         "swiglu": {"activation": "swiglu"},
-    #         "glu": {"activation": "glu"},
-    #     },
-    # }
+    # Prepare all sub-experiments
+    all_sub_experiments = []
+    for exp in EXPERIMENTS:
+        exp_name = exp["name"]
+        for sub_exp in exp["subexperiments"]:
+            sub_label = sub_exp["label"]
 
-    short_comparison_activation = {
-        "parameter": "activation",
-        "options": ["glu", "gelu", "relu", "swiglu"],
-        "base_changes": {
-            "glu": {"activation": "glu"},
-            "gelu": {"activation": "gelu"},
-            "relu": {"activation": "relu"},
-            "swiglu": {"activation": "swiglu"},
-        },
-    }
-    # comparing lr_schedulers
-    # comparison_lr_schedule = {
-    #     "parameter": "lr_schedule",
-    #     "options": [
-    #         "cosine",
-    #         "cosine_warmup",
-    #         "inverse_sqrt",
-    #         "one_cycle",
-    #         "transformer",
-    #     ],
-    #     "base_changes": {
-    #         "cosine": {"lr_schedule": "cosine"},
-    #         "cosine_warmup": {"lr_schedule": "cosine_warmup"},
-    #         "inverse_sqrt": {"lr_schedule": "inverse_sqrt"},
-    #         "one_cycle": {"lr_schedule": "one_cycle"},
-    #         "transformer": {"lr_schedule": "transformer"},
-    #     },
-    # }
-    short_comparison_lr_schedule = {
-        "parameter": "lr_schedule",
-        "options": [
-            "cosine",
-            "cosine_warmup",
-            "inverse_sqrt",
-            "one_cycle",
-        ],
-        "base_changes": {
-            "cosine": {"lr_schedule": "cosine"},
-            "cosine_warmup": {"lr_schedule": "cosine_warmup"},
-            "inverse_sqrt": {"lr_schedule": "inverse_sqrt"},
-            "one_cycle": {"lr_schedule": "one_cycle"},
-        },
-    }
-    comparison_optimizer = {
-        "parameter": "optimizer",
-        "options": ["adamw", "adam"],
-        "base_changes": {
-            "adamw": {"optimizer": "adamw"},
-            "adam": {"optimizer": "adam"},
-        },
-    }
-    comparison_init_scheme = {
-        "parameter": "init_scheme",
-        "options": ["transformer_scaled", "xavier_uniform"],
-        "base_changes": {
-            "transformer_scaled": {"init_scheme": "transformer_scaled"},
-            "xavier_uniform": {"init_scheme": "xavier_uniform"},
-        },
-    }
-    comparison_gradient_clipping = {
-        "parameter": "use_gradient_clipping",
-        "options": [True, False],
-        "base_changes": {
-            True: {"use_gradient_clipping": True},
-            False: {"use_gradient_clipping": False},
-        },
-    }
-    comparison_dropout = {
-        "parameter": "dropout",
-        "options": [0.0, 0.2],
-        "base_changes": {
-            0.0: {"dropout": 0.0},
-            0.2: {"dropout": 0.2},
-        },
-    }
-    comparison_pos_encoding = {
-        "parameter": "pos_encoding",
-        "options": ["sinusoidal", "learned", "rotary"],
-        "base_changes": {
-            "sinusoidal": {"pos_encoding": "sinusoidal"},
-            "learned": {"pos_encoding": "learned"},
-            "rotary": {"pos_encoding": "rotary"},
-        },
-    }
-    comparison_norms = {
-        "parameter": "norm_type",
-        "options": ["layer", "rms"],
-        "base_changes": {
-            "layer": {"norm_type": "layer"},
-            "rms": {"norm_type": "rms"},
-        },
-    }
+            # Create config for this specific run
+            current_config = copy.deepcopy(base_config)
+            current_config.update(sub_exp["overrides"])
 
-    comparison_depth = {
-        "parameter": "num_layers",
-        "options": [2, 4, 8, 10],
-        "base_changes": {
-            2: {"num_layers": 2},
-            4: {"num_layers": 4},
-            6: {"num_layers": 6},
-            8: {"num_layers": 8},
-            10: {"num_layers": 10},
-        },
-    }
+            # Create path for CSV logger
+            results_folder = current_config.get(
+                "results_folder", "Former_Experiments_Folder"
+            )
+            exp_folder_path = os.path.join(results_folder, exp_name)
+            # Sanitize the label to create a valid filename
+            sanitized_label = "".join(
+                c for c in sub_label if c.isalnum() or c in (" ", "_")
+            ).rstrip()
+            csv_filename = f"{sanitized_label.replace(' ', '_')}.csv"
+            csv_log_path = os.path.join(exp_folder_path, csv_filename)
 
-    # Add learning rate sweep for SGD optimizer
-    comparison_lr = {
-        "parameter": "learning_rate",
-        "options": [1e-5, 1e-4, 1e-3, 1e-2],
-        "base_changes": {
-            1e-5: {"learning_rate": 1e-5},
-            1e-4: {"learning_rate": 1e-4},
-            1e-3: {"learning_rate": 1e-3},
-            1e-2: {"learning_rate": 1e-2},
-        },
-    }
+            all_sub_experiments.append(
+                {
+                    "exp_name": exp_name,
+                    "sub_label": sub_label,
+                    "config": current_config,
+                    "csv_log_path": csv_log_path,
+                }
+            )
 
-    # run once
-    comparison_null = {
-        "parameter": "norm_type",
-        "options": ["layer"],
-        "base_changes": {
-            "layer": {"norm_type": "layer"},
-        },
-    }
-
-    print("PRINTING BASE CONFIG")
-    print(base_config)
-    comparison = comparison_optimizer
-    parameter = comparison["parameter"]
-    options = comparison["options"]
-    base_changes = comparison["base_changes"]
-
-    experiments = []
-    for seed in seeds:
-        for option in options:
-            exp_config = {
-                "seed": seed,
-                **base_changes[option],
-            }
-            experiments.append(exp_config)
-
-    final_losses = {option: {} for option in options}
-
+    # Run experiments
+    overall_results = {}
     if n_gpus > 1:
         total_start_time = time.time()
-        print(f"\nRunning {len(experiments)} total experiments across {n_gpus} GPUs")
+        print(
+            f"\nRunning {len(all_sub_experiments)} total sub-experiments across {n_gpus} GPUs"
+        )
         processes = []
         results_queue = mp.Queue()
-        experiments_per_gpu = len(experiments) // n_gpus
+        experiments_per_gpu = (len(all_sub_experiments) + n_gpus - 1) // n_gpus
 
-        # Track which GPUs are assigned what
         for gpu_id in range(n_gpus):
             start_idx = gpu_id * experiments_per_gpu
-            end_idx = (
-                start_idx + experiments_per_gpu
-                if gpu_id < n_gpus - 1
-                else len(experiments)
-            )
-            gpu_experiments = experiments[start_idx:end_idx]
-            print(f"\nGPU {gpu_id} assigned experiments {start_idx} to {end_idx-1}:")
+            end_idx = min(start_idx + experiments_per_gpu, len(all_sub_experiments))
+            gpu_experiments = all_sub_experiments[start_idx:end_idx]
+
+            if not gpu_experiments:
+                continue
+
             print(
-                f"Experiments: {[(exp[parameter], exp['seed']) for exp in gpu_experiments]}"
+                f"\nGPU {gpu_id} assigned sub-experiments {start_idx} to {end_idx-1}:"
             )
+            print(f"Labels: {[exp['sub_label'] for exp in gpu_experiments]}")
 
             p = mp.Process(
-                target=lambda q, gid, exps, param, proj, base: q.put(
-                    (gid, run_experiments_on_gpu(gid, exps, param, proj, base))
+                target=lambda q, gid, exps, proj: q.put(
+                    (gid, run_experiments_on_gpu(gid, exps, proj))
                 ),
-                args=(
-                    results_queue,
-                    gpu_id,
-                    gpu_experiments,
-                    parameter,
-                    project_name,
-                    base_config,
-                ),
+                args=(results_queue, gpu_id, gpu_experiments, project_name_base),
             )
             p.daemon = False
             processes.append(p)
             p.start()
 
         # Collect results from all processes
-        final_losses = {option: {} for option in options}
         print("\nCollecting results from GPUs:")
         for _ in range(len(processes)):
-            gpu_id, gpu_results = results_queue.get()  # Unpack the tuple correctly
+            gpu_id, gpu_results = results_queue.get()
             print(f"\nReceived results from GPU {gpu_id}:")
-            # gpu_results is the dictionary we want to process
-            for act_type, seeds_dict in gpu_results.items():  # Process the results dict
-                if act_type not in final_losses:
-                    final_losses[act_type] = {}
-                final_losses[act_type].update(seeds_dict)
+            for exp_name, sub_results in gpu_results.items():
+                if exp_name not in overall_results:
+                    overall_results[exp_name] = {}
+                overall_results[exp_name].update(sub_results)
 
         # Wait for all processes to complete
         for p in processes:
             p.join()
 
         total_elapsed = time.time() - total_start_time
-        print(
-            f"\nAll experiments completed in {total_elapsed:.2f} seconds"
-        )  # Add timing
-
-    elif torch.cuda.is_available():
-        # Single GPU setup
-        print("Running on single GPU")
-        device = torch.device("cuda:0")
-        for exp in experiments:
-            config = {**base_config, **exp}
-
-            # Create path for CSV logger
-            csv_log_path = None
-            results_folder = config.get("results_folder", "results")
-            csv_log_interval = config.get("csv_log_interval")
-            if results_folder and csv_log_interval:
-                exp_folder_name = parameter
-                option_val_str = str(exp[parameter]).replace("/", "_")
-                sub_exp_filename = f"{option_val_str}_seed_{exp['seed']}.csv"
-                csv_log_path = os.path.join(
-                    results_folder, exp_folder_name, sub_exp_filename
-                )
-
-            with wandb.init(project=project_name, config=config):
-                train(gpu_id=0, csv_log_path=csv_log_path)
-                final_loss = wandb.run.summary["val_loss"]
-                best_val_loss = wandb.run.summary["best_val_loss"]
-                final_losses[exp[parameter]][exp["seed"]] = {
-                    "final_loss": final_loss,
-                    "best_loss": best_val_loss,
-                }
+        print(f"\nAll experiments completed in {total_elapsed:.2f} seconds")
 
     else:
-        # CPU setup
-        print("Running on CPU")
-        for exp in experiments:
-            config = {**base_config, **exp}
+        # Single GPU or CPU setup
+        gpu_id = 0 if torch.cuda.is_available() else None
+        print(f"Running on single device (GPU: {gpu_id})")
+        overall_results = run_experiments_on_gpu(
+            gpu_id, all_sub_experiments, project_name_base
+        )
 
-            # Create path for CSV logger
-            csv_log_path = None
-            results_folder = config.get("results_folder", "results")
-            csv_log_interval = config.get("csv_log_interval")
-            if results_folder and csv_log_interval:
-                exp_folder_name = parameter
-                option_val_str = str(exp[parameter]).replace("/", "_")
-                sub_exp_filename = f"{option_val_str}_seed_{exp['seed']}.csv"
-                csv_log_path = os.path.join(
-                    results_folder, exp_folder_name, sub_exp_filename
+    # Print final summary of results
+    print(f"\n{'='*20} Experiment Suite Summary {'='*20}")
+    for exp_name, sub_results in overall_results.items():
+        print(f"\nResults of '{exp_name}':")
+        for sub_label, result_metrics in sub_results.items():
+            print(f"  '{sub_label}':")
+            if result_metrics and "final_val_loss" in result_metrics:
+                print(
+                    f"    - Final Training Loss: {result_metrics['final_train_loss']:.4f}"
                 )
-
-            with wandb.init(project=project_name, config=config):
-                train(csv_log_path=csv_log_path)
-                final_loss = wandb.run.summary["val_loss"]
-                best_val_loss = wandb.run.summary["best_val_loss"]
-                final_losses[exp[parameter]][exp["seed"]] = {
-                    "final_loss": final_loss,
-                    "best_loss": best_val_loss,
-                }
-
-    # Modified CSV output
-    csv_data = [[parameter, "Seed", "Final Val Loss", "Best Val Loss"]]
-    param_losses = {option: {"final": [], "best": []} for option in options}
-
-    for option in options:
-        for seed in seeds:
-            result = final_losses[option].get(seed)
-            if result is not None:
-                final_loss = result["final_loss"]
-                best_loss = result["best_loss"]
-                param_losses[option]["final"].append(final_loss)
-                param_losses[option]["best"].append(best_loss)
-                csv_data.append(
-                    [
-                        option,
-                        seed,
-                        f"{final_loss:.4f}",
-                        f"{best_loss:.4f}",
-                    ]
+                print(
+                    f"    - Final Validation Loss: {result_metrics['final_val_loss']:.4f}"
                 )
+                print(
+                    f"    - Best Validation Loss: {result_metrics['best_val_loss']:.4f}"
+                )
+                print(
+                    f"    - Total FLOPs (Profiler): {result_metrics['total_flops_profiler']:.2e}"
+                )
+                print(
+                    f"    - Total FLOPs (Theoretical): {result_metrics['total_flops_theoretical']:.2e}"
+                )
+            else:
+                print("    - Experiment failed to produce results.")
 
-        # Add summary statistics
-        if param_losses[option]["final"]:
-            mean_final = np.mean(param_losses[option]["final"])
-            std_final = np.std(param_losses[option]["final"])
-            mean_best = np.mean(param_losses[option]["best"])
-            std_best = np.std(param_losses[option]["best"])
-            csv_data.append(
-                [
-                    f"{option}_summary",
-                    "N/A",
-                    f"{mean_final:.4f} ± {std_final:.4f}",
-                    f"{mean_best:.4f} ± {std_best:.4f}",
-                ]
-            )
-
-    # Save results with parameter type in filename
-    csv_file_path = f"experiment_results_{parameter}_{timestamp}.csv"
-    with open(csv_file_path, mode="w", newline="") as file:
-        writer = csv.writer(file)
-        writer.writerows(csv_data)
-
-    print(f"\nResults saved to {csv_file_path}")
-
-    # Print summary statistics
-    print(f"\nComparing different {parameter} values:")
-    for option in options:
-        final_loss_values = [
-            result["final_loss"] for result in final_losses[option].values()
-        ]
-        best_loss_values = [
-            result["best_loss"] for result in final_losses[option].values()
-        ]
-
-        if final_loss_values:
-            mean_final = np.mean(final_loss_values)
-            std_final = np.std(final_loss_values)
-            mean_best = np.mean(best_loss_values)
-            std_best = np.std(best_loss_values)
-            print(f"{option}:")  # Remove .upper() to preserve exact parameter values
-            print(f"  Final: {mean_final:.4f} ± {std_final:.4f}")
-            print(f"  Best:  {mean_best:.4f} ± {std_best:.4f}")
-
-    print("\nTOTAL EXPERIMENTS CREATED:")
-    print(f"Number of experiments: {len(experiments)}")
-    print("Experiments:", [(exp[parameter], exp["seed"]) for exp in experiments])
+    print("\nTOTAL SUB-EXPERIMENTS CREATED:")
+    print(f"Number of sub-experiments: {len(all_sub_experiments)}")

@@ -16,7 +16,6 @@ import multiprocessing as mp
 from torch.cuda.amp import autocast, GradScaler
 import torch.profiler
 from torch.nn.functional import scaled_dot_product_attention
-import torch.nn.functional as F
 from torch.nn import LayerNorm, Linear, Dropout, ModuleList
 from transformers import GPT2Tokenizer
 import time
@@ -569,13 +568,6 @@ def train(gpu_id=None, csv_log_path=None):
         config=config,
     )
 
-    # Count non-embedding parameters for theoretical FLOPs calculation
-    num_params = sum(p.numel() for p in model.parameters() if p.requires_grad)
-    num_embedding_params = model.embedding.weight.numel()
-    if model.pos_encoding == "learned" and hasattr(model, "pos_emb"):
-        num_embedding_params += model.pos_emb.numel()
-    num_non_embedding_params = num_params - num_embedding_params
-
     # Apply initialization based on config.init_scheme
     if config.init_scheme == "xavier_uniform":
         for module in model.modules():
@@ -810,7 +802,7 @@ def train(gpu_id=None, csv_log_path=None):
 
     # now continue with your normal epoch loop
     # initialize step counter before it's used below
-    optimizer_step_counter = 0
+    global_step = 0
     for epoch in range(config.max_epochs):
         model.train()
         total_loss = 0
@@ -889,43 +881,16 @@ def train(gpu_id=None, csv_log_path=None):
                     optimizer.step()
                 optimizer.zero_grad()
 
-                optimizer_step_counter += 1
-
-                # Update step-based scheduler after optimization step
-                if scheduler is not None and scheduler_type == "step":
-                    scheduler.step(optimizer_step_counter)
-                    current_lr = optimizer.param_groups[0]["lr"]
-                    step_metrics = {
-                        "learning_rate": current_lr,
-                        "optimizer_step": optimizer_step_counter,
-                    }
-                    wandb.log(step_metrics)
-
-                # Log to CSV if enabled (uses optimizer steps)
-                if csv_writer and (optimizer_step_counter % csv_log_interval == 0):
-                    current_train_loss = raw_loss.item()
-                    # Run validation
-                    current_val_loss = evaluate_loss(
-                        model,
-                        val_dataloader,
-                        criterion,
-                        device,
-                        len(primary_tokenizer),
-                        use_amp,
-                    )
-                    model.train()  # Switch back to train mode
-
-                    cumulative_flops_profiler = flops_per_step * optimizer_step_counter
-
-                    csv_writer.writerow(
-                        [
-                            optimizer_step_counter,
-                            f"{current_train_loss:.4f}",
-                            f"{current_val_loss:.4f}",
-                            f"{cumulative_flops_profiler:.2e}",
-                        ]
-                    )
-                    csv_file.flush()
+            # Update step-based scheduler after optimization step
+            global_step += 1
+            if scheduler is not None and scheduler_type == "step":
+                scheduler.step()
+                current_lr = optimizer.param_groups[0]["lr"]
+                step_metrics = {
+                    "learning_rate": current_lr,
+                    "global_step": global_step,
+                }
+                wandb.log(step_metrics)
 
             # accumulate the _raw_ loss for logging
             total_loss += raw_loss.item()
@@ -941,7 +906,7 @@ def train(gpu_id=None, csv_log_path=None):
                 )
 
             # Log to CSV if enabled
-            if csv_writer and (optimizer_step_counter % csv_log_interval == 0):
+            if csv_writer and (global_step % csv_log_interval == 0):
                 current_train_loss = raw_loss.item()
                 # Run validation
                 current_val_loss = evaluate_loss(
@@ -954,25 +919,25 @@ def train(gpu_id=None, csv_log_path=None):
                 )
                 model.train()  # Switch back to train mode
 
-                cumulative_flops_profiler = flops_per_step * optimizer_step_counter
+                total_flops_profiler = flops_per_step * global_step
 
                 csv_writer.writerow(
                     [
-                        optimizer_step_counter,
+                        global_step,
                         f"{current_train_loss:.4f}",
                         f"{current_val_loss:.4f}",
-                        f"{cumulative_flops_profiler:.2e}",
+                        f"{total_flops_profiler:.2e}",
                     ]
                 )
                 csv_file.flush()
 
         # Update metrics with loss after training loop
-        avg_train_loss = total_loss / len(train_dataloader)
+        avg_loss = total_loss / len(train_dataloader)
         metrics = {
             "epoch": epoch,
             "optimizer": config.optimizer,
             "dataset": "wikitext",
-            "train_loss": avg_train_loss,
+            "train_loss": avg_loss,
         }
 
         # Validation phase
@@ -1052,9 +1017,7 @@ def train(gpu_id=None, csv_log_path=None):
                 print(f"\nGenerated text (epoch {epoch}):\n{generated_text}\n")
 
         # Update print statement to include validation loss
-        print(
-            f"Epoch {epoch}: Train Loss = {avg_train_loss:.4f}, Val Loss = {val_loss:.4f}"
-        )
+        print(f"Epoch {epoch}: Train Loss = {avg_loss:.4f}, Val Loss = {val_loss:.4f}")
 
         if epoch == 0 and batch_idx == 0:
             profiler.step()
@@ -1073,27 +1036,7 @@ def train(gpu_id=None, csv_log_path=None):
         torch.cuda.empty_cache()
         torch.cuda.synchronize()
 
-    # Theoretical FLOPs: 6 * non_embedding_params * total_tokens
-    # Total tokens = total_optimizer_steps * effective_batch_size * seq_len
-    effective_batch_size = config.batch_size * config.gradient_accumulation_steps
-    total_tokens_processed = total_steps * effective_batch_size * config.seq_length
-    total_flops_theoretical = 6 * num_non_embedding_params * total_tokens_processed
-
-    print(f"\n==== FLOPs per optimizer step (Profiler): {flops_per_step:.2e}")
-    print(
-        f"==== Estimated total training FLOPs (Profiler): {total_flops:.2e} ({total_steps} optimizer steps) ===="
-    )
-    print(
-        f"==== Estimated total training FLOPs (Theoretical): {total_flops_theoretical:.2e} ====\n"
-    )
-
-    return {
-        "final_train_loss": avg_train_loss,
-        "final_val_loss": val_loss,
-        "best_val_loss": best_val_loss,
-        "total_flops_profiler": total_flops,
-        "total_flops_theoretical": total_flops_theoretical,
-    }
+    return {"val_loss": val_loss, "best_val_loss": best_val_loss}
 
 
 def get_dataset(config):
