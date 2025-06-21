@@ -350,8 +350,8 @@ class SimpleTransformerLayer(nn.Module):
         if self.use_rotary:
             # Create position ids for the sequence
             position_ids = torch.arange(L, device=x.device).unsqueeze(0).expand(B, -1)
-            cos, sin = self.rotary_emb(v, position_ids)
-            q, k = apply_rotary_pos_emb(q, k, cos, sin)
+            cos, sin = self.rotary_emb(v, L)
+            q, k = apply_rotary_pos_emb(q, k, cos, sin, position_ids)
 
         # Choose attention implementation based on device and availability
         if self.use_flash_attention and x.device.type == "cuda":

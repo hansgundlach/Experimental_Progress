@@ -107,9 +107,9 @@ if __name__ == "__main__":
         "num_heads": 4,  # must divide hidden_di
         "dropout": 0.0,
         "seq_length": 128,
-        "wikitext_limit": 5 * 10**6,
-        "pos_encoding": "sinusoidal",
-        "init_scheme": "xavier_uniform",
+        "wikitext_limit": 5 * 10**7,
+        "pos_encoding": "rotary",
+        "init_scheme": "transformer_scaled",
         "stride": 64,
         "pin_memory": True,
         "compile": False,
@@ -125,30 +125,41 @@ if __name__ == "__main__":
         "norm_type": "layer",
         # NEW: CSV logging settings
         "results_folder": "Former_Experiments_Folder",
-        "csv_log_interval": 10,  # Log every N optimizer steps
+        "csv_log_interval": 50,  # Log every N optimizer steps
         "seed": 789,
     }
 
     # Define the experiment suite
+    # EXPERIMENTS = [
+    #     {
+    #         "name": "Diag_experiment_1",
+    #         "subexperiments": [
+    #             {
+    #                 "label": "High_Learning_Rate",
+    #                 "overrides": {"learning_rate": 1e-2},
+    #             },
+    #             {
+    #                 "label": "Longer_Sequence_Length",
+    #                 "overrides": {"seq_length": 256},
+    #             },
+    #             {
+    #                 "label": "Inverse_Sqrt_LR_Schedule",
+    #                 "overrides": {"lr_schedule": "inverse_sqrt"},
+    #             },
+    #             {"label": "Baseline_Run", "overrides": {}},
+    #         ],
+    #     },
+    #     {
+    #         "name": "Activation_Functions_Comparison",
+    #         "subexperiments": [
+    #             {"label": "GELU", "overrides": {"activation": "gelu"}},
+    #             {"label": "ReLU", "overrides": {"activation": "relu"}},
+    #             {"label": "SwiGLU", "overrides": {"activation": "swiglu"}},
+    #         ],
+    #     },
+    # ]
+    # just activation experiments
     EXPERIMENTS = [
-        {
-            "name": "Diag_experiment_1",
-            "subexperiments": [
-                {
-                    "label": "High_Learning_Rate",
-                    "overrides": {"learning_rate": 1e-2},
-                },
-                {
-                    "label": "Longer_Sequence_Length",
-                    "overrides": {"seq_length": 256},
-                },
-                {
-                    "label": "Inverse_Sqrt_LR_Schedule",
-                    "overrides": {"lr_schedule": "inverse_sqrt"},
-                },
-                {"label": "Baseline_Run", "overrides": {}},
-            ],
-        },
         {
             "name": "Activation_Functions_Comparison",
             "subexperiments": [
