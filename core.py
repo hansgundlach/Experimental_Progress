@@ -76,7 +76,7 @@ class TextDataset(Dataset):
                 "input_ids"
             ]
             all_tokens.extend(chunk_tokens)
-
+        
         # Convert to tensor
         self.tokens = torch.tensor(all_tokens, dtype=torch.long)
 

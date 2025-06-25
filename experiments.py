@@ -6,6 +6,7 @@ import time
 import os
 import numpy as np
 from core import *  # Import everything from core
+from config_generator import chinchilla_scale  # Import the scaling function
 import copy
 import argparse
 import multiprocessing as mp
@@ -95,16 +96,16 @@ if __name__ == "__main__":
     # Base configuration for all experiments
     base_config = {
         "dataset": "c4_subset",
-        "batch_size": 256,
+        "batch_size": 32,  # physical batch size 256
         "learning_rate": 0.001 * math.sqrt(4),
         "min_lr": 1e-5,
         "lr_schedule": "cosine",
         "warmup_epochs": 1,
         "warmup_epochs_frac": 0.1,
         "weight_decay": 0.1,
-        "hidden_dim": 16,  # reduced from 64 → yields ~1.6M params
-        "num_layers": 2,  # shallow network
-        "num_heads": 4,  # must divide hidden_di
+        "hidden_dim": 64,  # Base hidden dimension
+        "num_layers": 4,  # Base number of layers
+        "num_heads": 4,
         "dropout": 0.0,
         "seq_length": 128,
         "wikitext_limit": 5 * 10**7,
@@ -114,52 +115,26 @@ if __name__ == "__main__":
         "pin_memory": True,
         "compile": False,
         "prefetch_factor": 8,
-        "min_epochs": 5,
-        "max_epochs": 5,
+        "min_epochs": 1,
+        "max_epochs": 1,
         "use_gradient_clipping": True,
         "gradient_clip_val": 1.0,
         "label_smoothing": 0.0,
-        "gradient_accumulation_steps": 4,
+        "gradient_accumulation_steps": 16,
         "optimizer": "adamw",
         "activation": "gelu",
         "norm_type": "layer",
-        # NEW: CSV logging settings
         "results_folder": "Former_Experiments_Folder",
-        "csv_log_interval": 50,  # Log every N optimizer steps
+        "csv_log_interval": 50,
         "seed": 789,
     }
 
-    # Define the experiment suite
-    # EXPERIMENTS = [
-    #     {
-    #         "name": "Diag_experiment_1",
-    #         "subexperiments": [
-    #             {
-    #                 "label": "High_Learning_Rate",
-    #                 "overrides": {"learning_rate": 1e-2},
-    #             },
-    #             {
-    #                 "label": "Longer_Sequence_Length",
-    #                 "overrides": {"seq_length": 256},
-    #             },
-    #             {
-    #                 "label": "Inverse_Sqrt_LR_Schedule",
-    #                 "overrides": {"lr_schedule": "inverse_sqrt"},
-    #             },
-    #             {"label": "Baseline_Run", "overrides": {}},
-    #         ],
-    #     },
-    #     {
-    #         "name": "Activation_Functions_Comparison",
-    #         "subexperiments": [
-    #             {"label": "GELU", "overrides": {"activation": "gelu"}},
-    #             {"label": "ReLU", "overrides": {"activation": "relu"}},
-    #             {"label": "SwiGLU", "overrides": {"activation": "swiglu"}},
-    #         ],
-    #     },
-    # ]
-    # just activation experiments
-    EXPERIMENTS = [
+    # ====================================================================
+    # EXPERIMENT DEFINITIONS
+    # ====================================================================
+
+    # Activation Function Experiments
+    ACTIVATION_EXPERIMENTS = [
         {
             "name": "Activation_Functions_Comparison",
             "subexperiments": [
@@ -170,16 +145,140 @@ if __name__ == "__main__":
         },
     ]
 
+    # Hidden Dimension Scaling Experiments (simple override approach)
+    HIDDEN_DIM_EXPERIMENTS = [
+        {
+            "name": "Hidden_Dim_Scaling",
+            "subexperiments": [
+                {
+                    "label": "16d",
+                    "overrides": {
+                        "hidden_dim": 8,
+                        "num_layers": 2,
+                        "num_heads": 1,
+                        "learning_rate": 0.001,
+                        "train_tokens": 16205120,
+                    },
+                },
+                {
+                    "label": "32d",
+                    "overrides": {
+                        "hidden_dim": 32,
+                        "num_layers": 3,
+                        "num_heads": 2,
+                        "learning_rate": 0.001,
+                        "train_tokens": 16205120,
+                    },
+                },
+                {
+                    "label": "32d",
+                    "overrides": {
+                        "hidden_dim": 32,
+                        "num_layers": 2,
+                        "num_heads": 2,
+                        "learning_rate": 0.0014,
+                        "train_tokens": 32901760,
+                    },
+                },
+                {
+                    "label": "64d",
+                    "overrides": {
+                        "hidden_dim": 64,
+                        "num_layers": 4,
+                        "num_heads": 4,
+                        "learning_rate": 0.002,
+                        "train_tokens": 68261120,
+                    },
+                },
+                {
+                    "label": "128d",
+                    "overrides": {
+                        "hidden_dim": 256,
+                        "num_layers": 8,
+                        "num_heads": 8,
+                        "learning_rate": 0.0028,
+                        "train_tokens": 160115200,
+                    },
+                },
+            ],
+        },
+    ]
+
+    # Chinchilla-Scaled Hidden Dimension Experiments (using config generator)
+    def create_chinchilla_scaled_experiments():
+        """Generate properly scaled experiments using chinchilla_scale function"""
+
+        # Define the hidden dimensions to test
+        hidden_dims = [16, 32, 64, 128]
+
+        # Generate scaled configs
+        scaled_configs = chinchilla_scale(base_config, hidden_dims)
+
+        # Create subexperiments from the scaled configs
+        subexperiments = []
+        for i, config in enumerate(scaled_configs):
+            hidden_dim = hidden_dims[i]
+
+            # Add any experiment-specific overrides
+            config.update(
+                {
+                    "results_folder": "Former_Experiments_Folder",
+                    "csv_log_interval": 50,
+                    "seed": 789,
+                }
+            )
+
+            subexperiments.append(
+                {
+                    "label": f"{hidden_dim}d",
+                    "config": config,  # Use the full generated config
+                }
+            )
+
+            # Print the generated config for inspection
+            print(f"\nGenerated config for {hidden_dim}d:")
+            print(
+                f"  Architecture: {config['hidden_dim']}d x {config['num_layers']}L x {config['num_heads']}H"
+            )
+            print(f"  Batch size: {config['batch_size']}")
+            print(f"  Learning rate: {config['learning_rate']:.2e}")
+            print(f"  Max epochs: {config['max_epochs']}")
+            print(f"  Target tokens: {config.get('target_tokens', 'N/A')}")
+
+        return [{"name": "Chinchilla_Experiments", "subexperiments": subexperiments}]
+
+    # Generate the Chinchilla-scaled experiments
+    CHINCHILLA_SCALED_EXPERIMENTS = create_chinchilla_scaled_experiments()
+
+    # ====================================================================
+    # SELECT WHICH EXPERIMENTS TO RUN
+    # ====================================================================
+
+    # Choose which experiment type to run:
+    EXPERIMENTS = HIDDEN_DIM_EXPERIMENTS  # Or use simple hidden dim scaling
+    # EXPERIMENTS = ACTIVATION_EXPERIMENTS       # Or use activation experiments
+    # EXPERIMENTS = CHINCHILLA_SCALED_EXPERIMENTS  # Use Chinchilla scaling
+
+    # ====================================================================
+    # EXPERIMENT PROCESSING
+    # ====================================================================
+
     # Prepare all sub-experiments
     all_sub_experiments = []
+
     for exp in EXPERIMENTS:
         exp_name = exp["name"]
         for sub_exp in exp["subexperiments"]:
             sub_label = sub_exp["label"]
 
-            # Create config for this specific run
-            current_config = copy.deepcopy(base_config)
-            current_config.update(sub_exp["overrides"])
+            # Check if this subexperiment uses a pre-generated config or overrides
+            if "config" in sub_exp:
+                # Use the pre-generated config (for Chinchilla-scaled experiments)
+                current_config = sub_exp["config"]
+            else:
+                # Use base config with overrides (for simple experiments)
+                current_config = copy.deepcopy(base_config)
+                current_config.update(sub_exp["overrides"])
 
             # Create path for CSV logger
             results_folder = current_config.get(
@@ -202,6 +301,15 @@ if __name__ == "__main__":
                 }
             )
 
+    # DEBUG: Print what we're planning to do
+    print(f"\n{'='*50}")
+    print(f"DEBUG: Total sub-experiments created: {len(all_sub_experiments)}")
+    print(f"DEBUG: Experiment paths that will be created:")
+    for i, sub_exp in enumerate(all_sub_experiments):
+        print(f"  {i}: {sub_exp['csv_log_path']}")
+        print(f"      Exp: {sub_exp['exp_name']} -> {sub_exp['sub_label']}")
+    print(f"{'='*50}\n")
+
     # Slice the experiments based on the job array ID
     if args.total_jobs > 1:
         print(
@@ -215,8 +323,12 @@ if __name__ == "__main__":
         print(
             f"This job will run {len(my_sub_experiments)} experiments (indices {start_idx} to {end_idx-1})."
         )
+        print(
+            f"DEBUG: This job will process experiments: {[exp['sub_label'] for exp in my_sub_experiments]}"
+        )
     else:
         my_sub_experiments = all_sub_experiments
+        print(f"DEBUG: Single job mode - processing all experiments")
 
     # Run experiments
     overall_results = {}
