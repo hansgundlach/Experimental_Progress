@@ -100,7 +100,7 @@ if __name__ == "__main__":
         "learning_rate": 0.001 * math.sqrt(4),
         "min_lr": 1e-5,
         "lr_schedule": "cosine",
-        "warmup_epochs": 1,
+        "warmup_epochs": 0,
         "warmup_epochs_frac": 0.1,
         "weight_decay": 0.1,
         "hidden_dim": 64,  # Base hidden dimension
@@ -153,11 +153,11 @@ if __name__ == "__main__":
                 {
                     "label": "16d",
                     "overrides": {
-                        "hidden_dim": 8,
+                        "hidden_dim": 16,
                         "num_layers": 2,
                         "num_heads": 1,
                         "learning_rate": 0.001,
-                        "train_tokens": 16205120,
+                        "wikitext_limit": 16205120 * 4,
                     },
                 },
                 {
@@ -167,17 +167,7 @@ if __name__ == "__main__":
                         "num_layers": 3,
                         "num_heads": 2,
                         "learning_rate": 0.001,
-                        "train_tokens": 16205120,
-                    },
-                },
-                {
-                    "label": "32d",
-                    "overrides": {
-                        "hidden_dim": 32,
-                        "num_layers": 2,
-                        "num_heads": 2,
-                        "learning_rate": 0.0014,
-                        "train_tokens": 32901760,
+                        "wikitext_limit": 32901760 * 4,
                     },
                 },
                 {
@@ -187,22 +177,84 @@ if __name__ == "__main__":
                         "num_layers": 4,
                         "num_heads": 4,
                         "learning_rate": 0.002,
-                        "train_tokens": 68261120,
+                        "wikitext_limit": 68261120 * 4,
                     },
                 },
                 {
-                    "label": "128d",
+                    "label": "96d",
                     "overrides": {
-                        "hidden_dim": 256,
-                        "num_layers": 8,
-                        "num_heads": 8,
-                        "learning_rate": 0.0028,
-                        "train_tokens": 160115200,
+                        "hidden_dim": 96,
+                        "num_layers": 6,
+                        "num_heads": 6,
+                        "learning_rate": 0.0024,
+                        "wikitext_limit": 109764480 * 4,
                     },
                 },
             ],
         },
     ]
+    HIDDEN_DIM_EXPERIMENTS_NO_ROTARY = [
+        {
+            "name": "Hidden_Dim_Scaling_No_Rotary",
+            "subexperiments": [
+                {
+                    "label": "16d_no_rotary",
+                    "overrides": {
+                        "hidden_dim": 16,
+                        "num_layers": 2,
+                        "num_heads": 1,
+                        "learning_rate": 0.001,
+                        "wikitext_limit": 16205120 * 4,
+                        "pos_encoding": "sinusoidal",
+                    },
+                },
+                {
+                    "label": "32d_no_rotary",
+                    "overrides": {
+                        "hidden_dim": 32,
+                        "num_layers": 3,
+                        "num_heads": 2,
+                        "learning_rate": 0.001,
+                        "wikitext_limit": 32901760 * 4,
+                        "pos_encoding": "sinusoidal",
+                    },
+                },
+                {
+                    "label": "64d_no_rotary",
+                    "overrides": {
+                        "hidden_dim": 64,
+                        "num_layers": 4,
+                        "num_heads": 4,
+                        "learning_rate": 0.002,
+                        "wikitext_limit": 68261120 * 4,
+                        "pos_encoding": "sinusoidal",
+                    },
+                },
+                {
+                    "label": "96d_no_rotary",
+                    "overrides": {
+                        "hidden_dim": 96,
+                        "num_layers": 6,
+                        "num_heads": 6,
+                        "learning_rate": 0.0024,
+                        "wikitext_limit": 109764480 * 4,
+                        "pos_encoding": "sinusoidal",
+                    },
+                },
+            ],
+        },
+    ]
+
+    # {
+    #                 "label": "128d",
+    #                 "overrides": {
+    #                     "hidden_dim": 128,
+    #                     "num_layers": 8,
+    #                     "num_heads": 8,
+    #                     "learning_rate": 0.0028,
+    #                     "wikitext_limit": 160115200 * 4,
+    #                 },
+    #             },
 
     # Chinchilla-Scaled Hidden Dimension Experiments (using config generator)
     def create_chinchilla_scaled_experiments():
@@ -248,14 +300,16 @@ if __name__ == "__main__":
         return [{"name": "Chinchilla_Experiments", "subexperiments": subexperiments}]
 
     # Generate the Chinchilla-scaled experiments
-    CHINCHILLA_SCALED_EXPERIMENTS = create_chinchilla_scaled_experiments()
+    # CHINCHILLA_SCALED_EXPERIMENTS = create_chinchilla_scaled_experiments()
 
     # ====================================================================
     # SELECT WHICH EXPERIMENTS TO RUN
     # ====================================================================
 
     # Choose which experiment type to run:
-    EXPERIMENTS = HIDDEN_DIM_EXPERIMENTS  # Or use simple hidden dim scaling
+    EXPERIMENTS = (
+        HIDDEN_DIM_EXPERIMENTS_NO_ROTARY + HIDDEN_DIM_EXPERIMENTS
+    )  # Or use simple hidden dim scaling
     # EXPERIMENTS = ACTIVATION_EXPERIMENTS       # Or use activation experiments
     # EXPERIMENTS = CHINCHILLA_SCALED_EXPERIMENTS  # Use Chinchilla scaling
 

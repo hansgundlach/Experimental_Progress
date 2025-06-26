@@ -6,7 +6,7 @@
 #SBATCH --nodes=1
 #SBATCH --gres=gpu:volta:2
 #SBATCH --mem=32G
-#SBATCH --array=0-1
+#SBATCH --array=0-3
 
 # Create logs directory name with timestamp
 LOG_DIR="logs/$(date +%d-%H)"
