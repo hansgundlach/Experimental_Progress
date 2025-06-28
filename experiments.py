@@ -10,6 +10,15 @@ from config_generator import chinchilla_scale  # Import the scaling function
 import copy
 import argparse
 import multiprocessing as mp
+from experiment_definitions import (
+    ACTIVATION_EXPERIMENTS,
+    HIDDEN_DIM_EXPERIMENTS,
+    HIDDEN_DIM_EXPERIMENTS_NO_ROTARY,
+    HIDDEN_DIM_EXPERIMENTS_123,
+    HIDDEN_DIM_EXPERIMENTS_NO_ROTARY_123,
+    LR_EXPERIMENTS,
+    HIDDEN_DIM_EXPERIMENTS_123_SGD,
+)
 
 
 def run_experiments_on_gpu(gpu_id, sub_experiments, project_name_base):
@@ -130,131 +139,8 @@ if __name__ == "__main__":
     }
 
     # ====================================================================
-    # EXPERIMENT DEFINITIONS
+    # EXPERIMENT DEFINITIONS ARE NOW IMPORTED FROM experiment_definitions.py
     # ====================================================================
-
-    # Activation Function Experiments
-    ACTIVATION_EXPERIMENTS = [
-        {
-            "name": "Activation_Functions_Comparison",
-            "subexperiments": [
-                {"label": "GELU", "overrides": {"activation": "gelu"}},
-                {"label": "ReLU", "overrides": {"activation": "relu"}},
-                {"label": "SwiGLU", "overrides": {"activation": "swiglu"}},
-            ],
-        },
-    ]
-
-    # Hidden Dimension Scaling Experiments (simple override approach)
-    HIDDEN_DIM_EXPERIMENTS = [
-        {
-            "name": "Hidden_Dim_Scaling",
-            "subexperiments": [
-                {
-                    "label": "16d",
-                    "overrides": {
-                        "hidden_dim": 16,
-                        "num_layers": 2,
-                        "num_heads": 1,
-                        "learning_rate": 0.001,
-                        "wikitext_limit": 16205120 * 4,
-                    },
-                },
-                {
-                    "label": "32d",
-                    "overrides": {
-                        "hidden_dim": 32,
-                        "num_layers": 3,
-                        "num_heads": 2,
-                        "learning_rate": 0.001,
-                        "wikitext_limit": 32901760 * 4,
-                    },
-                },
-                {
-                    "label": "64d",
-                    "overrides": {
-                        "hidden_dim": 64,
-                        "num_layers": 4,
-                        "num_heads": 4,
-                        "learning_rate": 0.002,
-                        "wikitext_limit": 68261120 * 4,
-                    },
-                },
-                {
-                    "label": "96d",
-                    "overrides": {
-                        "hidden_dim": 96,
-                        "num_layers": 6,
-                        "num_heads": 6,
-                        "learning_rate": 0.0024,
-                        "wikitext_limit": 109764480 * 4,
-                    },
-                },
-            ],
-        },
-    ]
-    HIDDEN_DIM_EXPERIMENTS_NO_ROTARY = [
-        {
-            "name": "Hidden_Dim_Scaling_No_Rotary",
-            "subexperiments": [
-                {
-                    "label": "16d_no_rotary",
-                    "overrides": {
-                        "hidden_dim": 16,
-                        "num_layers": 2,
-                        "num_heads": 1,
-                        "learning_rate": 0.001,
-                        "wikitext_limit": 16205120 * 4,
-                        "pos_encoding": "sinusoidal",
-                    },
-                },
-                {
-                    "label": "32d_no_rotary",
-                    "overrides": {
-                        "hidden_dim": 32,
-                        "num_layers": 3,
-                        "num_heads": 2,
-                        "learning_rate": 0.001,
-                        "wikitext_limit": 32901760 * 4,
-                        "pos_encoding": "sinusoidal",
-                    },
-                },
-                {
-                    "label": "64d_no_rotary",
-                    "overrides": {
-                        "hidden_dim": 64,
-                        "num_layers": 4,
-                        "num_heads": 4,
-                        "learning_rate": 0.002,
-                        "wikitext_limit": 68261120 * 4,
-                        "pos_encoding": "sinusoidal",
-                    },
-                },
-                {
-                    "label": "96d_no_rotary",
-                    "overrides": {
-                        "hidden_dim": 96,
-                        "num_layers": 6,
-                        "num_heads": 6,
-                        "learning_rate": 0.0024,
-                        "wikitext_limit": 109764480 * 4,
-                        "pos_encoding": "sinusoidal",
-                    },
-                },
-            ],
-        },
-    ]
-
-    # {
-    #                 "label": "128d",
-    #                 "overrides": {
-    #                     "hidden_dim": 128,
-    #                     "num_layers": 8,
-    #                     "num_heads": 8,
-    #                     "learning_rate": 0.0028,
-    #                     "wikitext_limit": 160115200 * 4,
-    #                 },
-    #             },
 
     # Chinchilla-Scaled Hidden Dimension Experiments (using config generator)
     def create_chinchilla_scaled_experiments():
@@ -307,12 +193,12 @@ if __name__ == "__main__":
     # ====================================================================
 
     # Choose which experiment type to run:
-    EXPERIMENTS = (
-        HIDDEN_DIM_EXPERIMENTS_NO_ROTARY + HIDDEN_DIM_EXPERIMENTS
-    )  # Or use simple hidden dim scaling
+    # EXPERIMENTS = (
+    #     HIDDEN_DIM_EXPERIMENTS_NO_ROTARY_123 + HIDDEN_DIM_EXPERIMENTS_123
+    # )  # Or use simple hidden dim scaling
     # EXPERIMENTS = ACTIVATION_EXPERIMENTS       # Or use activation experiments
     # EXPERIMENTS = CHINCHILLA_SCALED_EXPERIMENTS  # Use Chinchilla scaling
-
+    EXPERIMENTS = HIDDEN_DIM_EXPERIMENTS_123_SGD
     # ====================================================================
     # EXPERIMENT PROCESSING
     # ====================================================================

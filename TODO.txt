@@ -1,4 +1,18 @@
 
+# be able to run multiple GPUs with LSTM 
+#figure out how to properly scale LSTM
+#set up scaling experiments with LSTM 
+#find sources for how to scale transformer 
+
+
+
+
+
+
+
+
+
+
 
 # TODO be able to sampel with a given random seed from LSTM 
 

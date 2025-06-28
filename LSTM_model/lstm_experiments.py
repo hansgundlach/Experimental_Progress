@@ -13,14 +13,14 @@ CONFIG = {
     "tokenizer_path": "../gpt2_tokenizer",
     "max_characters": 5 * 1e7,  # Maximum number of characters to use from dataset
     "sequence_length": 128,
-    "batch_size": 256,  # Keep physical batch size small
+    "batch_size": 32,  # Keep physical batch size small, has no effect on model
     "hidden_size": 16,
     "num_layers": 2,
     "dropout": 0.0,  # dropout zer here to match transformer but may need to adjust for LSTM
     "learning_rate": 0.001 * math.sqrt(4),  # Scale by sqrt of accumulation steps
     "lr_schedule": "cosine",
     "step_size": 10,
-    "gamma": 0.1,
+    "gamma": 0.1,  # parameter usedf for stepLR step decay
     "num_epochs": 5,
     "train_split": 0.8,
     "val_split": 0.1,
@@ -44,7 +44,7 @@ CONFIG = {
     "use_amp": False,  # Enable Automatic Mixed Precision
     "amp_opt_level": "O1",  # Not used with native AMP, but kept for reference
     # NEW: Gradient accumulation settings
-    "gradient_accumulation_steps": 2,  # For tracking only
+    "gradient_accumulation_steps": 16,  # For tracking only
     # NEW: whether to compile the model (PyTorch 2.0+)
     "use_compile": False,
     "seed": 789,
@@ -93,27 +93,78 @@ CONFIG = {
 
 
 # ========= Experiment definitions (customize labels & overrides below) =========
-EXPERIMENTS = [
+# EXPERIMENTS = [
+#     {
+#         "name": "LSTM_benchmark",
+#         "subexperiments": [
+#             {
+#                 "label": "LSTM_1.6M_Benchmark",
+#                 "overrides": {"learning_rate": 0.001 * math.sqrt(4), "hidden_size": 16},
+#             },
+#         ],
+#     },
+# – Add more experiments here, e.g.
+# {
+#   "name": "Another_experiment",
+#   "subexperiments": [
+#     { "label": "foo", "overrides": {...} },
+#     …
+#   ]
+# },
+# ]
+# =====
+LSTM_HIDDEN_DIM_EXPERIMENTS = [
     {
-        "name": "LSTM_benchmark",
+        "name": "LSTM_Hidden_Dim_Scaling",
         "subexperiments": [
             {
-                "label": "LSTM_1.6M_Benchmark",
-                "overrides": {"learning_rate": 0.001 * math.sqrt(4)},
+                "label": "LSTM_16d_123",
+                "overrides": {
+                    "learning_rate": 1e-3,
+                    "hidden_size": 16,
+                    "max_characters": 129e6,
+                    "seed": 123,
+                },
+            },
+            {
+                "label": "LSTM_24d_123",
+                "overrides": {
+                    "learning_rate": 1e-3,
+                    "max_characters": 193.7e6,
+                    "seed": 123,
+                },
+                "hidden_size": 24,
+            },
+            {
+                "label": "LSTM_32d_123",
+                "overrides": {
+                    "learning_rate": 1e-3,
+                    "max_characters": 258.6e6,
+                    "seed": 123,
+                },
+                "hidden_size": 32,
+            },
+            {
+                "label": "LSTM_48d_123",
+                "overrides": {
+                    "learning_rate": 1e-3,
+                    "max_characters": 388.8e6,
+                    "seed": 123,
+                },
+                "hidden_size": 48,
+            },
+            {
+                "label": "LSTM_64d_123",
+                "overrides": {
+                    "learning_rate": 1e-3,
+                    "max_characters": 519.9e6,
+                    "seed": 123,
+                },
+                "hidden_size": 64,
             },
         ],
     },
-    # – Add more experiments here, e.g.
-    # {
-    #   "name": "Another_experiment",
-    #   "subexperiments": [
-    #     { "label": "foo", "overrides": {...} },
-    #     …
-    #   ]
-    # },
 ]
-# =====
-
 
 # EXPERIMENTS = [
 #     {
@@ -143,6 +194,7 @@ EXPERIMENTS = [
 #     # },
 # ]
 # ============================================================================
+EXPERIMENTS = LSTM_HIDDEN_DIM_EXPERIMENTS
 
 
 def run_experiment_suite(base_config, local_rank=0):
