@@ -67,32 +67,102 @@ class TextPreprocessor:
         return tokens
 
 
-class LSTMLanguageModel(nn.Module):
+class VariationalDropout(nn.Module):
+    """
+    Variational dropout that uses the same mask across all timesteps.
+    Based on "A Theoretically Grounded Application of Dropout in Recurrent Neural Networks"
+    """
+
+    def __init__(self, dropout_rate=0.0):
+        super().__init__()
+        self.dropout_rate = dropout_rate
+
+    def forward(self, x):
+        if not self.training or self.dropout_rate == 0:
+            return x
+
+        # x shape: (batch_size, seq_len, hidden_size)
+        batch_size, seq_len, hidden_size = x.size()
+
+        # Create mask that's constant across timesteps
+        # Shape: (batch_size, 1, hidden_size) - broadcasts across seq_len
+        mask = x.new_ones(batch_size, 1, hidden_size)
+        mask = torch.bernoulli(mask * (1 - self.dropout_rate))
+
+        # Scale by dropout probability to maintain expected value
+        mask = mask / (1 - self.dropout_rate)
+
+        # Apply same mask to all timesteps
+        return x * mask
+
+
+class AdvancedLSTMLanguageModel(nn.Module):
     def __init__(
-        self, vocab_size: int, hidden_size: int, num_layers: int, dropout: float
+        self,
+        vocab_size: int,
+        hidden_size: int,
+        num_layers: int,
+        input_dropout: float = 0.4,
+        hidden_dropout: float = 0.3,
+        output_dropout: float = 0.4,
     ):
-        super(LSTMLanguageModel, self).__init__()
+        super().__init__()
         self.hidden_size = hidden_size
         self.num_layers = num_layers
         self.vocab_size = vocab_size
 
         self.embedding = nn.Embedding(vocab_size, hidden_size)
-        self.lstm = nn.LSTM(
-            hidden_size, hidden_size, num_layers, dropout=dropout, batch_first=True
+
+        # Create LSTM layers manually for better control
+        self.lstm_layers = nn.ModuleList()
+        for i in range(num_layers):
+            self.lstm_layers.append(
+                nn.LSTM(hidden_size, hidden_size, 1, batch_first=True)
+            )
+
+        # Different dropout types
+        self.input_dropout = VariationalDropout(input_dropout)
+        self.hidden_dropouts = nn.ModuleList(
+            [VariationalDropout(hidden_dropout) for _ in range(num_layers - 1)]
         )
-        self.dropout = nn.Dropout(dropout)
+        self.output_dropout = VariationalDropout(output_dropout)
+
         self.linear = nn.Linear(hidden_size, vocab_size)
 
     def forward(self, x, hidden=None):
         embedded = self.embedding(x)
-        lstm_out, hidden = self.lstm(embedded, hidden)
-        lstm_out = self.dropout(lstm_out)
-        output = self.linear(lstm_out)
-        return output, hidden
 
-    def init_hidden(
-        self, batch_size: int, device: torch.device
-    ) -> Tuple[torch.Tensor, torch.Tensor]:
+        # Apply input dropout
+        lstm_input = self.input_dropout(embedded)
+
+        # Initialize hidden states if not provided
+        if hidden is None:
+            hidden = self.init_hidden(x.size(0), x.device)
+
+        # Process through LSTM layers with variational dropout
+        lstm_out = lstm_input
+        new_hidden = []
+
+        for i, lstm_layer in enumerate(self.lstm_layers):
+            layer_hidden = (hidden[0][i : i + 1], hidden[1][i : i + 1])
+            lstm_out, layer_new_hidden = lstm_layer(lstm_out, layer_hidden)
+            new_hidden.append(layer_new_hidden)
+
+            # Apply hidden dropout (except for last layer)
+            if i < len(self.lstm_layers) - 1:
+                lstm_out = self.hidden_dropouts[i](lstm_out)
+
+        # Combine hidden states
+        h_n = torch.cat([h[0] for h in new_hidden], dim=0)
+        c_n = torch.cat([c[1] for c in new_hidden], dim=0)
+
+        # Apply output dropout
+        lstm_out = self.output_dropout(lstm_out)
+
+        output = self.linear(lstm_out)
+        return output, (h_n, c_n)
+
+    def init_hidden(self, batch_size: int, device: torch.device):
         return (
             torch.zeros(self.num_layers, batch_size, self.hidden_size).to(device),
             torch.zeros(self.num_layers, batch_size, self.hidden_size).to(device),
@@ -560,11 +630,13 @@ def train_model(
     )
 
     # Initialize model
-    model = LSTMLanguageModel(
+    model = AdvancedLSTMLanguageModel(
         vocab_size=preprocessor.vocab_size,
         hidden_size=config["hidden_size"],
         num_layers=config["num_layers"],
-        dropout=config["dropout"],
+        input_dropout=config["input_dropout"],
+        hidden_dropout=config["hidden_dropout"],
+        output_dropout=config["output_dropout"],
     ).to(device)
 
     # Use DataParallel or DDP if requested

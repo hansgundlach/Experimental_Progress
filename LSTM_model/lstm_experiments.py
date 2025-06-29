@@ -54,6 +54,10 @@ CONFIG = {
     "optimizer": "adamw",  # NEW: choose from "adam", "adamw", or "sgd"
     "weight_decay": 0.1,
     "stride": 64,  # NEW: sliding-window stride to match transformer
+    # Add three separate variational dropout parameters
+    "input_dropout": 0.4,  # Applied to embeddings
+    "hidden_dropout": 0.3,  # Applied between LSTM layers
+    "output_dropout": 0.4,  # Applied before final linear layer
 }
 
 # old large 5-6M param config:
