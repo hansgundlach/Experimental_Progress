@@ -377,21 +377,16 @@ def load_and_preprocess_data(
     else:
         print(f"Using full dataset: {len(text)} characters")
 
-    # Replace contiguous‐stream split with sentence‐level shuffle+split (to match transformer)
-    sentences = text.split("\n")
-    random.shuffle(sentences)
-    n = len(sentences)
+    # Create contiguous splits for stateful training, do not shuffle sentences.
+    preprocessor = TextPreprocessor(config["tokenizer_path"])
+    full_data = preprocessor.text_to_indices(text)
+    n = len(full_data)
     n_train = int(n * config["train_split"])
     n_val = int(n * config["val_split"])
-    train_text = "\n".join(sentences[:n_train])
-    val_text = "\n".join(sentences[n_train : n_train + n_val])
-    test_text = "\n".join(sentences[n_train + n_val :])
 
-    # Tokenize each split
-    preprocessor = TextPreprocessor(config["tokenizer_path"])
-    train_data = preprocessor.text_to_indices(train_text)
-    val_data = preprocessor.text_to_indices(val_text)
-    test_data = preprocessor.text_to_indices(test_text)
+    train_data = full_data[:n_train]
+    val_data = full_data[n_train : n_train + n_val]
+    test_data = full_data[n_train + n_val :]
 
     # Create sliding‐window datasets with same stride as transformer
     stride = config.get("stride", 1)
@@ -432,6 +427,7 @@ def load_and_preprocess_data(
             train_dataset,
             num_replicas=dist.get_world_size(),
             rank=dist.get_rank(),
+            shuffle=False,  # Must be False for stateful training
         )
         train_loader = DataLoader(
             train_dataset,
@@ -447,7 +443,7 @@ def load_and_preprocess_data(
         train_loader = DataLoader(
             train_dataset,
             batch_size=config["batch_size"],
-            shuffle=True,
+            shuffle=False,  # Must be False for stateful training
             num_workers=num_workers,
             pin_memory=pin_memory,
             persistent_workers=persistent_workers,
@@ -758,12 +754,18 @@ def train_model(
         epoch_batches = 0
         optimizer.zero_grad()  # Zero gradients at the start of epoch
 
+        # Initialize hidden state at the start of each epoch
+        hidden = None
+
         for batch_idx, (inputs, targets) in enumerate(train_loader):
             batch_size, sequence_length = inputs.size()
 
+            # Initialize or resize hidden state if necessary
+            if hidden is None or inputs.size(0) != hidden[0].size(1):
+                hidden = init_hidden(batch_size)
+
             # Profile only the very first batch of training
             if not flop_counter.profiled:
-                hidden = init_hidden(batch_size)
                 loss = flop_counter.profile_one_batch(
                     inputs, targets, hidden, optimizer, criterion, scaler
                 )
@@ -772,13 +774,14 @@ def train_model(
                 # Update epoch statistics for profiled batch
                 epoch_loss += loss.item()
                 epoch_batches += 1
+                # After profiling, we don't update the hidden state to avoid polluting the next step
+                hidden = init_hidden(batch_size)
                 continue
 
             # Move data to device
             inputs, targets = inputs.to(device, non_blocking=True), targets.to(
                 device, non_blocking=True
             )
-            hidden = init_hidden(batch_size)
 
             # Track FLOP count
             flop_counter.add_batch_flops()
@@ -786,7 +789,9 @@ def train_model(
             # Forward pass with mixed precision
             if use_amp:
                 with autocast():
-                    outputs, _ = model(inputs, hidden)
+                    outputs, hidden = model(inputs, hidden)
+                    # Detach hidden state to treat it as a new input, preventing BPTT through all time
+                    hidden = tuple(h.detach() for h in hidden)
                     outputs = outputs.view(-1, get_vocab_size())
                     targets_reshaped = targets.view(-1)
                     # Scale loss by accumulation steps
@@ -799,7 +804,9 @@ def train_model(
                 scaler.scale(loss).backward()
             else:
                 # Regular precision
-                outputs, _ = model(inputs, hidden)
+                outputs, hidden = model(inputs, hidden)
+                # Detach hidden state to treat it as a new input, preventing BPTT through all time
+                hidden = tuple(h.detach() for h in hidden)
                 outputs = outputs.view(-1, get_vocab_size())
                 targets_reshaped = targets.view(-1)
                 # Scale loss by accumulation steps

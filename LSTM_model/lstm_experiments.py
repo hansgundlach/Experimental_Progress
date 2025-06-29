@@ -55,9 +55,9 @@ CONFIG = {
     "weight_decay": 0.01,
     "stride": 64,  # NEW: sliding-window stride to match transformer
     # Add three separate variational dropout parameters
-    "input_dropout": 0.4,  # Applied to embeddings
-    "hidden_dropout": 0.3,  # Applied between LSTM layers
-    "output_dropout": 0.4,  # Applied before final linear layer
+    "input_dropout": 0.2,  # Applied to embeddings
+    "hidden_dropout": 0.1,  # Applied between LSTM layers
+    "output_dropout": 0.2,  # Applied before final linear layer
     "use_layer_norm": True,  # Enable/disable LayerNorm
     "layer_norm_position": "output",  # Options: "input", "output", "both", "gates"
 }
@@ -209,7 +209,7 @@ LSTM_HIDDEN_DIM_EXPERIMENTS = [
 #     # },
 # ]
 # ============================================================================
-EXPERIMENTS = TEST_EXPERIMENTS
+EXPERIMENTS = LSTM_HIDDEN_DIM_EXPERIMENTS
 
 
 def find_free_port():
