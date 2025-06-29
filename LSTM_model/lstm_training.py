@@ -105,6 +105,8 @@ class AdvancedLSTMLanguageModel(nn.Module):
         input_dropout: float = 0.4,
         hidden_dropout: float = 0.3,
         output_dropout: float = 0.4,
+        use_layer_norm: bool = False,
+        layer_norm_position: str = "output",
     ):
         super().__init__()
         self.hidden_size = hidden_size
@@ -129,10 +131,25 @@ class AdvancedLSTMLanguageModel(nn.Module):
 
         self.linear = nn.Linear(hidden_size, vocab_size)
 
+        self.use_layer_norm = use_layer_norm
+        self.layer_norm_position = layer_norm_position
+
+        # Add LayerNorm layers based on config
+        if use_layer_norm:
+            if layer_norm_position in ["input", "both"]:
+                self.input_layer_norm = nn.LayerNorm(hidden_size)
+            if layer_norm_position in ["output", "both"]:
+                self.output_layer_norms = nn.ModuleList(
+                    [nn.LayerNorm(hidden_size) for _ in range(num_layers)]
+                )
+
     def forward(self, x, hidden=None):
         embedded = self.embedding(x)
 
-        # Apply input dropout
+        # Apply input LayerNorm if configured
+        if self.use_layer_norm and self.layer_norm_position in ["input", "both"]:
+            embedded = self.input_layer_norm(embedded)
+
         lstm_input = self.input_dropout(embedded)
 
         # Initialize hidden states if not provided
@@ -147,6 +164,10 @@ class AdvancedLSTMLanguageModel(nn.Module):
             layer_hidden = (hidden[0][i : i + 1], hidden[1][i : i + 1])
             lstm_out, layer_new_hidden = lstm_layer(lstm_out, layer_hidden)
             new_hidden.append(layer_new_hidden)
+
+            # Apply output LayerNorm if configured
+            if self.use_layer_norm and self.layer_norm_position in ["output", "both"]:
+                lstm_out = self.output_layer_norms[i](lstm_out)
 
             # Apply hidden dropout (except for last layer)
             if i < len(self.lstm_layers) - 1:
@@ -637,6 +658,8 @@ def train_model(
         input_dropout=config["input_dropout"],
         hidden_dropout=config["hidden_dropout"],
         output_dropout=config["output_dropout"],
+        use_layer_norm=config.get("use_layer_norm", False),
+        layer_norm_position=config.get("layer_norm_position", "output"),
     ).to(device)
 
     # Use DataParallel or DDP if requested

@@ -52,12 +52,14 @@ CONFIG = {
     "use_compile": False,
     "seed": 789,
     "optimizer": "adamw",  # NEW: choose from "adam", "adamw", or "sgd"
-    "weight_decay": 0.1,
+    "weight_decay": 0.01,
     "stride": 64,  # NEW: sliding-window stride to match transformer
     # Add three separate variational dropout parameters
     "input_dropout": 0.4,  # Applied to embeddings
     "hidden_dropout": 0.3,  # Applied between LSTM layers
     "output_dropout": 0.4,  # Applied before final linear layer
+    "use_layer_norm": True,  # Enable/disable LayerNorm
+    "layer_norm_position": "output",  # Options: "input", "output", "both", "gates"
 }
 
 # old large 5-6M param config:
@@ -100,16 +102,19 @@ CONFIG = {
 
 
 # ========= Experiment definitions (customize labels & overrides below) =========
-# EXPERIMENTS = [
-#     {
-#         "name": "LSTM_benchmark",
-#         "subexperiments": [
-#             {
-#                 "label": "LSTM_1.6M_Benchmark",
-#                 "overrides": {"learning_rate": 0.001 * math.sqrt(4), "hidden_size": 16},
-#             },
-#         ],
-#     },
+TEST_EXPERIMENTS = [
+    {
+        "name": "LSTM_benchmark",
+        "subexperiments": [
+            {
+                "label": "LSTM_1.6M_Benchmark",
+                "overrides": {"learning_rate": 0.001 * math.sqrt(4), "hidden_size": 16},
+            },
+        ],
+    },
+]
+
+
 # – Add more experiments here, e.g.
 # {
 #   "name": "Another_experiment",
@@ -127,7 +132,7 @@ LSTM_HIDDEN_DIM_EXPERIMENTS = [
             {
                 "label": "LSTM_16d_123",
                 "overrides": {
-                    "learning_rate": 1e-3,
+                    "learning_rate": 3 * 1e-3,
                     "hidden_size": 16,
                     "max_characters": 129e6,
                     "seed": 123,
@@ -136,7 +141,7 @@ LSTM_HIDDEN_DIM_EXPERIMENTS = [
             {
                 "label": "LSTM_24d_123",
                 "overrides": {
-                    "learning_rate": 1e-3,
+                    "learning_rate": 3 * 1e-3,
                     "max_characters": 193.7e6,
                     "seed": 123,
                     "hidden_size": 24,
@@ -145,7 +150,7 @@ LSTM_HIDDEN_DIM_EXPERIMENTS = [
             {
                 "label": "LSTM_32d_123",
                 "overrides": {
-                    "learning_rate": 1e-3,
+                    "learning_rate": 3 * 1e-3,
                     "max_characters": 258.6e6,
                     "seed": 123,
                     "hidden_size": 32,
@@ -154,24 +159,27 @@ LSTM_HIDDEN_DIM_EXPERIMENTS = [
             {
                 "label": "LSTM_48d_123",
                 "overrides": {
-                    "learning_rate": 1e-3,
+                    "learning_rate": 3 * 1e-3,
                     "max_characters": 388.8e6,
                     "seed": 123,
                     "hidden_size": 48,
                 },
             },
-            {
-                "label": "LSTM_64d_123",
-                "overrides": {
-                    "learning_rate": 1e-3,
-                    "max_characters": 519.9e6,
-                    "seed": 123,
-                    "hidden_size": 64,
-                },
-            },
         ],
     },
 ]
+
+
+# {
+#                 "label": "LSTM_64d_123",
+#                 "overrides": {
+#                     "learning_rate": 1e-3,
+#                     "max_characters": 519.9e6,
+#                     "seed": 123,
+#                     "hidden_size": 64,
+#                 },
+#             },
+
 
 # EXPERIMENTS = [
 #     {
@@ -201,7 +209,7 @@ LSTM_HIDDEN_DIM_EXPERIMENTS = [
 #     # },
 # ]
 # ============================================================================
-EXPERIMENTS = LSTM_HIDDEN_DIM_EXPERIMENTS
+EXPERIMENTS = TEST_EXPERIMENTS
 
 
 def find_free_port():
