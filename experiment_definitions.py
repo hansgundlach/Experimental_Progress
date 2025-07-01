@@ -10,6 +10,48 @@ ACTIVATION_EXPERIMENTS = [
     },
 ]
 
+# OPTIMIZER_EXPERIMENTS = [
+#     {
+#         "name": "Optimizer_Experiments",
+#         "subexperiments": [
+#             {
+#                 "label": "96d_adam_123",
+#                 "overrides": {
+#                     "hidden_dim": 96,
+#                     "num_layers": 6,
+#                     "num_heads": 6,
+#                     "learning_rate": 0.0024,
+#                     "wikitext_limit": 109764480 * 4,
+#                     "seed": 123,
+#                     "optimizer": "adam",
+#                 },
+#             },
+#         ],
+#     },
+# ]
+
+
+OPTIMIZER_EXPERIMENTS = [
+    {
+        "name": "Optimizer_Experiments",
+        "subexperiments": [
+            {
+                "label": "96d_adam_123",
+                "overrides": {
+                    "hidden_dim": 96,
+                    "num_layers": 6,
+                    "num_heads": 6,
+                    "learning_rate": 0.0024,
+                    "wikitext_limit": 109764480 * 4,
+                    "seed": 123,
+                    "optimizer": "adam",
+                },
+            },
+        ],
+    },
+]
+
+
 LR_EXPERIMENTS = [
     {
         "name": "Learning_Rate_Determination",
@@ -351,6 +393,95 @@ HIDDEN_DIM_EXPERIMENTS_123_SGD = [
                     "wikitext_limit": 68261120 * 4,
                     "seed": 123,
                     "optimizer": "sgd",
+                },
+            },
+        ],
+    },
+]
+
+NORM_EXPERIMENTS = [
+    {
+        "name": "Norm_Experiments",
+        "subexperiments": [
+            {
+                "label": "32d_post_layernorm_123",
+                "overrides": {
+                    "hidden_dim": 32,
+                    "num_layers": 3,
+                    "num_heads": 2,
+                    "learning_rate": 0.001,
+                    "wikitext_limit": int(32901760 * 4),
+                    "seed": 123,
+                    "norm_type": "layernorm",
+                    "norm_placement": "post",
+                },
+            },
+            {
+                "label": "32d_rmsnorm_123",
+                "overrides": {
+                    "hidden_dim": 32,
+                    "num_layers": 3,
+                    "num_heads": 2,
+                    "learning_rate": 0.001,
+                    "wikitext_limit": int(32901760 * 4),
+                    "seed": 123,
+                    "norm_type": "rmsnorm",
+                },
+            },
+        ],
+    },
+]
+
+LR_SCHEDULE_EXPERIMENTS = [
+    {
+        "name": "LR_Schedule_Experiments",
+        "subexperiments": [
+            {
+                "label": "32d_cosine_warmup_123",
+                "overrides": {
+                    "hidden_dim": 32,
+                    "num_layers": 3,
+                    "num_heads": 2,
+                    "learning_rate": 0.001,
+                    "wikitext_limit": int(32901760 * 4),
+                    "seed": 123,
+                    "lr_schedule": "cosine_warmup",
+                },
+            },
+            {
+                "label": "32d_inverse_sqrt_123",
+                "overrides": {
+                    "hidden_dim": 32,
+                    "num_layers": 3,
+                    "num_heads": 2,
+                    "learning_rate": 0.001,
+                    "wikitext_limit": int(32901760 * 4),
+                    "seed": 123,
+                    "lr_schedule": "inverse_sqrt",
+                },
+            },
+            {
+                "label": "32d_transfomer_123",
+                "overrides": {
+                    "hidden_dim": 32,
+                    "num_layers": 3,
+                    "num_heads": 2,
+                    "learning_rate": 0.001,
+                    "wikitext_limit": int(32901760 * 4),
+                    "seed": 123,
+                    "lr_schedule": "transformer",
+                },
+            },
+            {
+                "label": "32d_linear_warmup_123",
+                "overrides": {
+                    "hidden_dim": 32,
+                    "num_layers": 3,
+                    "num_heads": 2,
+                    "learning_rate": 0.001,
+                    "wikitext_limit": int(32901760 * 4),
+                    "seed": 123,
+                    "lr_schedule": "linear_warmup",
                 },
             },
         ],

@@ -115,6 +115,22 @@ TEST_EXPERIMENTS = [
 ]
 
 
+LSTM_OPTIMIZER_EXPERIMENTS = [
+    {
+        "name": "LSTM_Optimizer_Experiments",
+        "subexperiments": [
+            {
+                "label": "LSTM_adam",
+                "overrides": {"optimizer": "adam"},
+            },
+            {
+                "label": "LSTM_SGD_Benchmark",
+                "overrides": {"optimizer": "sgd"},
+            },
+        ],
+    },
+]
+
 # – Add more experiments here, e.g.
 # {
 #   "name": "Another_experiment",

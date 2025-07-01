@@ -18,6 +18,9 @@ from experiment_definitions import (
     HIDDEN_DIM_EXPERIMENTS_NO_ROTARY_123,
     LR_EXPERIMENTS,
     HIDDEN_DIM_EXPERIMENTS_123_SGD,
+    OPTIMIZER_EXPERIMENTS,
+    LR_SCHEDULE_EXPERIMENTS,
+    NORM_EXPERIMENTS,
 )
 
 
@@ -109,8 +112,7 @@ if __name__ == "__main__":
         "learning_rate": 0.001 * math.sqrt(4),
         "min_lr": 1e-5,
         "lr_schedule": "cosine",
-        "warmup_epochs": 0,
-        "warmup_epochs_frac": 0.1,
+        "warmup_frac": 0.1,
         "weight_decay": 0.1,
         "hidden_dim": 64,  # Base hidden dimension
         "num_layers": 4,  # Base number of layers
@@ -133,6 +135,7 @@ if __name__ == "__main__":
         "optimizer": "adamw",
         "activation": "gelu",
         "norm_type": "layer",
+        "norm_placement": "pre",
         "results_folder": "Former_Experiments_Folder",
         "csv_log_interval": 50,
         "seed": 789,
@@ -198,7 +201,7 @@ if __name__ == "__main__":
     # )  # Or use simple hidden dim scaling
     # EXPERIMENTS = ACTIVATION_EXPERIMENTS       # Or use activation experiments
     # EXPERIMENTS = CHINCHILLA_SCALED_EXPERIMENTS  # Use Chinchilla scaling
-    EXPERIMENTS = HIDDEN_DIM_EXPERIMENTS_123_SGD
+    EXPERIMENTS = LR_SCHEDULE_EXPERIMENTS + NORM_EXPERIMENTS
     # ====================================================================
     # EXPERIMENT PROCESSING
     # ====================================================================

@@ -45,6 +45,9 @@ def get_wikitext_data(limit=100000):
     print("Loading WikiText from local file...")
     text = file_path.read_text(encoding="utf-8")
 
+    # Ensure limit is an integer to avoid float issues with random.randint
+    limit = int(limit)
+
     # Limit to a reasonable sample size for quick testing
     sample_size = min(limit, len(text))  # Use at most limit characters
 
@@ -76,7 +79,7 @@ class TextDataset(Dataset):
                 "input_ids"
             ]
             all_tokens.extend(chunk_tokens)
-        
+
         # Convert to tensor
         self.tokens = torch.tensor(all_tokens, dtype=torch.long)
 
@@ -270,6 +273,7 @@ class SimpleTransformerLayer(nn.Module):
         self.activation_type = config.activation
         self.dropout = nn.Dropout(dropout)
         self.use_rotary = config.pos_encoding == "rotary"
+        self.norm_placement = getattr(config, "norm_placement", "pre")
 
         # Choose normalization type
         if getattr(config, "norm_type", "layer") == "rms":
@@ -340,8 +344,14 @@ class SimpleTransformerLayer(nn.Module):
     def forward(self, x):
         B, L, D = x.shape
 
-        normed = self.norm1(x)
-        qkv = self.qkv(normed).chunk(3, dim=-1)
+        if self.norm_placement == "pre":
+            # Pre-Normalization
+            normed_x = self.norm1(x)
+            qkv = self.qkv(normed_x).chunk(3, dim=-1)
+        else:
+            # Post-Normalization
+            qkv = self.qkv(x).chunk(3, dim=-1)
+
         q, k, v = map(
             lambda t: t.view(B, L, self.num_heads, self.head_dim).transpose(1, 2), qkv
         )
@@ -395,9 +405,17 @@ class SimpleTransformerLayer(nn.Module):
 
         # Rest of the forward pass remains the same
         attn_output = attn_output.transpose(1, 2).contiguous().view(B, L, D)
-        out = x + self.dropout(self.out_proj(attn_output))
-        out = out + self.dropout(self.ff(self.norm2(out)))
-        return out
+        attn_output = self.out_proj(attn_output)
+
+        if self.norm_placement == "pre":
+            # Pre-Normalization
+            x = x + self.dropout(attn_output)
+            x = x + self.dropout(self.ff(self.norm2(x)))
+        else:
+            # Post-Normalization
+            x = self.norm1(x + self.dropout(attn_output))
+            x = self.norm2(x + self.dropout(self.ff(x)))
+        return x
 
 
 class SimpleTransformer(nn.Module):
@@ -550,14 +568,18 @@ def train(gpu_id=None, csv_log_path=None):
         prefetch_factor=config.prefetch_factor,
     )
 
-    # Dynamically set warmup_steps based on fraction of epochs
-    steps_per_epoch = len(train_dataloader)
+    # === Calculate total steps and warmup steps for schedulers ===
+    steps_per_epoch = len(train_dataloader) // config.gradient_accumulation_steps
     total_steps = steps_per_epoch * config.max_epochs
-    if hasattr(config, "warmup_epochs_frac"):
-        config.warmup_steps = int(total_steps * config.warmup_epochs_frac)
+
+    warmup_steps = 0
+    if hasattr(config, "warmup_frac") and config.warmup_frac > 0:
+        warmup_steps = int(total_steps * config.warmup_frac)
         print(
-            f"Using {config.warmup_steps} warmup steps ({config.warmup_epochs_frac*100:.1f}% of total steps)"
+            f"Using {warmup_steps} warmup steps ({config.warmup_frac*100:.1f}% of total steps)"
         )
+    else:
+        print("No warmup will be used.")
 
     # Initialize model
     model = SimpleTransformer(
@@ -697,56 +719,58 @@ def train(gpu_id=None, csv_log_path=None):
     if config.lr_schedule == "cosine":
         scheduler = optim.lr_scheduler.CosineAnnealingLR(
             optimizer,
-            T_max=config.max_epochs,
+            T_max=total_steps,  # T_max should be total steps for cosine
             eta_min=config.min_lr,
         )
-        scheduler_type = "epoch"
+        scheduler_type = "step"
     elif config.lr_schedule == "cosine_warmup":
 
-        def warmup_cosine(epoch):
-            if epoch < config.warmup_epochs:
-                return epoch / config.warmup_epochs
-            else:
-                progress = (epoch - config.warmup_epochs) / (
-                    config.max_epochs - config.warmup_epochs
-                )
-                return 0.5 * (1 + math.cos(math.pi * progress))
+        def warmup_cosine_step(step):
+            step = max(1, step)
+            # Linear warmup
+            if step < warmup_steps:
+                return float(step) / float(max(1, warmup_steps))
+            # Cosine decay
+            if total_steps == warmup_steps:
+                return 1.0
+            progress = (step - warmup_steps) / (total_steps - warmup_steps)
+            return 0.5 * (1.0 + math.cos(math.pi * progress))
 
-        scheduler = optim.lr_scheduler.LambdaLR(optimizer, lr_lambda=warmup_cosine)
-        scheduler_type = "epoch"
+        scheduler = optim.lr_scheduler.LambdaLR(optimizer, lr_lambda=warmup_cosine_step)
+        scheduler_type = "step"
     elif config.lr_schedule == "inverse_sqrt":
 
-        def inverse_sqrt_with_warmup(epoch):
-            # Linear warmup for warmup_epochs
-            if epoch < config.warmup_epochs:
-                return float(epoch) / float(max(1, config.warmup_epochs))
-            # Inverse square root decay after warmup
-            # This formula ensures learning rate = 1.0 right after warmup
-            # and then decays with inverse square root
-            return (config.warmup_epochs**0.5) * ((epoch + 1) ** -0.5)
+        def inverse_sqrt_with_warmup(step):
+            step = max(1, step)
+            if warmup_steps > 0:
+                if step < warmup_steps:
+                    return float(step) / float(warmup_steps)
+                else:
+                    return (float(warmup_steps) / step) ** 0.5
+            else:
+                return 1.0  # Constant LR multiplier if no warmup
 
         scheduler = optim.lr_scheduler.LambdaLR(
             optimizer, lr_lambda=inverse_sqrt_with_warmup
         )
-        scheduler_type = "epoch"
+        scheduler_type = "step"
     elif config.lr_schedule == "one_cycle":
         # Calculate total steps for the scheduler
-        steps_per_epoch = len(train_dataloader) // config.gradient_accumulation_steps
-        total_steps = steps_per_epoch * config.max_epochs
-
         scheduler = optim.lr_scheduler.OneCycleLR(
             optimizer,
             max_lr=config.learning_rate,
             total_steps=total_steps,
-            pct_start=0.3,
+            pct_start=config.warmup_frac if hasattr(config, "warmup_frac") else 0.3,
             div_factor=25,
             final_div_factor=1000,
         )
         scheduler_type = "step"
     elif config.lr_schedule == "transformer":
         # Implementation of the transformer paper's learning rate schedule
+        if warmup_steps == 0:
+            raise ValueError("Transformer LR schedule requires a warmup_frac > 0.")
+
         d_model = config.hidden_dim
-        warmup_steps = config.warmup_steps if hasattr(config, "warmup_steps") else 4000
 
         def transformer_lr_lambda(step):
             # Transformer learning rate schedule from "Attention Is All You Need"
@@ -758,6 +782,17 @@ def train(gpu_id=None, csv_log_path=None):
             optimizer, lr_lambda=transformer_lr_lambda
         )
         scheduler_type = "step"
+    elif config.lr_schedule == "linear_warmup":
+
+        def linear_with_warmup(step):
+            if warmup_steps > 0:
+                if step < warmup_steps:
+                    return float(step) / float(warmup_steps)
+                else:
+                    return max(0.0, (total_steps - step) / (total_steps - warmup_steps))
+            else:
+                return max(0.0, (total_steps - step) / total_steps)
+
     else:
         scheduler = None
         scheduler_type = None
