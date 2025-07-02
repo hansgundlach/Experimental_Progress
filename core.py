@@ -569,17 +569,25 @@ def train(gpu_id=None, csv_log_path=None):
     )
 
     # === Calculate total steps and warmup steps for schedulers ===
-    steps_per_epoch = len(train_dataloader) // config.gradient_accumulation_steps
-    total_steps = steps_per_epoch * config.max_epochs
+    steps_per_epoch = math.ceil(
+        len(train_dataloader) / config.gradient_accumulation_steps
+    )
+    total_steps = max(1, steps_per_epoch * config.max_epochs)  # safety-guard
 
-    warmup_steps = 0
-    if hasattr(config, "warmup_frac") and config.warmup_frac > 0:
-        warmup_steps = int(total_steps * config.warmup_frac)
+    warmup_frac = getattr(config, "warmup_frac", 0.0)
+    if not (0.0 <= warmup_frac < 1.0):
+        raise ValueError("warmup_frac must be in the interval [0.0, 1.0).")
+
+    warmup_steps = int(total_steps * warmup_frac)
+    # Make sure there is at least *one* warm-up step when warmup_frac > 0
+    if warmup_frac > 0.0:
+        warmup_steps = max(1, warmup_steps)
         print(
-            f"Using {warmup_steps} warmup steps ({config.warmup_frac*100:.1f}% of total steps)"
+            f"Using {warmup_steps} warm-up step(s) "
+            f"({warmup_steps/total_steps*100:.1f}% of total steps)"
         )
     else:
-        print("No warmup will be used.")
+        print("No warm-up will be used.")
 
     # Initialize model
     model = SimpleTransformer(
@@ -766,9 +774,12 @@ def train(gpu_id=None, csv_log_path=None):
         )
         scheduler_type = "step"
     elif config.lr_schedule == "transformer":
-        # Implementation of the transformer paper's learning rate schedule
+        # Transformer schedule from "Attention Is All You Need"
+        # Requires warm-up; warmup_steps is guaranteed ≥ 1 when warmup_frac > 0.
         if warmup_steps == 0:
-            raise ValueError("Transformer LR schedule requires a warmup_frac > 0.")
+            raise ValueError(
+                "Set warmup_frac > 0.0 when using 'transformer' LR schedule"
+            )
 
         d_model = config.hidden_dim
 
@@ -793,6 +804,8 @@ def train(gpu_id=None, csv_log_path=None):
             else:
                 return max(0.0, (total_steps - step) / total_steps)
 
+        scheduler = optim.lr_scheduler.LambdaLR(optimizer, lr_lambda=linear_with_warmup)
+        scheduler_type = "step"
     else:
         scheduler = None
         scheduler_type = None

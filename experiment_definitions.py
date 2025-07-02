@@ -404,6 +404,19 @@ NORM_EXPERIMENTS = [
         "name": "Norm_Experiments",
         "subexperiments": [
             {
+                "label": "32d_pre_standard_123",
+                "overrides": {
+                    "hidden_dim": 32,
+                    "num_layers": 3,
+                    "num_heads": 2,
+                    "learning_rate": 0.001,
+                    "wikitext_limit": int(32901760 * 4),
+                    "seed": 123,
+                    "norm_type": "layernorm",
+                    "norm_placement": "pre",
+                },
+            },
+            {
                 "label": "32d_post_layernorm_123",
                 "overrides": {
                     "hidden_dim": 32,
@@ -436,6 +449,18 @@ LR_SCHEDULE_EXPERIMENTS = [
     {
         "name": "LR_Schedule_Experiments",
         "subexperiments": [
+            {
+                "label": "32d_cosine_standard_123",
+                "overrides": {
+                    "hidden_dim": 32,
+                    "num_layers": 3,
+                    "num_heads": 2,
+                    "learning_rate": 0.001,
+                    "wikitext_limit": int(32901760 * 4),
+                    "seed": 123,
+                    "lr_schedule": "cosine",
+                },
+            },
             {
                 "label": "32d_cosine_warmup_123",
                 "overrides": {
@@ -486,4 +511,71 @@ LR_SCHEDULE_EXPERIMENTS = [
             },
         ],
     },
+]
+LR_SCHEDULE_EXPERIMENTS_LARGE = [
+    {
+        "name": "LR_Schedule_Experiments",
+        "subexperiments": [
+            {
+                "label": "64d_cosine_standard_123",
+                "overrides": {
+                    "hidden_dim": 64,
+                    "num_layers": 4,
+                    "num_heads": 4,
+                    "learning_rate": 0.002,
+                    "wikitext_limit": 68261120 * 4,
+                    "seed": 123,
+                    "lr_schedule": "cosine",
+                },
+            },
+            {
+                "label": "64d_cosine_warmup_123",
+                "overrides": {
+                    "hidden_dim": 64,
+                    "num_layers": 4,
+                    "num_heads": 4,
+                    "learning_rate": 0.002,
+                    "wikitext_limit": 68261120 * 4,
+                    "seed": 123,
+                    "lr_schedule": "cosine_warmup",
+                },
+            },
+            {
+                "label": "64d_inverse_sqrt_123",
+                "overrides": {
+                    "hidden_dim": 64,
+                    "num_layers": 4,
+                    "num_heads": 4,
+                    "learning_rate": 0.002,
+                    "wikitext_limit": 68261120 * 4,
+                    "seed": 123,
+                    "lr_schedule": "inverse_sqrt",
+                },
+            },
+            {
+                "label": "64d_transformer_123",
+                "overrides": {
+                    "hidden_dim": 64,
+                    "num_layers": 4,
+                    "num_heads": 4,
+                    "learning_rate": 0.002,
+                    "wikitext_limit": 68261120 * 4,
+                    "seed": 123,
+                    "lr_schedule": "transformer",
+                },
+            },
+            {
+                "label": "64d_linear_warmup_123",
+                "overrides": {
+                    "hidden_dim": 64,
+                    "num_layers": 4,
+                    "num_heads": 4,
+                    "learning_rate": 0.002,
+                    "wikitext_limit": 68261120 * 4,
+                    "seed": 123,
+                    "lr_schedule": "linear_warmup",
+                },
+            },
+        ],
+    }
 ]

@@ -21,6 +21,7 @@ from experiment_definitions import (
     OPTIMIZER_EXPERIMENTS,
     LR_SCHEDULE_EXPERIMENTS,
     NORM_EXPERIMENTS,
+    LR_SCHEDULE_EXPERIMENTS_LARGE,
 )
 
 
@@ -201,7 +202,29 @@ if __name__ == "__main__":
     # )  # Or use simple hidden dim scaling
     # EXPERIMENTS = ACTIVATION_EXPERIMENTS       # Or use activation experiments
     # EXPERIMENTS = CHINCHILLA_SCALED_EXPERIMENTS  # Use Chinchilla scaling
-    EXPERIMENTS = LR_SCHEDULE_EXPERIMENTS + NORM_EXPERIMENTS
+    def subset_experiments(experiment_list, wanted_labels):
+        """Return only the sub-experiments whose 'label' is in wanted_labels,
+        keeping each group's original name unchanged."""
+        result = []
+        for exp in experiment_list:
+            picked = [
+                se for se in exp["subexperiments"] if se["label"] in wanted_labels
+            ]
+            if picked:
+                # keep exp['name'] exactly as-is
+                result.append(
+                    {
+                        "name": exp["name"],
+                        "subexperiments": picked,
+                    }
+                )
+        return result
+
+    wanted = {"32d_linear_warmup_123", "32d_transformer_123", "32d_cosine_standard_123"}
+    # EXPERIMENTS = subset_experiments(LR_SCHEDULE_EXPERIMENTS, wanted)
+    EXPERIMENTS = LR_SCHEDULE_EXPERIMENTS_LARGE
+    # EXPERIMENTS = LR_SCHEDULE_EXPERIMENTS + NORM_EXPERIMENTS
+
     # ====================================================================
     # EXPERIMENT PROCESSING
     # ====================================================================

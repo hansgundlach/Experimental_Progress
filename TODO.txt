@@ -1,4 +1,17 @@
 
+
+#correct issues with learning rate experiments 
+# add straight to zero 
+# read about parameter settings ie depth to width material 
+
+
+
+
+
+
+
+
+
 # be able to run multiple GPUs with LSTM 
 #figure out how to properly scale LSTM
 #set up scaling experiments with LSTM 
