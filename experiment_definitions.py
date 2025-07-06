@@ -579,3 +579,24 @@ LR_SCHEDULE_EXPERIMENTS_LARGE = [
         ],
     }
 ]
+
+
+BASIC_TEST_EXPERIMENT = [
+    {
+        "name": "Basic_Test_Experiment",
+        "subexperiments": [
+            {
+                "label": "32d_cosine_standard_123",
+                "overrides": {
+                    "hidden_dim": 16,
+                    "num_layers": 1,
+                    "num_heads": 1,
+                    "learning_rate": 0.001,
+                    "wikitext_limit": int(3290176),
+                    "seed": 123,
+                    "lr_schedule": "cosine",
+                },
+            },
+        ],
+    },
+]

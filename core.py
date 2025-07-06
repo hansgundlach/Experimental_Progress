@@ -537,6 +537,10 @@ def train(gpu_id=None, csv_log_path=None):
         torch.cuda.manual_seed(seed)
         torch.cuda.manual_seed_all(seed)
 
+    # Add after seeding
+    generator = torch.Generator()
+    generator.manual_seed(seed)
+
     # Only use GradScaler when using CUDA
     use_amp = device.type == "cuda"
     scaler = GradScaler() if use_amp else None
@@ -550,6 +554,7 @@ def train(gpu_id=None, csv_log_path=None):
         train_dataset,
         batch_size=config.batch_size,
         shuffle=True,
+        generator=generator,
         num_workers=num_workers,
         pin_memory=config.pin_memory,
         collate_fn=TextDataset.collate_fn,
@@ -1146,6 +1151,12 @@ def train(gpu_id=None, csv_log_path=None):
 
 def get_dataset(config):
     """Load and prepare dataset using PyTorch Dataset"""
+    # Move this block before get_dataset() call
+    seed = config.seed
+    torch.manual_seed(seed)
+    np.random.seed(seed)
+    random.seed(seed)
+
     # Get the text data
     text = get_wikitext_data(limit=config.wikitext_limit)
 

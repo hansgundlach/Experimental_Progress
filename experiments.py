@@ -22,6 +22,7 @@ from experiment_definitions import (
     LR_SCHEDULE_EXPERIMENTS,
     NORM_EXPERIMENTS,
     LR_SCHEDULE_EXPERIMENTS_LARGE,
+    BASIC_TEST_EXPERIMENT,
 )
 
 
@@ -222,7 +223,7 @@ if __name__ == "__main__":
 
     wanted = {"32d_linear_warmup_123", "32d_transformer_123", "32d_cosine_standard_123"}
     # EXPERIMENTS = subset_experiments(LR_SCHEDULE_EXPERIMENTS, wanted)
-    EXPERIMENTS = LR_SCHEDULE_EXPERIMENTS_LARGE
+    EXPERIMENTS = BASIC_TEST_EXPERIMENT
     # EXPERIMENTS = LR_SCHEDULE_EXPERIMENTS + NORM_EXPERIMENTS
 
     # ====================================================================
