@@ -23,6 +23,8 @@ from experiment_definitions import (
     NORM_EXPERIMENTS,
     LR_SCHEDULE_EXPERIMENTS_LARGE,
     BASIC_TEST_EXPERIMENT,
+    HIDDEN_DIM_EXPERIMENTS_NO_ROTARY_123_EXTENSIONS,
+    POS_ENCODING_EXPERIMENTS,
 )
 
 
@@ -80,6 +82,50 @@ def run_experiments_on_gpu(gpu_id, sub_experiments, project_name_base):
     elapsed = time.time() - start_time
     print(f"GPU {gpu_id} completed all experiments in {elapsed:.2f} seconds")
     return results
+
+
+def create_multi_seed_experiments(base_experiments, seeds):
+    """
+    Create multiple versions of experiments with different random seeds.
+
+    Args:
+        base_experiments: List of experiment dictionaries (e.g., HIDDEN_DIM_EXPERIMENTS)
+        seeds: List of seed values (e.g., [123, 789])
+
+    Returns:
+        List of experiment dictionaries with seed variations
+    """
+    multi_seed_experiments = []
+
+    for experiment in base_experiments:
+        # Create a new experiment group for each base experiment
+        new_experiment = {"name": experiment["name"], "subexperiments": []}
+
+        # For each subexperiment in the base experiment
+        for sub_exp in experiment["subexperiments"]:
+            # Create a version for each seed
+            for seed in seeds:
+                # Create new subexperiment with seed suffix
+                new_sub_exp = copy.deepcopy(sub_exp)
+
+                # Add seed to the label
+                original_label = sub_exp["label"]
+                new_sub_exp["label"] = f"{original_label}_{seed}"
+
+                # Add seed to overrides (or config if using pre-generated configs)
+                if "overrides" in new_sub_exp:
+                    new_sub_exp["overrides"]["seed"] = seed
+                elif "config" in new_sub_exp:
+                    new_sub_exp["config"]["seed"] = seed
+                else:
+                    # If neither exists, create overrides with just the seed
+                    new_sub_exp["overrides"] = {"seed": seed}
+
+                new_experiment["subexperiments"].append(new_sub_exp)
+
+        multi_seed_experiments.append(new_experiment)
+
+    return multi_seed_experiments
 
 
 if __name__ == "__main__":
@@ -143,53 +189,6 @@ if __name__ == "__main__":
         "seed": 789,
     }
 
-    # ====================================================================
-    # EXPERIMENT DEFINITIONS ARE NOW IMPORTED FROM experiment_definitions.py
-    # ====================================================================
-
-    # Chinchilla-Scaled Hidden Dimension Experiments (using config generator)
-    def create_chinchilla_scaled_experiments():
-        """Generate properly scaled experiments using chinchilla_scale function"""
-
-        # Define the hidden dimensions to test
-        hidden_dims = [16, 32, 64, 128]
-
-        # Generate scaled configs
-        scaled_configs = chinchilla_scale(base_config, hidden_dims)
-
-        # Create subexperiments from the scaled configs
-        subexperiments = []
-        for i, config in enumerate(scaled_configs):
-            hidden_dim = hidden_dims[i]
-
-            # Add any experiment-specific overrides
-            config.update(
-                {
-                    "results_folder": "Former_Experiments_Folder",
-                    "csv_log_interval": 50,
-                    "seed": 789,
-                }
-            )
-
-            subexperiments.append(
-                {
-                    "label": f"{hidden_dim}d",
-                    "config": config,  # Use the full generated config
-                }
-            )
-
-            # Print the generated config for inspection
-            print(f"\nGenerated config for {hidden_dim}d:")
-            print(
-                f"  Architecture: {config['hidden_dim']}d x {config['num_layers']}L x {config['num_heads']}H"
-            )
-            print(f"  Batch size: {config['batch_size']}")
-            print(f"  Learning rate: {config['learning_rate']:.2e}")
-            print(f"  Max epochs: {config['max_epochs']}")
-            print(f"  Target tokens: {config.get('target_tokens', 'N/A')}")
-
-        return [{"name": "Chinchilla_Experiments", "subexperiments": subexperiments}]
-
     # Generate the Chinchilla-scaled experiments
     # CHINCHILLA_SCALED_EXPERIMENTS = create_chinchilla_scaled_experiments()
 
@@ -221,10 +220,41 @@ if __name__ == "__main__":
                 )
         return result
 
-    wanted = {"32d_linear_warmup_123", "32d_transformer_123", "32d_cosine_standard_123"}
+    # wanted = {"32d_linear_warmup_123", "32d_transformer_123", "32d_cosine_standard_123"}
+    wanted = {"128d"}
     # EXPERIMENTS = subset_experiments(LR_SCHEDULE_EXPERIMENTS, wanted)
-    EXPERIMENTS = BASIC_TEST_EXPERIMENT
+    EXPERIMENTS = (
+        HIDDEN_DIM_EXPERIMENTS_NO_ROTARY_123_EXTENSIONS
+        + POS_ENCODING_EXPERIMENTS
+        + subset_experiments(HIDDEN_DIM_EXPERIMENTS, wanted)
+    )
     # EXPERIMENTS = LR_SCHEDULE_EXPERIMENTS + NORM_EXPERIMENTS
+
+    # ====================================================================
+    # MULTI-SEED EXPERIMENT SETUP
+    # ====================================================================
+
+    # Define seeds you want to test
+    SEEDS = [123, 789]  # Add more seeds as needed: [123, 456, 789]
+
+    # Choose which base experiment to run with multiple seeds
+    # Option 1: Hidden dimension experiments with multiple seeds
+    # EXPERIMENTS = create_multi_seed_experiments(HIDDEN_DIM_EXPERIMENTS_123, SEEDS)
+
+    # Option 2: LR schedule experiments with multiple seeds
+    # EXPERIMENTS = create_multi_seed_experiments(LR_SCHEDULE_EXPERIMENTS, SEEDS)
+
+    # Option 3: Subset of experiments with multiple seeds
+    # wanted = {"32d_cosine_warmup_123", "32d_inverse_sqrt_123"}
+    # subset_exp = subset_experiments(LR_SCHEDULE_EXPERIMENTS, wanted)
+    # EXPERIMENTS = create_multi_seed_experiments(subset_exp, SEEDS)
+
+    # Option 4: Multiple experiment types with multiple seeds
+    # all_base_experiments = LR_SCHEDULE_EXPERIMENTS + NORM_EXPERIMENTS
+    # EXPERIMENTS = create_multi_seed_experiments(all_base_experiments, SEEDS)
+
+    # For now, keep your existing single experiment
+    # EXPERIMENTS = BASIC_TEST_EXPERIMENT
 
     # ====================================================================
     # EXPERIMENT PROCESSING

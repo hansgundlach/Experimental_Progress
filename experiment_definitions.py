@@ -138,6 +138,16 @@ HIDDEN_DIM_EXPERIMENTS = [
                     "wikitext_limit": 109764480 * 4,
                 },
             },
+            {
+                "label": "128d",
+                "overrides": {
+                    "hidden_dim": 128,
+                    "num_layers": 8,
+                    "num_heads": 8,
+                    "learning_rate": 0.002828,
+                    "wikitext_limit": 160115200 * 4,
+                },
+            },
         ],
     },
 ]
@@ -192,6 +202,72 @@ HIDDEN_DIM_EXPERIMENTS_NO_ROTARY = [
         ],
     },
 ]
+
+HIDDEN_DIM_EXPERIMENTS_NO_ROTARY_123_EXTENSIONS = [
+    {
+        "name": "Hidden_Dim_Scaling_No_Rotary",
+        "subexperiments": [
+            {
+                "label": "24d_no_rotary_123",
+                "overrides": {
+                    "hidden_dim": 24,
+                    "num_layers": 3,
+                    "num_heads": 1,
+                    "learning_rate": 0.001224744871391589,
+                    "wikitext_limit": 24538080 * 4,
+                    "pos_encoding": "sinusoidal",
+                    "seed": 123,
+                },
+            },
+            {
+                "label": "48d_no_rotary_123",
+                "overrides": {
+                    "hidden_dim": 48,
+                    "num_layers": 4,
+                    "num_heads": 3,
+                    "learning_rate": 0.0017320508075688772,
+                    "wikitext_limit": 50458560 * 4,
+                    "pos_encoding": "sinusoidal",
+                    "seed": 123,
+                },
+            },
+            {
+                "label": "128d_no_rotary_123",
+                "overrides": {
+                    "hidden_dim": 128,
+                    "num_layers": 8,
+                    "num_heads": 8,
+                    "learning_rate": 0.002828,
+                    "wikitext_limit": 160115200 * 4,
+                    "pos_encoding": "sinusoidal",
+                    "seed": 123,
+                },
+            },
+        ],
+    },
+]
+
+
+POS_ENCODING_EXPERIMENTS = [
+    {
+        "name": "Pos_Encoding_Experiments",
+        "subexperiments": [
+            {
+                "label": "32d_learned_pos_123",
+                "overrides": {
+                    "hidden_dim": 32,
+                    "num_layers": 3,
+                    "num_heads": 2,
+                    "learning_rate": 0.001,
+                    "wikitext_limit": 32901760 * 4,
+                    "pos_encoding": "learned",
+                    "seed": 123,
+                },
+            },
+        ],
+    },
+]
+
 
 # Overrides:
 # {'hidden_dim': 24, 'num_layers': 3, 'num_heads': 1, 'learning_rate': 0.001224744871391589, 'batch_size': 32, 'gradient_accumulation_steps': 8, 'train_tokens': 24538080
