@@ -1,50 +1,244 @@
-# Activation Function Experiments
-ACTIVATION_EXPERIMENTS = [
-    {
-        "name": "Activation_Functions_Comparison",
-        "subexperiments": [
-            {"label": "GELU", "overrides": {"activation": "gelu"}},
-            {"label": "ReLU", "overrides": {"activation": "relu"}},
-            {"label": "SwiGLU", "overrides": {"activation": "swiglu"}},
-        ],
-    },
-]
-
-# OPTIMIZER_EXPERIMENTS = [
+# # Activation Function Experiments
+# ACTIVATION_EXPERIMENTS = [
 #     {
-#         "name": "Optimizer_Experiments",
+#         "name": "activation_functions",
 #         "subexperiments": [
-#             {
-#                 "label": "96d_adam_123",
-#                 "overrides": {
-#                     "hidden_dim": 96,
-#                     "num_layers": 6,
-#                     "num_heads": 6,
-#                     "learning_rate": 0.0024,
-#                     "wikitext_limit": 109764480 * 4,
-#                     "seed": 123,
-#                     "optimizer": "adam",
-#                 },
-#             },
+#             {"label": "gelu", "overrides": {"activation": "gelu"}},
+#             {"label": "relu", "overrides": {"activation": "relu"}},
+#             {"label": "swiglu", "overrides": {"activation": "swiglu"}},
 #         ],
 #     },
 # ]
 
+ACTIVATION_EXPERIMENTS = [
+    {
+        "name": "activation_functions",
+        "subexperiments": [
+            {
+                "label": "32d_gelu",
+                "overrides": {
+                    "hidden_dim": 32,
+                    "num_layers": 3,
+                    "num_heads": 2,
+                    "learning_rate": 0.001,
+                    "wikitext_limit": int(32901760 * 4),
+                    "seed": 123,
+                    "activation": "gelu",
+                },
+            },
+            {
+                "label": "32d_relu",
+                "overrides": {
+                    "hidden_dim": 32,
+                    "num_layers": 3,
+                    "num_heads": 2,
+                    "learning_rate": 0.001,
+                    "wikitext_limit": int(32901760 * 4),
+                    "seed": 123,
+                    "activation": "relu",
+                },
+            },
+            {
+                "label": "32d_swiglu",
+                "overrides": {
+                    "hidden_dim": 32,
+                    "num_layers": 3,
+                    "num_heads": 2,
+                    "learning_rate": 0.001,
+                    "wikitext_limit": int(32901760 * 4),
+                    "seed": 123,
+                    "activation": "swiglu",
+                },
+            },
+        ],
+    },
+]
 
 OPTIMIZER_EXPERIMENTS = [
     {
-        "name": "Optimizer_Experiments",
+        "name": "optimizer_experiments",
         "subexperiments": [
             {
-                "label": "96d_adam_123",
+                "label": "32d_adam",
                 "overrides": {
-                    "hidden_dim": 96,
-                    "num_layers": 6,
-                    "num_heads": 6,
-                    "learning_rate": 0.0024,
-                    "wikitext_limit": 109764480 * 4,
-                    "seed": 123,
+                    "hidden_dim": 32,
+                    "num_layers": 3,
+                    "num_heads": 2,
+                    "learning_rate": 0.001,
+                    "wikitext_limit": 32901760 * 4,
                     "optimizer": "adam",
+                    "seed": 123,
+                },
+            },
+            {
+                "label": "32d_sgd",
+                "overrides": {
+                    "hidden_dim": 32,
+                    "num_layers": 3,
+                    "num_heads": 2,
+                    "learning_rate": 0.001,
+                    "wikitext_limit": 32901760 * 4,
+                    "optimizer": "sgd",
+                    "seed": 123,
+                },
+            },
+            {
+                "label": "32d_adamw",
+                "overrides": {
+                    "hidden_dim": 32,
+                    "num_layers": 3,
+                    "num_heads": 2,
+                    "learning_rate": 0.001,
+                    "wikitext_limit": 32901760 * 4,
+                    "optimizer": "adamw",
+                    "seed": 123,
+                },
+            },
+        ],
+    },
+]
+
+
+POS_ENCODING_EXPERIMENTS = [
+    {
+        "name": "pos_encoding",
+        "subexperiments": [
+            {
+                "label": "32d_learned",
+                "overrides": {
+                    "hidden_dim": 32,
+                    "num_layers": 3,
+                    "num_heads": 2,
+                    "learning_rate": 0.001,
+                    "wikitext_limit": 32901760 * 4,
+                    "pos_encoding": "learned",
+                    "seed": 123,
+                },
+            },
+            {
+                "label": "32d_sinusoidal",
+                "overrides": {
+                    "hidden_dim": 32,
+                    "num_layers": 3,
+                    "num_heads": 2,
+                    "learning_rate": 0.001,
+                    "wikitext_limit": 32901760 * 4,
+                    "pos_encoding": "sinusoidal",
+                    "seed": 123,
+                },
+            },
+        ],
+    },
+]
+
+
+INITIALIZATION_EXPERIMENTS = [
+    {
+        "name": "initialization_experiments",
+        "subexperiments": [
+            {
+                "label": "32d_xavier_uniform",
+                "overrides": {
+                    "hidden_dim": 32,
+                    "num_layers": 3,
+                    "num_heads": 2,
+                    "learning_rate": 0.001,
+                    "wikitext_limit": int(32901760 * 4),
+                    "seed": 123,
+                    "init_type": "xavier",
+                },
+            },
+            {
+                "label": "32d_transformer_scaled",
+                "overrides": {
+                    "hidden_dim": 32,
+                    "num_layers": 3,
+                    "num_heads": 2,
+                    "learning_rate": 0.001,
+                    "wikitext_limit": int(32901760 * 4),
+                    "seed": 123,
+                    "init_type": "transformer_scaled",
+                },
+            },
+            {
+                "label": "32d_transformer_scaled",
+                "overrides": {
+                    "hidden_dim": 32,
+                    "num_layers": 3,
+                    "num_heads": 2,
+                    "learning_rate": 0.001,
+                    "wikitext_limit": int(32901760 * 4),
+                    "seed": 123,
+                    "init_type": "default",
+                },
+            },
+        ],
+    },
+]
+
+
+LR_SCHEDULE_EXPERIMENTS = [
+    {
+        "name": "lr_schedule",
+        "subexperiments": [
+            {
+                "label": "32d_cosine_standard",
+                "overrides": {
+                    "hidden_dim": 32,
+                    "num_layers": 3,
+                    "num_heads": 2,
+                    "learning_rate": 0.001,
+                    "wikitext_limit": int(32901760 * 4),
+                    "seed": 123,
+                    "lr_schedule": "cosine",
+                },
+            },
+            {
+                "label": "32d_cosine_warmup",
+                "overrides": {
+                    "hidden_dim": 32,
+                    "num_layers": 3,
+                    "num_heads": 2,
+                    "learning_rate": 0.001,
+                    "wikitext_limit": int(32901760 * 4),
+                    "seed": 123,
+                    "lr_schedule": "cosine_warmup",
+                },
+            },
+            {
+                "label": "32d_inverse_sqrt",
+                "overrides": {
+                    "hidden_dim": 32,
+                    "num_layers": 3,
+                    "num_heads": 2,
+                    "learning_rate": 0.001,
+                    "wikitext_limit": int(32901760 * 4),
+                    "seed": 123,
+                    "lr_schedule": "inverse_sqrt",
+                },
+            },
+            {
+                "label": "32d_transfomer",
+                "overrides": {
+                    "hidden_dim": 32,
+                    "num_layers": 3,
+                    "num_heads": 2,
+                    "learning_rate": 0.001,
+                    "wikitext_limit": int(32901760 * 4),
+                    "seed": 123,
+                    "lr_schedule": "transformer",
+                },
+            },
+            {
+                "label": "32d_linear_warmup",
+                "overrides": {
+                    "hidden_dim": 32,
+                    "num_layers": 3,
+                    "num_heads": 2,
+                    "learning_rate": 0.001,
+                    "wikitext_limit": int(32901760 * 4),
+                    "seed": 123,
+                    "lr_schedule": "linear_warmup",
                 },
             },
         ],
@@ -92,6 +286,78 @@ LR_EXPERIMENTS = [
         ],
     },
 ]
+
+
+NEW_HYPER_PARAM_EXPERIMENTS = [
+    {
+        "name": "New_Hyper_Param_Experiments",
+        "subexperiments": [
+            {
+                "label": "32d_standard_hyper_params",
+                "overrides": {
+                    "hidden_dim": 32,
+                    "num_layers": 3,
+                    "num_heads": 2,
+                    "learning_rate": 0.001,
+                    "wikitext_limit": 32901760 * 4,
+                },
+            },
+            {
+                "label": "32d_new_hyper_params",
+                "overrides": {
+                    "hidden_dim": 32,
+                    "num_layers": 2,
+                    "num_heads": 2,
+                    "learning_rate": 0.0008485,
+                    "wikitext_limit": 32901760 * 4,
+                },
+            },
+            {
+                "label": "half_tokens",
+                "overrides": {
+                    "hidden_dim": 32,
+                    "num_layers": 2,
+                    "num_heads": 2,
+                    "learning_rate": 0.0008485,
+                    "wikitext_limit": 32901760 * 4 / 2,
+                },
+            },
+            {
+                "label": "increase_strid",
+                "overrides": {
+                    "hidden_dim": 32,
+                    "num_layers": 2,
+                    "num_heads": 2,
+                    "learning_rate": 0.0008485,
+                    "wikitext_limit": 32901760 * 4,
+                    "stride": 128,
+                },
+            },
+        ],
+    }
+]
+
+# effect of two changes
+TWO_CHANGES_EXPERIMENTS = [
+    {
+        "name": "Two_Changes_Experiments",
+        "subexperiments": [
+            {
+                "label": "128d_new_hyper_params",
+                "overrides": {
+                    "hidden_dim": 32,
+                    "num_layers": 2,
+                    "num_heads": 2,
+                    "learning_rate": 0.0008485,
+                    "wikitext_limit": 32901760 * 4,
+                    "optimizer": "sgd",
+                    "pos_encoding": "sinusoidal",
+                },
+            },
+        ],
+    },
+]
+
 
 # Hidden Dimension Scaling Experiments (simple override approach)
 HIDDEN_DIM_EXPERIMENTS = [
@@ -205,7 +471,7 @@ HIDDEN_DIM_EXPERIMENTS_NO_ROTARY = [
 
 HIDDEN_DIM_EXPERIMENTS_NO_ROTARY_123_EXTENSIONS = [
     {
-        "name": "Hidden_Dim_Scaling_No_Rotary",
+        "name": "hidden_dim_scaling_no_rotary",
         "subexperiments": [
             {
                 "label": "24d_no_rotary_123",
@@ -240,27 +506,6 @@ HIDDEN_DIM_EXPERIMENTS_NO_ROTARY_123_EXTENSIONS = [
                     "learning_rate": 0.002828,
                     "wikitext_limit": 160115200 * 4,
                     "pos_encoding": "sinusoidal",
-                    "seed": 123,
-                },
-            },
-        ],
-    },
-]
-
-
-POS_ENCODING_EXPERIMENTS = [
-    {
-        "name": "Pos_Encoding_Experiments",
-        "subexperiments": [
-            {
-                "label": "32d_learned_pos_123",
-                "overrides": {
-                    "hidden_dim": 32,
-                    "num_layers": 3,
-                    "num_heads": 2,
-                    "learning_rate": 0.001,
-                    "wikitext_limit": 32901760 * 4,
-                    "pos_encoding": "learned",
                     "seed": 123,
                 },
             },
@@ -521,73 +766,6 @@ NORM_EXPERIMENTS = [
     },
 ]
 
-LR_SCHEDULE_EXPERIMENTS = [
-    {
-        "name": "LR_Schedule_Experiments",
-        "subexperiments": [
-            {
-                "label": "32d_cosine_standard_123",
-                "overrides": {
-                    "hidden_dim": 32,
-                    "num_layers": 3,
-                    "num_heads": 2,
-                    "learning_rate": 0.001,
-                    "wikitext_limit": int(32901760 * 4),
-                    "seed": 123,
-                    "lr_schedule": "cosine",
-                },
-            },
-            {
-                "label": "32d_cosine_warmup_123",
-                "overrides": {
-                    "hidden_dim": 32,
-                    "num_layers": 3,
-                    "num_heads": 2,
-                    "learning_rate": 0.001,
-                    "wikitext_limit": int(32901760 * 4),
-                    "seed": 123,
-                    "lr_schedule": "cosine_warmup",
-                },
-            },
-            {
-                "label": "32d_inverse_sqrt_123",
-                "overrides": {
-                    "hidden_dim": 32,
-                    "num_layers": 3,
-                    "num_heads": 2,
-                    "learning_rate": 0.001,
-                    "wikitext_limit": int(32901760 * 4),
-                    "seed": 123,
-                    "lr_schedule": "inverse_sqrt",
-                },
-            },
-            {
-                "label": "32d_transfomer_123",
-                "overrides": {
-                    "hidden_dim": 32,
-                    "num_layers": 3,
-                    "num_heads": 2,
-                    "learning_rate": 0.001,
-                    "wikitext_limit": int(32901760 * 4),
-                    "seed": 123,
-                    "lr_schedule": "transformer",
-                },
-            },
-            {
-                "label": "32d_linear_warmup_123",
-                "overrides": {
-                    "hidden_dim": 32,
-                    "num_layers": 3,
-                    "num_heads": 2,
-                    "learning_rate": 0.001,
-                    "wikitext_limit": int(32901760 * 4),
-                    "seed": 123,
-                    "lr_schedule": "linear_warmup",
-                },
-            },
-        ],
-    },
-]
 LR_SCHEDULE_EXPERIMENTS_LARGE = [
     {
         "name": "LR_Schedule_Experiments",

@@ -185,6 +185,51 @@ LSTM_HIDDEN_DIM_EXPERIMENTS = [
     },
 ]
 
+LSTM_HYPER_PARAM_EXPERIMENTS = [
+    {
+        "name": "LSTM_Hyper_Param_Experiments",
+        "subexperiments": [
+            {
+                "label": "LSTM_24d_123_no_layer_norm",
+                "overrides": {
+                    "learning_rate": 3 * 1e-3,
+                    "max_characters": 193.7e6,
+                    "seed": 123,
+                    "hidden_size": 24,
+                    "use_layer_norm": False,
+                },
+            },
+            {
+                "label": "LSTM_24d_123_standard",
+                "overrides": {
+                    "learning_rate": 3 * 1e-3,
+                    "max_characters": 193.7e6,
+                    "seed": 123,
+                    "hidden_size": 24,
+                },
+            },
+            {
+                "label": "LSTM_24d_123_no_long_stride",
+                "overrides": {
+                    "learning_rate": 3 * 1e-3,
+                    "max_characters": 193.7e6,
+                    "seed": 123,
+                    "hidden_size": 24,
+                    "stride": 128,
+                },
+            },
+            {
+                "label": "LSTM_24d_123_no_half_tokens",
+                "overrides": {
+                    "learning_rate": 3 * 1e-3,
+                    "max_characters": 193.7e6 / 2,
+                    "seed": 123,
+                    "hidden_size": 24,
+                },
+            },
+        ],
+    },
+]
 
 # {
 #                 "label": "LSTM_64d_123",
@@ -225,7 +270,7 @@ LSTM_HIDDEN_DIM_EXPERIMENTS = [
 #     # },
 # ]
 # ============================================================================
-EXPERIMENTS = LSTM_HIDDEN_DIM_EXPERIMENTS
+EXPERIMENTS = LSTM_HYPER_PARAM_EXPERIMENTS
 
 
 def find_free_port():

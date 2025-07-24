@@ -25,6 +25,9 @@ from experiment_definitions import (
     BASIC_TEST_EXPERIMENT,
     HIDDEN_DIM_EXPERIMENTS_NO_ROTARY_123_EXTENSIONS,
     POS_ENCODING_EXPERIMENTS,
+    NEW_HYPER_PARAM_EXPERIMENTS,
+    TWO_CHANGES_EXPERIMENTS,
+    INITIALIZATION_EXPERIMENTS,
 )
 
 
@@ -223,11 +226,13 @@ if __name__ == "__main__":
     # wanted = {"32d_linear_warmup_123", "32d_transformer_123", "32d_cosine_standard_123"}
     wanted = {"128d"}
     # EXPERIMENTS = subset_experiments(LR_SCHEDULE_EXPERIMENTS, wanted)
-    EXPERIMENTS = (
-        HIDDEN_DIM_EXPERIMENTS_NO_ROTARY_123_EXTENSIONS
-        + POS_ENCODING_EXPERIMENTS
-        + subset_experiments(HIDDEN_DIM_EXPERIMENTS, wanted)
-    )
+    # EXPERIMENTS = (
+    #     HIDDEN_DIM_EXPERIMENTS_NO_ROTARY_123_EXTENSIONS
+    #     + POS_ENCODING_EXPERIMENTS
+    #     + subset_experiments(HIDDEN_DIM_EXPERIMENTS, wanted)
+    # )
+
+    # EXPERIMENTS = NEW_HYPER_PARAM_EXPERIMENTS
     # EXPERIMENTS = LR_SCHEDULE_EXPERIMENTS + NORM_EXPERIMENTS
 
     # ====================================================================
@@ -235,7 +240,7 @@ if __name__ == "__main__":
     # ====================================================================
 
     # Define seeds you want to test
-    SEEDS = [123, 789]  # Add more seeds as needed: [123, 456, 789]
+    SEEDS = [123, 789, 456, 910]  # Add more seeds as needed: [123, 456, 789]
 
     # Choose which base experiment to run with multiple seeds
     # Option 1: Hidden dimension experiments with multiple seeds
@@ -255,6 +260,15 @@ if __name__ == "__main__":
 
     # For now, keep your existing single experiment
     # EXPERIMENTS = BASIC_TEST_EXPERIMENT
+
+    # create multiple seed activation function experiments
+    EXPERIMENTS = (
+        create_multi_seed_experiments(ACTIVATION_EXPERIMENTS, SEEDS)
+        + create_multi_seed_experiments(OPTIMIZER_EXPERIMENTS, SEEDS)
+        + create_multi_seed_experiments(INITIALIZATION_EXPERIMENTS, SEEDS)
+        + create_multi_seed_experiments(POS_ENCODING_EXPERIMENTS, SEEDS)
+        + create_multi_seed_experiments(LR_SCHEDULE_EXPERIMENTS, SEEDS)
+    )
 
     # ====================================================================
     # EXPERIMENT PROCESSING
