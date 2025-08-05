@@ -2,6 +2,7 @@
 import pandas as pd
 import numpy as np
 import glob
+import matplotlib.pyplot as plt
 
 # %%
 
@@ -112,12 +113,11 @@ loss_statistics("Activation_Functions_Comparison/ReLU")
 
 # %%
 
-#if more compute is used in a given algorithm 
-
+# if more compute is used in a given algorithm
 
 
 swiglu_estimate = compute_multiplier_estimate(
-    "activation_function/swiglu", "activation_function/gelu"
+    "activation_function/SwiGLU", "activation_function/GELU"
 )
 adam_estimate = compute_multiplier_estimate(
     "optimizer_experiments/32d_adam", "optimizer_experiments/32d_sgd"
@@ -126,10 +126,99 @@ rotary_estimate = compute_multiplier_estimate(
     "pos_encoding/32d_rotary", "pos_encoding/32d_learned"
 )
 learned_estimate = compute_multiplier_estimate(
-    "pos_encoding/32d_learned", "pos_encoding/32d_standard"
+    "pos_encoding/32d_learned", "pos_encoding/32d_sinusoidal"
 )
+print("SwiGLU estimate:", swiglu_estimate)
+print("Adam estimate:", adam_estimate)
+print("Rotary estimate:", rotary_estimate)
+print("Learned estimate:", learned_estimate)
 
 
+# %%
+# Create bar plot of compute multiplier estimates with error bars
 
+# Collect all estimates and their labels
+estimates_data = [
+    ("SwiGLU vs GELU", swiglu_estimate),
+    ("Adam vs SGD", adam_estimate),
+    ("Rotary vs Learned", rotary_estimate),
+    ("Learned vs Standard", learned_estimate),
+]
+
+# Filter out None estimates and separate labels, multipliers, and error bars
+valid_estimates = [
+    (label, data) for label, data in estimates_data if data[0] is not None
+]
+
+if valid_estimates:
+    # Sort by multiplier so that the highest bar is on the right
+    # Each item: (label, (multiplier, error_bar))
+    valid_estimates_sorted = sorted(valid_estimates, key=lambda x: x[1][0])
+
+    labels = [item[0] for item in valid_estimates_sorted]
+    multipliers = [item[1][0] for item in valid_estimates_sorted]
+    error_bars = [item[1][1] for item in valid_estimates_sorted]
+
+    # Create the bar plot
+    plt.figure(figsize=(10, 6))
+    bars = plt.bar(
+        labels,
+        multipliers,
+        yerr=error_bars,
+        capsize=5,
+        color=["skyblue", "lightcoral", "lightgreen", "gold"][: len(labels)],
+        alpha=0.7,
+        edgecolor="black",
+        linewidth=1,
+    )
+
+    # Customize the plot
+    plt.ylabel("Compute Multiplier Estimate", fontsize=12)
+    plt.xlabel("Improvement Type", fontsize=12)
+    plt.title(
+        "Compute Multiplier Estimates for Various Improvements",
+        fontsize=14,
+        fontweight="bold",
+    )
+    plt.xticks(rotation=45, ha="right")
+    plt.grid(axis="y", alpha=0.3, linestyle="--")
+
+    # Add value labels on top of bars
+    for i, (bar, multiplier, error) in enumerate(zip(bars, multipliers, error_bars)):
+        plt.text(
+            bar.get_x() + bar.get_width() / 2.0,
+            bar.get_height() + error + 0.05,
+            f"{multiplier:.2f}±{error:.2f}",
+            ha="center",
+            va="bottom",
+            fontsize=10,
+            fontweight="bold",
+        )
+
+    # Add a horizontal line at y=1 for reference (no improvement)
+    plt.axhline(
+        y=1, color="red", linestyle="--", alpha=0.5, label="No improvement (1.0x)"
+    )
+    plt.legend()
+
+    # Adjust layout and display
+    plt.tight_layout()
+    plt.show()
+
+    # Print summary
+    print("\nSummary of Compute Multiplier Estimates:")
+    print("=" * 50)
+    for label, multiplier, error in zip(labels, multipliers, error_bars):
+        improvement = (
+            ((multiplier - 1) * 100)
+            if multiplier > 1
+            else (-(1 / multiplier - 1) * 100)
+        )
+        print(
+            f"{label}: {multiplier:.3f}x ± {error:.3f} ({improvement:+.1f}% compute efficiency)"
+        )
+
+else:
+    print("No valid estimates found to plot.")
 
 # %%
