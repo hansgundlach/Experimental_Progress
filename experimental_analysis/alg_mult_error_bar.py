@@ -104,7 +104,7 @@ def compute_multiplier_estimate(
     # Error in M = exp(f) is M * df
     adjusted_error_bar = multiplier_estimate * df
 
-    return multiplier_estimate, adjusted_error_bar
+    return [multiplier_estimate, adjusted_error_bar]
 
 
 # %%
@@ -128,11 +128,15 @@ rotary_estimate = compute_multiplier_estimate(
 learned_estimate = compute_multiplier_estimate(
     "pos_encoding/32d_learned", "pos_encoding/32d_sinusoidal"
 )
+# trans_lstm = compute_multiplier_estimate("Optimizer_Experiments/32d_adam", "lstm_optimizer/LSTMADAM")
+trans_lstm = compute_multiplier_estimate("Optimizer_Experiments/32d_adam", "LSTM_Hidden_Dim_Scaling/LSTM_16d")
+if trans_lstm[0] is not None:
+    trans_lstm = [(10/3) * trans_lstm[0], (10/3) * trans_lstm[1]]
 print("SwiGLU estimate:", swiglu_estimate)
 print("Adam estimate:", adam_estimate)
 print("Rotary estimate:", rotary_estimate)
 print("Learned estimate:", learned_estimate)
-
+print("Transformer Estimate:", trans_lstm)
 
 # %%
 # Create bar plot of compute multiplier estimates with error bars
@@ -143,6 +147,7 @@ estimates_data = [
     ("Adam vs SGD", adam_estimate),
     ("Rotary vs Learned", rotary_estimate),
     ("Learned vs Standard", learned_estimate),
+    ("Transformer vs LSTM", trans_lstm)
 ]
 
 # Filter out None estimates and separate labels, multipliers, and error bars
