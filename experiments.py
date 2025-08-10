@@ -262,13 +262,14 @@ if __name__ == "__main__":
     # EXPERIMENTS = BASIC_TEST_EXPERIMENT
 
     # create multiple seed activation function experiments
-    EXPERIMENTS = (
-        create_multi_seed_experiments(ACTIVATION_EXPERIMENTS, SEEDS)
-        + create_multi_seed_experiments(OPTIMIZER_EXPERIMENTS, SEEDS)
-        + create_multi_seed_experiments(INITIALIZATION_EXPERIMENTS, SEEDS)
-        + create_multi_seed_experiments(POS_ENCODING_EXPERIMENTS, SEEDS)
-        + create_multi_seed_experiments(LR_SCHEDULE_EXPERIMENTS, SEEDS)
-    )
+    # EXPERIMENTS = (
+    #     create_multi_seed_experiments(ACTIVATION_EXPERIMENTS, SEEDS)
+    #     + create_multi_seed_experiments(OPTIMIZER_EXPERIMENTS, SEEDS)
+    #     + create_multi_seed_experiments(INITIALIZATION_EXPERIMENTS, SEEDS)
+    #     + create_multi_seed_experiments(POS_ENCODING_EXPERIMENTS, SEEDS)
+    #     + create_multi_seed_experiments(LR_SCHEDULE_EXPERIMENTS, SEEDS)
+    # )
+    EXPERIMENTS = LR_EXPERIMENTS
 
     # ====================================================================
     # EXPERIMENT PROCESSING
