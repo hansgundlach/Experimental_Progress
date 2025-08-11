@@ -251,7 +251,7 @@ LR_EXPERIMENTS = [
         "name": "l_rate_hyper_param_tune_sgd",
         "subexperiments": [
             {
-                "label": "32d_cosine_warmup",
+                "label": "sgd_lr_10_-1",
                 "overrides": {
                     "hidden_dim": 32,
                     "num_layers": 3,
@@ -259,10 +259,11 @@ LR_EXPERIMENTS = [
                     "learning_rate": 10 ** (-1),
                     "wikitext_limit": int(32901760 * 4),
                     "seed": 123,
+                    "optimizer": "sgd",
                 },
             },
             {
-                "label": "32d_cosine_warmup",
+                "label": "sgd_lr_10_-1.5",
                 "overrides": {
                     "hidden_dim": 32,
                     "num_layers": 3,
@@ -270,10 +271,11 @@ LR_EXPERIMENTS = [
                     "learning_rate": 10 ** (-1.5),
                     "wikitext_limit": int(32901760 * 4),
                     "seed": 123,
+                    "optimizer": "sgd",
                 },
             },
             {
-                "label": "32d_cosine_warmup",
+                "label": "sgd_lr_10_-2",
                 "overrides": {
                     "hidden_dim": 32,
                     "num_layers": 3,
@@ -281,10 +283,11 @@ LR_EXPERIMENTS = [
                     "learning_rate": 10 ** (-2),
                     "wikitext_limit": int(32901760 * 4),
                     "seed": 123,
+                    "optimizer": "sgd",
                 },
             },
             {
-                "label": "32d_cosine_warmup",
+                "label": "sgd_lr_10_-2.5",
                 "overrides": {
                     "hidden_dim": 32,
                     "num_layers": 3,
@@ -292,10 +295,11 @@ LR_EXPERIMENTS = [
                     "learning_rate": 10 ** (-2.5),
                     "wikitext_limit": int(32901760 * 4),
                     "seed": 123,
+                    "optimizer": "sgd",
                 },
             },
             {
-                "label": "32d_cosine_warmup",
+                "label": "sgd_lr_10_-3",
                 "overrides": {
                     "hidden_dim": 32,
                     "num_layers": 3,
@@ -303,10 +307,11 @@ LR_EXPERIMENTS = [
                     "learning_rate": 10 ** (-3),
                     "wikitext_limit": int(32901760 * 4),
                     "seed": 123,
+                    "optimizer": "sgd",
                 },
             },
             {
-                "label": "32d_cosine_warmup",
+                "label": "sgd_lr_10_-3.5",
                 "overrides": {
                     "hidden_dim": 32,
                     "num_layers": 3,
@@ -314,10 +319,11 @@ LR_EXPERIMENTS = [
                     "learning_rate": 10 ** (-3.5),
                     "wikitext_limit": int(32901760 * 4),
                     "seed": 123,
+                    "optimizer": "sgd",
                 },
             },
             {
-                "label": "32d_cosine_warmup",
+                "label": "sgd_lr_10_-4",
                 "overrides": {
                     "hidden_dim": 32,
                     "num_layers": 3,
@@ -325,9 +331,17 @@ LR_EXPERIMENTS = [
                     "learning_rate": 10 ** (-4),
                     "wikitext_limit": int(32901760 * 4),
                     "seed": 123,
+                    "optimizer": "sgd",
                 },
             },
         ],
+    },
+]
+
+SGD_VARIATION_EXPERIMENTS = [
+    {
+        "name": "sgd_variation_experiments",
+        "subexperiments": [],
     },
 ]
 
@@ -749,6 +763,18 @@ HIDDEN_DIM_EXPERIMENTS_123_SGD = [
                 },
             },
             {
+                "label": "56d_123_sgd",
+                "overrides": {
+                    "hidden_dim": 56,
+                    "num_layers": 3,
+                    "num_heads": 2,
+                    "learning_rate": 0.0064142,
+                    "wikitext_limit": 58545760 * 4,
+                    "seed": 123,
+                    "optimizer": "sgd",
+                },
+            },
+            {
                 "label": "64d_123_sgd",
                 "overrides": {
                     "hidden_dim": 64,
@@ -756,6 +782,30 @@ HIDDEN_DIM_EXPERIMENTS_123_SGD = [
                     "num_heads": 4,
                     "learning_rate": 0.002,
                     "wikitext_limit": 68261120 * 4,
+                    "seed": 123,
+                    "optimizer": "sgd",
+                },
+            },
+            {
+                "label": "80d_123_sgd",
+                "overrides": {
+                    "hidden_dim": 64,
+                    "num_layers": 5,
+                    "num_heads": 2,
+                    "learning_rate": 0.0005366,
+                    "wikitext_limit": 88091200 * 4,
+                    "seed": 123,
+                    "optimizer": "sgd",
+                },
+            },
+            {
+                "label": "96d_123_sgd",
+                "overrides": {
+                    "hidden_dim": 96,
+                    "num_layers": 6,
+                    "num_heads": 2,
+                    "learning_rate": 0.00048989,
+                    "wikitext_limit": 109764480 * 4,
                     "seed": 123,
                     "optimizer": "sgd",
                 },

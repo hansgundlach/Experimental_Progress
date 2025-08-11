@@ -269,7 +269,12 @@ if __name__ == "__main__":
     #     + create_multi_seed_experiments(POS_ENCODING_EXPERIMENTS, SEEDS)
     #     + create_multi_seed_experiments(LR_SCHEDULE_EXPERIMENTS, SEEDS)
     # )
-    EXPERIMENTS = LR_EXPERIMENTS
+
+    # wanted = {"56d_123_sgd", "80d_123_sgd", "96d_123_sgd"}
+    # EXPERIMENTS = subset_experiments(HIDDEN_DIM_EXPERIMENTS_123_SGD, wanted)
+    # EXPERIMENTS = LR_EXPERIMENTS
+
+    # EXPERIMENTS = OPTIMIZER_EXPERIMENTS
 
     # ====================================================================
     # EXPERIMENT PROCESSING
