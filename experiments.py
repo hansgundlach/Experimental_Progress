@@ -273,7 +273,7 @@ if __name__ == "__main__":
     # wanted = {"56d_123_sgd", "80d_123_sgd", "96d_123_sgd"}
     # EXPERIMENTS = subset_experiments(HIDDEN_DIM_EXPERIMENTS_123_SGD, wanted)
     # EXPERIMENTS = LR_EXPERIMENTS
-
+    EXPERIMENTS = HIDDEN_DIM_EXPERIMENTS_123_SGD
     # EXPERIMENTS = OPTIMIZER_EXPERIMENTS
 
     # ====================================================================

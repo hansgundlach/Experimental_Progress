@@ -722,8 +722,27 @@ def train(gpu_id=None, csv_log_path=None):
         optimizer = optim.SGD(
             model.parameters(),
             lr=config.learning_rate,
-            momentum=0.9,  # Standard momentum value
+            momentum=getattr(config, "momentum", 0.9),  # Standard momentum value
             weight_decay=config.weight_decay,
+        )
+    elif config.optimizer == "rmsprop":
+        optimizer = optim.RMSprop(
+            model.parameters(),
+            lr=config.learning_rate,
+            alpha=getattr(config, "rmsprop_alpha", 0.99),
+            eps=getattr(config, "eps", 1e-8),
+            momentum=getattr(config, "momentum", 0.0),
+            centered=getattr(config, "rmsprop_centered", False),
+            weight_decay=config.weight_decay,
+        )
+    elif config.optimizer == "adagrad":
+        optimizer = optim.Adagrad(
+            model.parameters(),
+            lr=config.learning_rate,
+            lr_decay=getattr(config, "adagrad_lr_decay", 0.0),
+            weight_decay=config.weight_decay,
+            initial_accumulator_value=getattr(config, "adagrad_init_acc", 0.0),
+            eps=getattr(config, "eps", 1e-10),
         )
     else:
         raise ValueError(f"Unsupported optimizer: {config.optimizer}")
