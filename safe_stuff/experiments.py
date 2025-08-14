@@ -191,15 +191,6 @@ if __name__ == "__main__":
         "results_folder": "Former_Experiments_Folder",
         "csv_log_interval": 50,
         "seed": 789,
-        # Complete-P (default OFF; non-breaking)
-        "enable_completep": False,
-        "completep_alpha": 1.0,
-        # Base constants for scaling rules
-        "n_base": 256,
-        "l_base": 2,
-        "eta_base": 3.9e-3,
-        "wd_base": 0.10,
-        "eps_base": 1e-16,
     }
 
     # Generate the Chinchilla-scaled experiments

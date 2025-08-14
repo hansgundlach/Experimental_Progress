@@ -50,6 +50,7 @@ EXPERIMENT_CONFIGS = {
         "24d": "Hidden_Dim_Scaling_SGD/24d_123_sgd.csv",
         "32d": "Hidden_Dim_Scaling_SGD/32d_123_sgd.csv",
         "48d": "Hidden_Dim_Scaling_SGD/48d_123_sgd.csv",
+        "56d": "Hidden_Dim_Scaling_SGD/56d_123_sgd.csv",
         "64d": "Hidden_Dim_Scaling_SGD/64d_123_sgd.csv",
     },
     "lstm_experiments": {

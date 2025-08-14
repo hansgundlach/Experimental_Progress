@@ -50,7 +50,7 @@ CONFIG = {
     "gradient_accumulation_steps": 16,  # For tracking only
     # NEW: whether to compile the model (PyTorch 2.0+)
     "use_compile": False,
-    "seed": 789,
+    "seed": 123,
     "optimizer": "adamw",  # NEW: choose from "adam", "adamw", or "sgd"
     "weight_decay": 0.01,
     "stride": 64,  # NEW: sliding-window stride to match transformer
@@ -185,12 +185,13 @@ LSTM_HIDDEN_DIM_EXPERIMENTS = [
     },
 ]
 
-LSTM_HYPER_PARAM_EXPERIMENTS = [
+
+LSTM_VARIATIONS = [
     {
-        "name": "LSTM_Hyper_Param_Experiments",
+        "name": "LSTM_Variations",
         "subexperiments": [
             {
-                "label": "LSTM_24d_123_no_layer_norm",
+                "label": "LSTM_24d_no_layer_norm",
                 "overrides": {
                     "learning_rate": 3 * 1e-3,
                     "max_characters": 193.7e6,
@@ -200,36 +201,108 @@ LSTM_HYPER_PARAM_EXPERIMENTS = [
                 },
             },
             {
-                "label": "LSTM_24d_123_standard",
+                "label": "LSTM_24d_no_layer_norm",
                 "overrides": {
                     "learning_rate": 3 * 1e-3,
                     "max_characters": 193.7e6,
                     "seed": 123,
                     "hidden_size": 24,
+                    "lr_schedule": "cosine_warmup",
                 },
             },
             {
-                "label": "LSTM_24d_123_no_long_stride",
+                "label": "LSTM_24d_123_no_layer_norm",
                 "overrides": {
                     "learning_rate": 3 * 1e-3,
                     "max_characters": 193.7e6,
                     "seed": 123,
                     "hidden_size": 24,
-                    "stride": 128,
-                },
-            },
-            {
-                "label": "LSTM_24d_123_no_half_tokens",
-                "overrides": {
-                    "learning_rate": 3 * 1e-3,
-                    "max_characters": 193.7e6 / 2,
-                    "seed": 123,
-                    "hidden_size": 24,
+                    "lr_schedule": "inverse_sqrt",
                 },
             },
         ],
     },
 ]
+
+LSTM_LR_EXPERIMENTS = [
+    {
+        "name": "LSTM_lr_experiments",
+        "subexperiments": [
+            {
+                "label": "lstm_lr_1e-1",
+                "overrides": {
+                    "learning_rate": 10 ** (-1),
+                    "max_characters": 193.7e6,
+                    "seed": 123,
+                    "hidden_size": 24,
+                    "use_layer_norm": True,
+                },
+            },
+            {
+                "label": "lstm_lr_1e-1.5",
+                "overrides": {
+                    "learning_rate": 10 ** (-1.5),
+                    "max_characters": 193.7e6,
+                    "seed": 123,
+                    "hidden_size": 24,
+                    "use_layer_norm": True,
+                },
+            },
+            {
+                "label": "lstm_lr_1e-2",
+                "overrides": {
+                    "learning_rate": 10 ** (-2),
+                    "max_characters": 193.7e6,
+                    "seed": 123,
+                    "hidden_size": 24,
+                    "stride": 128,
+                    "use_layer_norm": True,
+                },
+            },
+            {
+                "label": "lstm_lr_1e-2.5",
+                "overrides": {
+                    "learning_rate": 10 ** (-2.5),
+                    "max_characters": 193.7e6,
+                    "seed": 123,
+                    "hidden_size": 24,
+                    "use_layer_norm": True,
+                },
+            },
+            {
+                "label": "lstm_lr_1e-3",
+                "overrides": {
+                    "learning_rate": 10 ** (-3),
+                    "max_characters": 193.7e6,
+                    "seed": 123,
+                    "hidden_size": 24,
+                    "use_layer_norm": True,
+                },
+            },
+            {
+                "label": "lstm_lr_1e-3.5",
+                "overrides": {
+                    "learning_rate": 10 ** (-3.5),
+                    "max_characters": 193.7e6,
+                    "seed": 123,
+                    "hidden_size": 24,
+                    "use_layer_norm": True,
+                },
+            },
+            {
+                "label": "lstm_lr_1e-4",
+                "overrides": {
+                    "learning_rate": 10 ** (-4),
+                    "max_characters": 193.7e6,
+                    "seed": 123,
+                    "hidden_size": 24,
+                    "use_layer_norm": True,
+                },
+            },
+        ],
+    },
+]
+
 
 # {
 #                 "label": "LSTM_64d_123",

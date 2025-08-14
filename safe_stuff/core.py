@@ -274,15 +274,6 @@ class SimpleTransformerLayer(nn.Module):
         self.dropout = nn.Dropout(dropout)
         self.use_rotary = config.pos_encoding == "rotary"
         self.norm_placement = getattr(config, "norm_placement", "pre")
-        # Complete-P residual scaling
-        self.enable_completep = getattr(config, "enable_completep", False)
-        self.completep_alpha = float(getattr(config, "completep_alpha", 1.0))
-        if self.enable_completep:
-            # Scale factor applied to each residual branch output prior to residual add
-            L = max(1, int(getattr(config, "num_layers", 1)))
-            self.residual_scale = L ** (-self.completep_alpha)
-        else:
-            self.residual_scale = 1.0
 
         # Choose normalization type
         if getattr(config, "norm_type", "layer") == "rms":
@@ -415,24 +406,15 @@ class SimpleTransformerLayer(nn.Module):
         # Rest of the forward pass remains the same
         attn_output = attn_output.transpose(1, 2).contiguous().view(B, L, D)
         attn_output = self.out_proj(attn_output)
-        # Apply Complete-P residual scaling to attention branch if enabled
-        if self.residual_scale != 1.0:
-            attn_output = attn_output * self.residual_scale
 
         if self.norm_placement == "pre":
             # Pre-Normalization
             x = x + self.dropout(attn_output)
-            ff_out = self.ff(self.norm2(x))
-            if self.residual_scale != 1.0:
-                ff_out = ff_out * self.residual_scale
-            x = x + self.dropout(ff_out)
+            x = x + self.dropout(self.ff(self.norm2(x)))
         else:
             # Post-Normalization
             x = self.norm1(x + self.dropout(attn_output))
-            ff_out = self.ff(x)
-            if self.residual_scale != 1.0:
-                ff_out = ff_out * self.residual_scale
-            x = self.norm2(x + self.dropout(ff_out))
+            x = self.norm2(x + self.dropout(self.ff(x)))
         return x
 
 
@@ -510,131 +492,13 @@ def get_device(gpu_id=None):
         return torch.device("cpu")
 
 
-def build_completep_param_groups(model, config, optimizer_name: str):
-    """Build optimizer param groups with Complete-P scaling rules.
-
-    Categories:
-    - Embedding/read-in: `model.embedding` and learned `pos_emb`
-    - Unembedding/read-out: `model.fc`
-    - LayerNorm/RMSNorm parameters
-    - Hidden weights/biases: everything else (Linear layers inside blocks)
-    """
-    # Base multipliers
-    N = float(getattr(config, "hidden_dim"))
-    L = float(getattr(config, "num_layers"))
-    mN = N / float(getattr(config, "n_base", 256))
-    mL = L / float(getattr(config, "l_base", 2))
-    alpha = float(getattr(config, "completep_alpha", 1.0))
-
-    # Base constants
-    eta_base = float(getattr(config, "eta_base", 3.9e-3))
-    wd_base = float(getattr(config, "wd_base", 0.10))
-    eps_base = float(getattr(config, "eps_base", 1e-16))
-
-    # Learning rate scalings
-    hidden_lr = eta_base * (mN**-1.0) * (mL ** (alpha - 1.0))
-    bias_lr = eta_base * (mL ** (alpha - 1.0))
-    ln_lr = bias_lr
-    embed_lr = eta_base
-    unembed_lr = eta_base
-
-    # Weight decay scalings
-    hidden_wd = wd_base * mN
-    ln_wd = 0.0
-    bias_wd = 0.0
-    embed_wd = wd_base
-    unembed_wd = wd_base
-
-    # AdamW epsilon scaling (ignored for SGD/others)
-    opt = (optimizer_name or "").lower()
-    if opt == "adamw":
-        hidden_eps = eps_base * (mN**-1.0) * (mL ** (-alpha))
-        ln_eps = hidden_eps
-        embed_eps = eps_base
-        unembed_eps = eps_base
-    else:
-        hidden_eps = ln_eps = embed_eps = unembed_eps = None
-
-    def add_group(params, lr, wd, eps):
-        if not params:
-            return None
-        group = {"params": params, "lr": lr, "weight_decay": wd}
-        if eps is not None:
-            group["eps"] = eps
-        return group
-
-    # Collect parameter ids by category
-    norm_param_ids = set()
-    for module in model.modules():
-        if isinstance(module, (nn.LayerNorm, RMSNorm)):
-            for p in module.parameters(recurse=False):
-                norm_param_ids.add(id(p))
-
-    embed_param_ids = set()
-    if hasattr(model, "embedding") and isinstance(model.embedding, nn.Embedding):
-        embed_param_ids.add(id(model.embedding.weight))
-    pos_param = None
-    if getattr(model, "pos_encoding", None) == "learned" and hasattr(model, "pos_emb"):
-        pos_param = model.pos_emb
-        embed_param_ids.add(id(pos_param))
-
-    unembed_param_ids = set()
-    if hasattr(model, "fc") and isinstance(model.fc, nn.Linear):
-        for p in model.fc.parameters(recurse=False):
-            unembed_param_ids.add(id(p))
-
-    # Bucket parameters
-    hidden_weight_params = []
-    hidden_bias_params = []
-    ln_params = []
-    embed_params = []
-    unembed_params = []
-
-    for name, p in model.named_parameters():
-        if not p.requires_grad:
-            continue
-        pid = id(p)
-        if pid in embed_param_ids:
-            embed_params.append(p)
-        elif pid in unembed_param_ids:
-            unembed_params.append(p)
-        elif pid in norm_param_ids:
-            ln_params.append(p)
-        else:
-            # Hidden; separate weights vs biases by name
-            if (
-                name.endswith(".bias")
-                or name.lower().endswith("_bias")
-                or name.lower().find("bias") != -1
-            ):
-                hidden_bias_params.append(p)
-            else:
-                hidden_weight_params.append(p)
-
-    groups = []
-    for g in [
-        add_group(embed_params, embed_lr, embed_wd, embed_eps),
-        add_group(unembed_params, unembed_lr, unembed_wd, unembed_eps),
-        add_group(ln_params, ln_lr, ln_wd, ln_eps),
-        add_group(hidden_bias_params, bias_lr, bias_wd, hidden_eps),
-        add_group(hidden_weight_params, hidden_lr, hidden_wd, hidden_eps),
-    ]:
-        if g is not None:
-            groups.append(g)
-
-    return groups
-
-
 def train(gpu_id=None, csv_log_path=None):
     # Set memory optimization flags for V100
     if torch.cuda.is_available():
         # just added to let cuda optimize kernel selection
         torch.backends.cudnn.benchmark = True
         torch.backends.cudnn.deterministic = False
-        if hasattr(torch.backends, "cuda") and hasattr(
-            torch.backends.cuda, "max_split_size_mb"
-        ):
-            torch.backends.cuda.max_split_size_mb = 128  # Reduce fragmentation
+        torch.backends.cuda.max_split_size_mb = 128  # Reduce fragmentation
 
     # Get appropriate device
     device = get_device(gpu_id)
@@ -811,7 +675,7 @@ def train(gpu_id=None, csv_log_path=None):
 
         # Initialize positional embedding if using learned positional embeddings
         if model.pos_encoding == "learned" and hasattr(model, "pos_emb"):
-            nn.init.normal_(model.pos_emb.data, mean=0.0, std=init_scale)
+            nn.init.normal_(model.pos_emb, mean=0.0, std=init_scale)
 
         # Initialize final layer with small weights
         nn.init.normal_(
@@ -845,76 +709,43 @@ def train(gpu_id=None, csv_log_path=None):
     else:
         criterion = nn.CrossEntropyLoss()
 
-    # Choose optimizer based on config (supports Complete-P param groups)
-    if getattr(config, "enable_completep", False):
-        groups = build_completep_param_groups(
-            model, config, getattr(config, "optimizer", "adamw")
+    # Choose optimizer based on config
+    if config.optimizer == "adam":
+        optimizer = optim.Adam(model.parameters(), lr=config.learning_rate)
+    elif config.optimizer == "adamw":
+        optimizer = optim.AdamW(
+            model.parameters(),
+            lr=config.learning_rate,
+            weight_decay=config.weight_decay,
         )
-        opt_name = getattr(config, "optimizer", "adamw").lower()
-        if opt_name == "adam":
-            optimizer = optim.Adam(groups)
-        elif opt_name == "adamw":
-            optimizer = optim.AdamW(groups)
-        elif opt_name == "sgd":
-            optimizer = optim.SGD(
-                groups,
-                momentum=getattr(config, "momentum", 0.9),
-                nesterov=False,
-            )
-        elif opt_name == "rmsprop":
-            optimizer = optim.RMSprop(
-                groups,
-                alpha=getattr(config, "rmsprop_alpha", 0.99),
-                eps=getattr(config, "eps", 1e-8),
-                momentum=getattr(config, "momentum", 0.0),
-                centered=getattr(config, "rmsprop_centered", False),
-            )
-        elif opt_name == "adagrad":
-            optimizer = optim.Adagrad(
-                groups,
-                lr_decay=getattr(config, "adagrad_lr_decay", 0.0),
-                initial_accumulator_value=getattr(config, "adagrad_init_acc", 0.0),
-                eps=getattr(config, "eps", 1e-10),
-            )
-        else:
-            raise ValueError(f"Unsupported optimizer: {config.optimizer}")
+    elif config.optimizer == "sgd":
+        optimizer = optim.SGD(
+            model.parameters(),
+            lr=config.learning_rate,
+            momentum=getattr(config, "momentum", 0.9),  # Standard momentum value
+            weight_decay=config.weight_decay,
+        )
+    elif config.optimizer == "rmsprop":
+        optimizer = optim.RMSprop(
+            model.parameters(),
+            lr=config.learning_rate,
+            alpha=getattr(config, "rmsprop_alpha", 0.99),
+            eps=getattr(config, "eps", 1e-8),
+            momentum=getattr(config, "momentum", 0.0),
+            centered=getattr(config, "rmsprop_centered", False),
+            weight_decay=config.weight_decay,
+        )
+    elif config.optimizer == "adagrad":
+        optimizer = optim.Adagrad(
+            model.parameters(),
+            lr=config.learning_rate,
+            lr_decay=getattr(config, "adagrad_lr_decay", 0.0),
+            weight_decay=config.weight_decay,
+            initial_accumulator_value=getattr(config, "adagrad_init_acc", 0.0),
+            eps=getattr(config, "eps", 1e-10),
+        )
     else:
-        if config.optimizer == "adam":
-            optimizer = optim.Adam(model.parameters(), lr=config.learning_rate)
-        elif config.optimizer == "adamw":
-            optimizer = optim.AdamW(
-                model.parameters(),
-                lr=config.learning_rate,
-                weight_decay=config.weight_decay,
-            )
-        elif config.optimizer == "sgd":
-            optimizer = optim.SGD(
-                model.parameters(),
-                lr=config.learning_rate,
-                momentum=getattr(config, "momentum", 0.9),  # Standard momentum value
-                weight_decay=config.weight_decay,
-            )
-        elif config.optimizer == "rmsprop":
-            optimizer = optim.RMSprop(
-                model.parameters(),
-                lr=config.learning_rate,
-                alpha=getattr(config, "rmsprop_alpha", 0.99),
-                eps=getattr(config, "eps", 1e-8),
-                momentum=getattr(config, "momentum", 0.0),
-                centered=getattr(config, "rmsprop_centered", False),
-                weight_decay=config.weight_decay,
-            )
-        elif config.optimizer == "adagrad":
-            optimizer = optim.Adagrad(
-                model.parameters(),
-                lr=config.learning_rate,
-                lr_decay=getattr(config, "adagrad_lr_decay", 0.0),
-                weight_decay=config.weight_decay,
-                initial_accumulator_value=getattr(config, "adagrad_init_acc", 0.0),
-                eps=getattr(config, "eps", 1e-10),
-            )
-        else:
-            raise ValueError(f"Unsupported optimizer: {config.optimizer}")
+        raise ValueError(f"Unsupported optimizer: {config.optimizer}")
 
     # After optimizer creation, add step-based schedulers
     if config.lr_schedule == "cosine":

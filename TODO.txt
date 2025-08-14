@@ -1,5 +1,19 @@
 
 
+Make LSTM experiments with and without layernorm 
++cosine warmup+ 
+
+
+
+
+
+
+
+
+
+this is a way to submit jobs now: ./submit_variable_gpus.sh 3
+
+
 #correct issues with learning rate experiments 
 # add straight to zero 
 # read about parameter settings ie depth to width material 
