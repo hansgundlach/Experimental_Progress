@@ -1032,6 +1032,9 @@ def train(gpu_id=None, csv_log_path=None):
     flops_per_step = sum(
         evt.flops for evt in prof.key_averages() if hasattr(evt, "flops")
     )
+    # Adjust to represent one optimizer step (covers GA micro-batches)
+    ga = max(1, int(getattr(config, "gradient_accumulation_steps", 1)))
+    flops_per_step *= ga
     steps_per_epoch = len(train_dataloader) // config.gradient_accumulation_steps
     total_steps = steps_per_epoch * config.max_epochs
     total_flops = flops_per_step * total_steps

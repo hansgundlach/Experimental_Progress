@@ -29,3 +29,4 @@ sbatch \
   --gres="gpu:${GPU_TYPE}:1" \
   --mem="${MEM}" \
   job_array_worker.sh
+

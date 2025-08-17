@@ -186,14 +186,48 @@ LSTM_HIDDEN_DIM_EXPERIMENTS = [
 ]
 
 
+# lsmt variaionts where originally done with 10^-3
+
+
 LSTM_VARIATIONS = [
     {
-        "name": "LSTM_Variations",
+        "name": "lstm_variations",
         "subexperiments": [
             {
-                "label": "LSTM_24d_no_layer_norm",
+                "label": "lstm_24d_layernorm",
                 "overrides": {
-                    "learning_rate": 3 * 1e-3,
+                    "learning_rate": 10 ** (-1.5),
+                    "max_characters": 193.7e6,
+                    "seed": 123,
+                    "hidden_size": 24,
+                },
+            },
+            {
+                "label": "lstm_24d_3_layers",
+                "overrides": {
+                    "learning_rate": 10 ** (-1.5),
+                    "max_characters": 193.7e6,
+                    "seed": 123,
+                    "hidden_size": 24,
+                    "use_layer_norm": True,
+                    "num_layers": 3,
+                },
+            },
+            {
+                "label": "lstm_24d_1_layers",
+                "overrides": {
+                    "learning_rate": 10 ** (-1.5),
+                    "max_characters": 193.7e6,
+                    "seed": 123,
+                    "hidden_size": 24,
+                    "use_layer_norm": True,
+                    "num_layers": 1,
+                },
+            },
+            {
+                "label": "lstm_24d_no_layer_norm",
+                "overrides": {
+                    "learning_rate": 10 ** (-1.5),
                     "max_characters": 193.7e6,
                     "seed": 123,
                     "hidden_size": 24,
@@ -201,9 +235,9 @@ LSTM_VARIATIONS = [
                 },
             },
             {
-                "label": "LSTM_24d_no_layer_norm",
+                "label": "lstm_24d_cosine_warmup",
                 "overrides": {
-                    "learning_rate": 3 * 1e-3,
+                    "learning_rate": 10 ** (-1.5),
                     "max_characters": 193.7e6,
                     "seed": 123,
                     "hidden_size": 24,
@@ -211,9 +245,9 @@ LSTM_VARIATIONS = [
                 },
             },
             {
-                "label": "LSTM_24d_123_no_layer_norm",
+                "label": "lstm_24d_inverse_sqrt",
                 "overrides": {
-                    "learning_rate": 3 * 1e-3,
+                    "learning_rate": 10 ** (-1.5),
                     "max_characters": 193.7e6,
                     "seed": 123,
                     "hidden_size": 24,
@@ -226,10 +260,10 @@ LSTM_VARIATIONS = [
 
 LSTM_LR_EXPERIMENTS = [
     {
-        "name": "LSTM_lr_experiments",
+        "name": "lstm_lr_experiments",
         "subexperiments": [
             {
-                "label": "lstm_lr_1e-1",
+                "label": "24d_lstm_lr_1e-1",
                 "overrides": {
                     "learning_rate": 10 ** (-1),
                     "max_characters": 193.7e6,
@@ -239,7 +273,7 @@ LSTM_LR_EXPERIMENTS = [
                 },
             },
             {
-                "label": "lstm_lr_1e-1.5",
+                "label": "24d_lstm_lr_1e-1.5",
                 "overrides": {
                     "learning_rate": 10 ** (-1.5),
                     "max_characters": 193.7e6,
@@ -249,7 +283,7 @@ LSTM_LR_EXPERIMENTS = [
                 },
             },
             {
-                "label": "lstm_lr_1e-2",
+                "label": "24d_lstm_lr_1e-2",
                 "overrides": {
                     "learning_rate": 10 ** (-2),
                     "max_characters": 193.7e6,
@@ -260,7 +294,7 @@ LSTM_LR_EXPERIMENTS = [
                 },
             },
             {
-                "label": "lstm_lr_1e-2.5",
+                "label": "24d_lstm_lr_1e-2.5",
                 "overrides": {
                     "learning_rate": 10 ** (-2.5),
                     "max_characters": 193.7e6,
@@ -270,7 +304,7 @@ LSTM_LR_EXPERIMENTS = [
                 },
             },
             {
-                "label": "lstm_lr_1e-3",
+                "label": "24d_lstm_lr_1e-3",
                 "overrides": {
                     "learning_rate": 10 ** (-3),
                     "max_characters": 193.7e6,
@@ -280,7 +314,7 @@ LSTM_LR_EXPERIMENTS = [
                 },
             },
             {
-                "label": "lstm_lr_1e-3.5",
+                "label": "24d_lstm_lr_1e-3.5",
                 "overrides": {
                     "learning_rate": 10 ** (-3.5),
                     "max_characters": 193.7e6,
@@ -290,7 +324,7 @@ LSTM_LR_EXPERIMENTS = [
                 },
             },
             {
-                "label": "lstm_lr_1e-4",
+                "label": "24d_lstm_lr_1e-4",
                 "overrides": {
                     "learning_rate": 10 ** (-4),
                     "max_characters": 193.7e6,
@@ -343,7 +377,7 @@ LSTM_LR_EXPERIMENTS = [
 #     # },
 # ]
 # ============================================================================
-EXPERIMENTS = LSTM_HYPER_PARAM_EXPERIMENTS
+EXPERIMENTS = LSTM_VARIATIONS
 
 
 def find_free_port():

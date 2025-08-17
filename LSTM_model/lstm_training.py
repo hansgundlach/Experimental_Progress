@@ -783,8 +783,11 @@ def train_model(
                 device, non_blocking=True
             )
 
-            # Track FLOP count
-            flop_counter.add_batch_flops()
+            # Track FLOP count - FIXED: Only add FLOPs when optimizer steps occur
+            if (batch_idx + 1) % gradient_accumulation_steps == 0 or (
+                batch_idx + 1 == len(train_loader)
+            ):
+                flop_counter.add_batch_flops()
 
             # Forward pass with mixed precision
             if use_amp:
@@ -961,14 +964,49 @@ def train_model(
     print(f"Test Loss: {test_loss:.4f} (Perplexity: {test_perplexity:.2f})")
 
     # Calculate theoretical FLOPs
+    # FIXED: Properly account for gradient accumulation
     flops_per_batch_manual = (
         flop_counter.count_forward_flops_manual(
             config["batch_size"], config["sequence_length"]
         )
         * 3
     )  # x3 for fwd+bwd
-    total_training_steps = len(train_loader) * config["num_epochs"]
-    total_flops_theoretical = flops_per_batch_manual * total_training_steps
+    # FIXED: Count optimizer steps, not batch steps
+    total_optimizer_steps = (len(train_loader) // gradient_accumulation_steps) * config[
+        "num_epochs"
+    ]
+    total_flops_theoretical = flops_per_batch_manual * total_optimizer_steps
+
+    # FIXED: Also calculate theoretical FLOPs using the standard formula
+    # Theoretical FLOPs: 6 * non_embedding_params * total_tokens
+    effective_batch_size = config["batch_size"] * gradient_accumulation_steps
+    total_tokens_processed = (
+        total_optimizer_steps * effective_batch_size * config["sequence_length"]
+    )
+
+    # Count non-embedding parameters
+    num_params = sum(p.numel() for p in model.parameters() if p.requires_grad)
+    num_embedding_params = model.embedding.weight.numel()
+    num_non_embedding_params = num_params - num_embedding_params
+
+    total_flops_theoretical_standard = (
+        6 * num_non_embedding_params * total_tokens_processed
+    )
+
+    # Debug output for FLOPs calculations
+    print(f"\n==== FLOPs Analysis ====")
+    print(f"Profiler FLOPs per batch: {flop_counter.flops_per_batch:.2e}")
+    print(f"Total profiler FLOPs: {flop_counter.total_flops:.2e}")
+    print(f"Manual FLOPs per batch: {flops_per_batch_manual:.2e}")
+    print(f"Total optimizer steps: {total_optimizer_steps}")
+    print(f"Total batches: {len(train_loader) * config['num_epochs']}")
+    print(f"Gradient accumulation steps: {gradient_accumulation_steps}")
+    print(f"Effective batch size: {effective_batch_size}")
+    print(f"Total tokens processed: {total_tokens_processed:.2e}")
+    print(f"Non-embedding parameters: {num_non_embedding_params:,}")
+    print(f"Theoretical FLOPs (manual): {total_flops_theoretical:.2e}")
+    print(f"Theoretical FLOPs (standard): {total_flops_theoretical_standard:.2e}")
+    print(f"========================\n")
 
     results = {
         "final_train_loss": avg_train_loss,
@@ -976,6 +1014,7 @@ def train_model(
         "test_loss": test_loss,
         "total_flops_profiler": flop_counter.total_flops,
         "total_flops_theoretical": total_flops_theoretical,
+        "total_flops_theoretical_standard": total_flops_theoretical_standard,
     }
 
     wandb.log(
@@ -984,6 +1023,7 @@ def train_model(
             "test_perplexity": test_perplexity,
             "final_total_flops": flop_counter.total_flops,
             "final_total_flops_theoretical": total_flops_theoretical,
+            "final_total_flops_theoretical_standard": total_flops_theoretical_standard,
         }
     )
 

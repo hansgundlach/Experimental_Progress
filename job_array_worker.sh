@@ -35,3 +35,4 @@ echo "Running experiment slice ${JOB_ID} of ${TOTAL_JOBS}..."
 python experiments.py --job_id ${JOB_ID} --total_jobs ${TOTAL_JOBS} 2>&1 | tee "$LOG_DIR/job_${SLURM_ARRAY_JOB_ID}_task_${SLURM_ARRAY_TASK_ID}.log"
 
 echo "Job task ${SLURM_ARRAY_TASK_ID} ended at $(date)"
+

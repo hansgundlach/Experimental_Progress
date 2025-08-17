@@ -192,7 +192,7 @@ if __name__ == "__main__":
         "csv_log_interval": 50,
         "seed": 789,
         # Complete-P (default OFF; non-breaking)
-        "enable_completep": False,
+        "enable_completep": True,
         "completep_alpha": 1.0,
         # Base constants for scaling rules
         "n_base": 256,
