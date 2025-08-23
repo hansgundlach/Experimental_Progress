@@ -1,4 +1,7 @@
 # %%
+print("hello")
+
+#%%
 import pandas as pd
 import numpy as np
 from scipy.optimize import curve_fit
@@ -345,21 +348,21 @@ if __name__ == "__main__":
             "csv_path": "../experimental_data_folder/muP_scaling_experiments/80d_2_mup_sgd.csv",
             "color": "tab:orange",
             "marker": "o",
-            "include_in_frontier": False,  # Include in frontier analysis
+            "include_in_frontier": True,  # Include in frontier analysis
         },
         {
             "name": "96d sgd",
             "csv_path": "../experimental_data_folder/muP_scaling_experiments/96d_2_mup_sgd.csv",
             "color": "tab:red",
             "marker": "o",
-            "include_in_frontier": False,  # Include in frontier analysis
+            "include_in_frontier": True,  # Include in frontier analysis
         },
         {
             "name": "128d sgd",
             "csv_path": "../experimental_data_folder/muP_scaling_experiments/128d_2_mup_sgd.csv",
             "color": "tab:purple",
             "marker": "o",
-            "include_in_frontier": False,  # Include in frontier analysis
+            "include_in_frontier": True,  # Include in frontier analysis
         },
         {
             "name": "adam 16d",

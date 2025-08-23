@@ -31,6 +31,57 @@ os.environ["WANDB_MODE"] = "offline"
 os.environ["WANDB_MODE"] = "offline"
 
 
+def get_mup_learning_rates_transformer(
+    model, base_lr, use_mup=False, mup_base_width=128
+):
+    """Get muP-scaled learning rates for different parameter groups in transformer"""
+    if not use_mup:
+        return [{"params": model.parameters(), "lr": base_lr}]
+
+    # Calculate scaling factor
+    if hasattr(model, "module"):  # Handle DataParallel/DDP
+        hidden_dim = model.module.hidden_dim
+        mup_scale = hidden_dim / mup_base_width
+        embedding = model.module.embedding
+        layers = model.module.layers
+        fc = model.module.fc
+        pos_emb = getattr(model.module, "pos_emb", None)
+    else:
+        hidden_dim = model.hidden_dim
+        mup_scale = hidden_dim / mup_base_width
+        embedding = model.embedding
+        layers = model.layers
+        fc = model.fc
+        pos_emb = getattr(model, "pos_emb", None)
+
+    param_groups = []
+
+    # Embedding parameters: lr scaled by 1/scale
+    embedding_params = list(embedding.parameters())
+    if pos_emb is not None:
+        embedding_params.append(pos_emb)
+    param_groups.append(
+        {"params": embedding_params, "lr": base_lr / mup_scale, "name": "embedding"}
+    )
+
+    # Transformer layer parameters: lr scaled by 1/scale
+    layer_params = []
+    for layer in layers:
+        layer_params.extend(list(layer.parameters()))
+    param_groups.append(
+        {"params": layer_params, "lr": base_lr / mup_scale, "name": "layers"}
+    )
+
+    # Output layer parameters: no scaling (base lr)
+    param_groups.append({"params": fc.parameters(), "lr": base_lr, "name": "output"})
+
+    print(
+        f"muP learning rates: embedding/layers={base_lr/mup_scale:.6f}, output={base_lr:.6f}"
+    )
+
+    return param_groups
+
+
 def get_wikitext_data(limit=100000):
     """Load WikiText-2 dataset from local file"""
     file_path = Path("Datasets/wikitext.txt")
@@ -445,8 +496,18 @@ class SimpleTransformer(nn.Module):
         num_layers,
         dropout=0.1,
         config=None,
+        use_mup=False,
+        mup_base_width=128,
     ):
         super().__init__()
+        self.vocab_size = vocab_size
+        self.hidden_dim = hidden_dim
+        self.use_mup = use_mup
+        self.mup_base_width = mup_base_width
+
+        # Calculate muP scaling factor
+        self.mup_scale = hidden_dim / mup_base_width if use_mup else 1.0
+
         self.embedding = nn.Embedding(vocab_size, hidden_dim)
 
         # MODIFY THIS SECTION - Add positional embeddings based on config
@@ -480,6 +541,61 @@ class SimpleTransformer(nn.Module):
         self.norm = LayerNorm(hidden_dim)
         self.fc = Linear(hidden_dim, vocab_size)
 
+        # Apply muP initialization if enabled
+        if use_mup:
+            self._apply_mup_init()
+
+    def _apply_mup_init(self):
+        """Apply muP (Maximal Update Parametrization) initialization"""
+        # Embedding layer: scale by 1/sqrt(width)
+        nn.init.normal_(
+            self.embedding.weight, mean=0, std=1 / math.sqrt(self.hidden_dim)
+        )
+
+        # Learned positional embeddings: scale by 1/sqrt(width)
+        if self.pos_encoding == "learned" and hasattr(self, "pos_emb"):
+            nn.init.normal_(self.pos_emb, mean=0, std=1 / math.sqrt(self.hidden_dim))
+
+        # Transformer layers: scale attention and feedforward weights
+        for layer in self.layers:
+            # QKV projection: scale by 1/sqrt(width)
+            nn.init.normal_(
+                layer.qkv.weight, mean=0, std=1 / math.sqrt(self.hidden_dim)
+            )
+            nn.init.zeros_(layer.qkv.bias)
+
+            # Output projection: scale by 1/sqrt(width)
+            nn.init.normal_(
+                layer.out_proj.weight, mean=0, std=1 / math.sqrt(self.hidden_dim)
+            )
+            nn.init.zeros_(layer.out_proj.bias)
+
+            # Feedforward layers: scale by 1/sqrt(width)
+            if hasattr(layer.ff, "linear1"):
+                nn.init.normal_(
+                    layer.ff.linear1.weight, mean=0, std=1 / math.sqrt(self.hidden_dim)
+                )
+                nn.init.zeros_(layer.ff.linear1.bias)
+            if hasattr(layer.ff, "linear2"):
+                nn.init.normal_(
+                    layer.ff.linear2.weight, mean=0, std=1 / math.sqrt(self.hidden_dim)
+                )
+                nn.init.zeros_(layer.ff.linear2.bias)
+            if hasattr(layer.ff, "to_out"):
+                nn.init.normal_(
+                    layer.ff.to_out.weight, mean=0, std=1 / math.sqrt(self.hidden_dim)
+                )
+                nn.init.zeros_(layer.ff.to_out.bias)
+            if hasattr(layer.ff, "proj"):
+                nn.init.normal_(
+                    layer.ff.proj.weight, mean=0, std=1 / math.sqrt(self.hidden_dim)
+                )
+                nn.init.zeros_(layer.ff.proj.bias)
+
+        # Output layer: scale by 1/width (not sqrt)
+        nn.init.normal_(self.fc.weight, mean=0, std=1 / self.hidden_dim)
+        nn.init.zeros_(self.fc.bias)
+
     def forward(self, x):
         B, L = x.shape
         x = self.embedding(x)
@@ -496,6 +612,11 @@ class SimpleTransformer(nn.Module):
 
         x = self.norm(x)
         x = self.fc(x)
+
+        # Apply muP output scaling
+        if self.use_mup:
+            x = x * self.mup_scale
+
         return x
 
 
@@ -738,6 +859,8 @@ def train(gpu_id=None, csv_log_path=None):
         num_layers=config.num_layers,
         dropout=config.dropout,
         config=config,
+        use_mup=getattr(config, "use_mup", False),
+        mup_base_width=getattr(config, "mup_base_width", 128),
     )
 
     # Count non-embedding parameters for theoretical FLOPs calculation
@@ -845,7 +968,9 @@ def train(gpu_id=None, csv_log_path=None):
     else:
         criterion = nn.CrossEntropyLoss()
 
-    # Choose optimizer based on config (supports Complete-P param groups)
+    # Choose optimizer based on config (supports Complete-P param groups and muP)
+    use_mup = getattr(config, "use_mup", False)
+
     if getattr(config, "enable_completep", False):
         groups = build_completep_param_groups(
             model, config, getattr(config, "optimizer", "adamw")
@@ -873,6 +998,47 @@ def train(gpu_id=None, csv_log_path=None):
             optimizer = optim.Adagrad(
                 groups,
                 lr_decay=getattr(config, "adagrad_lr_decay", 0.0),
+                initial_accumulator_value=getattr(config, "adagrad_init_acc", 0.0),
+                eps=getattr(config, "eps", 1e-10),
+            )
+        else:
+            raise ValueError(f"Unsupported optimizer: {config.optimizer}")
+    elif use_mup:
+        # Use muP parameter groups
+        param_groups = get_mup_learning_rates_transformer(
+            model,
+            config.learning_rate,
+            use_mup=True,
+            mup_base_width=getattr(config, "mup_base_width", 128),
+        )
+        opt_name = getattr(config, "optimizer", "adamw").lower()
+        if opt_name == "adam":
+            optimizer = optim.Adam(param_groups)
+        elif opt_name == "adamw":
+            optimizer = optim.AdamW(
+                param_groups,
+                weight_decay=config.weight_decay,
+            )
+        elif opt_name == "sgd":
+            optimizer = optim.SGD(
+                param_groups,
+                momentum=getattr(config, "momentum", 0.9),
+                weight_decay=config.weight_decay,
+            )
+        elif opt_name == "rmsprop":
+            optimizer = optim.RMSprop(
+                param_groups,
+                alpha=getattr(config, "rmsprop_alpha", 0.99),
+                eps=getattr(config, "eps", 1e-8),
+                momentum=getattr(config, "momentum", 0.0),
+                centered=getattr(config, "rmsprop_centered", False),
+                weight_decay=config.weight_decay,
+            )
+        elif opt_name == "adagrad":
+            optimizer = optim.Adagrad(
+                param_groups,
+                lr_decay=getattr(config, "adagrad_lr_decay", 0.0),
+                weight_decay=config.weight_decay,
                 initial_accumulator_value=getattr(config, "adagrad_init_acc", 0.0),
                 eps=getattr(config, "eps", 1e-10),
             )

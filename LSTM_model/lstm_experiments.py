@@ -8,6 +8,7 @@ from lstm_training import train_model
 import argparse
 import torch.multiprocessing as mp
 from socket import socket
+from typing import List, Union, Sequence
 
 # Configuration
 # has 1.66 total params
@@ -140,13 +141,18 @@ LSTM_OPTIMIZER_EXPERIMENTS = [
 #   ]
 # },
 # ]
+
 # =====
+
+# 193.7e6 258.6e6 388.8e6 520e6
+
+
 LSTM_HIDDEN_DIM_EXPERIMENTS = [
     {
-        "name": "LSTM_Hidden_Dim_Scaling",
+        "name": "lstm_hidden_dim_scaling",
         "subexperiments": [
             {
-                "label": "LSTM_16d_123",
+                "label": "lstm_16d",
                 "overrides": {
                     "learning_rate": 3 * 1e-3,
                     "hidden_size": 16,
@@ -155,36 +161,103 @@ LSTM_HIDDEN_DIM_EXPERIMENTS = [
                 },
             },
             {
-                "label": "LSTM_24d_123",
+                "label": "lstm_24d",
                 "overrides": {
                     "learning_rate": 3 * 1e-3,
-                    "max_characters": 193.7e6,
+                    "max_characters": 129e6,
                     "seed": 123,
                     "hidden_size": 24,
                 },
             },
             {
-                "label": "LSTM_32d_123",
+                "label": "lstm_32d",
                 "overrides": {
                     "learning_rate": 3 * 1e-3,
-                    "max_characters": 258.6e6,
+                    "max_characters": 129e6,
                     "seed": 123,
                     "hidden_size": 32,
                 },
             },
             {
-                "label": "LSTM_48d_123",
+                "label": "lstm_48d",
                 "overrides": {
                     "learning_rate": 3 * 1e-3,
-                    "max_characters": 388.8e6,
+                    "max_characters": 129e6,
                     "seed": 123,
                     "hidden_size": 48,
+                },
+            },
+            {
+                "label": "LSTM_64d",
+                "overrides": {
+                    "learning_rate": 3 * 1e-3,
+                    "max_characters": 129e6,
+                    "seed": 123,
+                    "hidden_size": 64,
                 },
             },
         ],
     },
 ]
 
+
+LSTM_SGD_SCALING = [
+    {
+        "name": "lsmt_sgd_scaling",
+        "subexperiments": [
+            {
+                "label": "LSTM_16d_sgd",
+                "overrides": {
+                    "learning_rate": 3 * 1e-3,
+                    "hidden_size": 16,
+                    "max_characters": 129e6,
+                    "seed": 123,
+                    "optimizer": "sgd",
+                },
+            },
+            {
+                "label": "LSTM_24d_sgd",
+                "overrides": {
+                    "learning_rate": 3 * 1e-3,
+                    "max_characters": 193.7e6,
+                    "seed": 123,
+                    "hidden_size": 24,
+                    "optimizer": "sgd",
+                },
+            },
+            {
+                "label": "LSTM_32d_sgd",
+                "overrides": {
+                    "learning_rate": 3 * 1e-3,
+                    "max_characters": 258.6e6,
+                    "seed": 123,
+                    "hidden_size": 32,
+                    "optimizer": "sgd",
+                },
+            },
+            {
+                "label": "LSTM_48d_sgd",
+                "overrides": {
+                    "learning_rate": 3 * 1e-3,
+                    "max_characters": 388.8e6,
+                    "seed": 123,
+                    "hidden_size": 48,
+                    "optimizer": "sgd",
+                },
+            },
+            {
+                "label": "LSTM_64d_sgd",
+                "overrides": {
+                    "learning_rate": 3 * 1e-3,
+                    "max_characters": 388.8e6,
+                    "seed": 123,
+                    "hidden_size": 64,
+                    "optimizer": "sgd",
+                },
+            },
+        ],
+    },
+]
 
 # lsmt variaionts where originally done with 10^-3
 
@@ -376,8 +449,270 @@ LSTM_LR_EXPERIMENTS = [
 #     #   ]
 #     # },
 # ]
+
+MUP_SCALING_EXPERIMENTS = [
+    {
+        "name": "muP_scaling_experiments",
+        "subexperiments": [
+            {
+                "label": "lstm_16d_mup",
+                "overrides": {
+                    "learning_rate": 10 ** (-1.5),
+                    "hidden_size": 16,
+                    "max_characters": 129e6,
+                    "seed": 123,
+                    "use_mup": True,
+                    "mup_base_width": 24,  # Base width for muP scaling
+                },
+            },
+            {
+                "label": "lstm_24d_mup",
+                "overrides": {
+                    "learning_rate": 10 ** (-1.5),
+                    "hidden_size": 24,
+                    "max_characters": 193.7e6,
+                    "seed": 123,
+                    "use_mup": True,
+                    "mup_base_width": 24,  # Base width for muP scaling
+                },
+            },
+            {
+                "label": "lstm_32d_mup",
+                "overrides": {
+                    "learning_rate": 10 ** (-1.5),  # Same base LR as 16d
+                    "hidden_size": 32,
+                    "max_characters": 258.6e6,
+                    "seed": 123,
+                    "use_mup": True,
+                    "mup_base_width": 24,  # Same base width - muP should handle scaling
+                },
+            },
+            {
+                "label": "lstm_64d_mup",
+                "overrides": {
+                    "learning_rate": 10 ** (-1.5),  # Same base LR - muP handles scaling
+                    "hidden_size": 64,
+                    "max_characters": 519.9e6,
+                    "seed": 123,
+                    "use_mup": True,
+                    "mup_base_width": 24,  # Same base width
+                },
+            },
+            {
+                "label": "lstm_128d_mup",
+                "overrides": {
+                    "learning_rate": 10 ** (-1.5),  # Same base LR - muP handles scaling
+                    "hidden_size": 128,
+                    "max_characters": 1050e6,
+                    "seed": 123,
+                    "use_mup": True,
+                    "mup_base_width": 24,  # Same base width
+                },
+            },
+        ],
+    },
+]
+
+
+def subset_experiments(experiment_list, wanted_labels):
+    """Return only the sub-experiments whose 'label' is in wanted_labels,
+    keeping each group's original name unchanged."""
+    result = []
+    for exp in experiment_list:
+        picked = [se for se in exp["subexperiments"] if se["label"] in wanted_labels]
+        if picked:
+            # keep exp['name'] exactly as-is
+            result.append(
+                {
+                    "name": exp["name"],
+                    "subexperiments": picked,
+                }
+            )
+    return result
+
+
+def generate_lr_sweep_experiment(base_label, learning_rates, base_overrides=None):
+    """
+    Generate a learning rate sweep experiment based on a base configuration.
+
+    Args:
+        base_label: Base label for the experiment (e.g., "lstm_32d_mup")
+        learning_rates: List of learning rate values to sweep over
+        base_overrides: Dictionary of base configuration overrides (optional)
+
+    Returns:
+        Dictionary containing the experiment with all learning rate variations
+    """
+    if base_overrides is None:
+        base_overrides = {}
+
+    subexperiments = []
+
+    for lr in learning_rates:
+        # Create label with learning rate suffix
+        # Format learning rate for filename-safe label
+        if lr >= 1:
+            lr_str = f"{lr:.0f}"
+        elif lr >= 0.01:
+            lr_str = f"{lr:.3f}".rstrip("0").rstrip(".")
+        else:
+            # For very small learning rates, use scientific notation
+            lr_str = f"{lr:.1e}".replace("-", "m").replace("+", "p")
+
+        label = f"{base_label}_lr_{lr_str}"
+
+        # Create overrides with the learning rate
+        overrides = copy.deepcopy(base_overrides)
+        overrides["learning_rate"] = lr
+
+        subexperiments.append({"label": label, "overrides": overrides})
+
+    return {"name": f"{base_label}_lr_sweep", "subexperiments": subexperiments}
+
+
+def create_multi_lr_experiments(base_experiments, learning_rates):
+    """
+    Create multiple versions of experiments with different learning rates.
+    Similar to create_multi_seed_experiments but for learning rates.
+
+    Args:
+        base_experiments: List of experiment dictionaries (e.g., LSTM_HIDDEN_DIM_EXPERIMENTS)
+        learning_rates: List of learning rate values (e.g., [1e-4, 1e-3, 1e-2])
+
+    Returns:
+        List of experiment dictionaries with learning rate variations
+    """
+    multi_lr_experiments = []
+
+    for experiment in base_experiments:
+        # Create a new experiment group for each base experiment
+        new_experiment = {
+            "name": f"{experiment['name']}_lr_sweep",
+            "subexperiments": [],
+        }
+
+        # For each subexperiment in the base experiment
+        for sub_exp in experiment["subexperiments"]:
+            # Create a version for each learning rate
+            for lr in learning_rates:
+                # Create new subexperiment with lr suffix
+                new_sub_exp = copy.deepcopy(sub_exp)
+
+                # Add learning rate to the label
+                original_label = sub_exp["label"]
+                # Format learning rate for filename-safe label
+                if lr >= 1:
+                    lr_str = f"{lr:.0f}"
+                elif lr >= 0.01:
+                    lr_str = f"{lr:.3f}".rstrip("0").rstrip(".")
+                else:
+                    # For very small learning rates, use scientific notation
+                    lr_str = f"{lr:.1e}".replace("-", "m").replace("+", "p")
+
+                new_sub_exp["label"] = f"{original_label}_lr_{lr_str}"
+
+                # Add learning rate to overrides
+                if "overrides" in new_sub_exp:
+                    new_sub_exp["overrides"]["learning_rate"] = lr
+                elif "config" in new_sub_exp:
+                    new_sub_exp["config"]["learning_rate"] = lr
+                else:
+                    # If neither exists, create overrides with just the learning rate
+                    new_sub_exp["overrides"] = {"learning_rate": lr}
+
+                new_experiment["subexperiments"].append(new_sub_exp)
+
+        multi_lr_experiments.append(new_experiment)
+
+    return multi_lr_experiments
+
+
+# ====================================================================
+# LEARNING RATE SWEEP EXAMPLES AND DEFINITIONS
+# ====================================================================
+
+# Define standard learning rate sweeps
+STANDARD_LR_SWEEP = [1e-4, 10 ** (-3.5), 1e-3, 10 ** (-2.5), 1e-2, 10 ** (-1.5), 1e-1]
+NARROW_LR_SWEEP = [
+    10 ** (-3),
+    10 ** (-2.5),
+    10 ** (-2),
+    10 ** (-1.5),
+    1e-1,
+]  # Focused sweep around promising values
+
+
+# Active configuration: Learning rate sweep on lstm_32d
+wanted = {"lstm_16d", "lstm_24d", "lstm_32d", "lstm_48d", "lstm_64d"}
+selected_experiments = subset_experiments(LSTM_HIDDEN_DIM_EXPERIMENTS, wanted)
+EXPERIMENTS = create_multi_lr_experiments(selected_experiments, NARROW_LR_SWEEP)
+
+
+# Example usage patterns:
+
+# Example 1: Generate a single learning rate sweep experiment
+# EXPERIMENTS = [
+#     generate_lr_sweep_experiment(
+#         "lstm_32d_mup",
+#         NARROW_LR_SWEEP,
+#         base_overrides={
+#             "hidden_size": 32,
+#             "max_characters": 258.6e6,
+#             "seed": 123,
+#             "use_mup": True,
+#             "mup_base_width": 24,
+#         }
+#     )
+# ]
+
+# Example 2: Apply learning rate sweep to existing experiment groups
+# EXPERIMENTS = create_multi_lr_experiments(LSTM_HIDDEN_DIM_EXPERIMENTS, STANDARD_LR_SWEEP)
+
+# Example 3: Combine with subset selection for targeted sweeps
+# wanted = {"lstm_32d"}
+# selected_experiments = subset_experiments(LSTM_HIDDEN_DIM_EXPERIMENTS, wanted)
+# EXPERIMENTS = create_multi_lr_experiments(selected_experiments, NARROW_LR_SWEEP)
+
+# Example 4: Multiple learning rate sweeps for different base configurations
+# EXPERIMENTS = [
+#     generate_lr_sweep_experiment("lstm_24d_adamw", STANDARD_LR_SWEEP, {"hidden_size": 24, "optimizer": "adamw"}),
+#     generate_lr_sweep_experiment("lstm_24d_sgd", STANDARD_LR_SWEEP, {"hidden_size": 24, "optimizer": "sgd"}),
+# ]
+
+
 # ============================================================================
-EXPERIMENTS = LSTM_VARIATIONS
+# SELECT WHICH EXPERIMENTS TO RUN
+# ============================================================================
+
+# Option 1: Use predefined experiment sets
+# EXPERIMENTS = MUP_SCALING_EXPERIMENTS
+# EXPERIMENTS = LSTM_HIDDEN_DIM_EXPERIMENTS
+# EXPERIMENTS = LSTM_LR_EXPERIMENTS
+
+# Option 2: Use subset of experiments
+# wanted = {"LSTM_128d_123"}
+# EXPERIMENTS = subset_experiments(MUP_SCALING_EXPERIMENTS, {"lstm_128d_mup"})
+
+# Option 3: Learning rate sweeps on single configuration
+# EXPERIMENTS = [
+#     generate_lr_sweep_experiment(
+#         "lstm_24d_mup",
+#         STANDARD_LR_SWEEP,
+#         base_overrides={
+#             "hidden_size": 24,
+#             "max_characters": 193.7e6,
+#             "seed": 123,
+#             "use_mup": True,
+#             "mup_base_width": 24,
+#         }
+#     )
+# ]
+
+# Option 4: Learning rate sweeps on multiple experiment groups
+# EXPERIMENTS = create_multi_lr_experiments(LSTM_HIDDEN_DIM_EXPERIMENTS, NARROW_LR_SWEEP)
+
+# Default: Use original MUP scaling experiments
+# EXPERIMENTS = MUP_SCALING_EXPERIMENTS
 
 
 def find_free_port():

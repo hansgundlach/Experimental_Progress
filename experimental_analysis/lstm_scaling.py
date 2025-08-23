@@ -345,14 +345,14 @@ if __name__ == "__main__":
         {
             "name": "lstm 128d hidden dim scaling",
             "csv_path": "../experimental_data_folder/LSTM_Hidden_Dim_Scaling/LSTM_128d_123.csv",
-            "color": "tab:orange",
+            "color": "cyan",
             "marker": "o",
             "include_in_frontier": False,  # Include in frontier analysis
         },
         {
             "name": "lstm 16d mup",
             "csv_path": "../experimental_data_folder/muP_scaling_experiments/lstm_16d_mup.csv",
-            "color": "darkcyan",
+            "color": "tab:blue",
             "marker": "o",
             "include_in_frontier": True,  # Include in frontier analysis
         },
@@ -386,6 +386,13 @@ if __name__ == "__main__":
         },
         {
             "name": "lstm 64d mup",
+            "csv_path": "../experimental_data_folder/muP_scaling_experiments/lstm_64d_mup.csv",
+            "color": "tab:green",
+            "marker": "o",
+            "include_in_frontier": True,  # Include in frontier analysis
+        },
+        {
+            "name": "lstm 128d mup",
             "csv_path": "../experimental_data_folder/muP_scaling_experiments/lstm_64d_mup.csv",
             "color": "tab:green",
             "marker": "o",

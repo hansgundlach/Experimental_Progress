@@ -21,6 +21,56 @@ import copy
 import csv
 
 
+def get_mup_learning_rates(model, base_lr, use_mup=False, mup_base_width=64):
+    """Get muP-scaled learning rates for different parameter groups"""
+    if not use_mup:
+        return [{"params": model.parameters(), "lr": base_lr}]
+
+    # Calculate scaling factor
+    if hasattr(model, "module"):  # Handle DataParallel/DDP
+        hidden_size = model.module.hidden_size
+        mup_scale = hidden_size / mup_base_width
+        embedding = model.module.embedding
+        lstm_layers = model.module.lstm_layers
+        linear = model.module.linear
+    else:
+        hidden_size = model.hidden_size
+        mup_scale = hidden_size / mup_base_width
+        embedding = model.embedding
+        lstm_layers = model.lstm_layers
+        linear = model.linear
+
+    param_groups = []
+
+    # Embedding parameters: lr scaled by 1/scale
+    param_groups.append(
+        {
+            "params": embedding.parameters(),
+            "lr": base_lr / mup_scale,
+            "name": "embedding",
+        }
+    )
+
+    # LSTM parameters: lr scaled by 1/scale
+    lstm_params = []
+    for lstm_layer in lstm_layers:
+        lstm_params.extend(list(lstm_layer.parameters()))
+    param_groups.append(
+        {"params": lstm_params, "lr": base_lr / mup_scale, "name": "lstm"}
+    )
+
+    # Output layer parameters: no scaling (base lr)
+    param_groups.append(
+        {"params": linear.parameters(), "lr": base_lr, "name": "output"}
+    )
+
+    print(
+        f"muP learning rates: embedding/lstm={base_lr/mup_scale:.6f}, output={base_lr:.6f}"
+    )
+
+    return param_groups
+
+
 cudnn.benchmark = True
 
 
@@ -107,11 +157,18 @@ class AdvancedLSTMLanguageModel(nn.Module):
         output_dropout: float = 0.4,
         use_layer_norm: bool = False,
         layer_norm_position: str = "output",
+        use_mup: bool = False,
+        mup_base_width: int = 64,
     ):
         super().__init__()
         self.hidden_size = hidden_size
         self.num_layers = num_layers
         self.vocab_size = vocab_size
+        self.use_mup = use_mup
+        self.mup_base_width = mup_base_width
+
+        # Calculate muP scaling factor
+        self.mup_scale = hidden_size / mup_base_width if use_mup else 1.0
 
         self.embedding = nn.Embedding(vocab_size, hidden_size)
 
@@ -142,6 +199,31 @@ class AdvancedLSTMLanguageModel(nn.Module):
                 self.output_layer_norms = nn.ModuleList(
                     [nn.LayerNorm(hidden_size) for _ in range(num_layers)]
                 )
+
+        # Apply muP initialization if enabled
+        if use_mup:
+            self._apply_mup_init()
+
+    def _apply_mup_init(self):
+        """Apply muP (Maximal Update Parametrization) initialization"""
+        # Embedding layer: scale by 1/sqrt(width)
+        nn.init.normal_(
+            self.embedding.weight, mean=0, std=1 / math.sqrt(self.hidden_size)
+        )
+
+        # LSTM layers: scale input-to-hidden weights by 1/sqrt(width)
+        for lstm_layer in self.lstm_layers:
+            for name, param in lstm_layer.named_parameters():
+                if "weight_ih" in name:  # input-to-hidden weights
+                    nn.init.normal_(param, mean=0, std=1 / math.sqrt(self.hidden_size))
+                elif "weight_hh" in name:  # hidden-to-hidden weights
+                    nn.init.normal_(param, mean=0, std=1 / math.sqrt(self.hidden_size))
+                elif "bias" in name:  # biases
+                    nn.init.zeros_(param)
+
+        # Output layer: scale by 1/width (not sqrt)
+        nn.init.normal_(self.linear.weight, mean=0, std=1 / self.hidden_size)
+        nn.init.zeros_(self.linear.bias)
 
     def forward(self, x, hidden=None):
         embedded = self.embedding(x)
@@ -181,6 +263,11 @@ class AdvancedLSTMLanguageModel(nn.Module):
         lstm_out = self.output_dropout(lstm_out)
 
         output = self.linear(lstm_out)
+
+        # Apply muP output scaling
+        if self.use_mup:
+            output = output * self.mup_scale
+
         return output, (h_n, c_n)
 
     def init_hidden(self, batch_size: int, device: torch.device):
@@ -339,10 +426,14 @@ class FLOPCounter:
 
         return embedding_flops + lstm_flops + linear_flops
 
-    def add_batch_flops(self):
-        """Add FLOPs for one batch using the profiled value"""
+    def add_batch_flops(self, microbatches_in_step: int = 1):
+        """Add FLOPs for a group of microbatches (one optimizer step).
+
+        Assumes flops_per_batch represents one microbatch forward+backward (+ step overhead).
+        We multiply by the number of microbatches contributing to this optimizer step.
+        """
         if self.flops_per_batch is not None:
-            self.total_flops += self.flops_per_batch
+            self.total_flops += self.flops_per_batch * int(max(1, microbatches_in_step))
         return self.flops_per_batch
 
     def get_timing_info(self):
@@ -656,6 +747,8 @@ def train_model(
         output_dropout=config["output_dropout"],
         use_layer_norm=config.get("use_layer_norm", False),
         layer_norm_position=config.get("layer_norm_position", "output"),
+        use_mup=config.get("use_mup", False),
+        mup_base_width=config.get("mup_base_width", 64),
     ).to(device)
 
     # Use DataParallel or DDP if requested
@@ -688,23 +781,53 @@ def train_model(
 
     # Loss and optimizer
     criterion = nn.CrossEntropyLoss()
+
+    # Get parameter groups with muP learning rate scaling if enabled
+    use_mup = config.get("use_mup", False)
+    if use_mup:
+        param_groups = get_mup_learning_rates(
+            model,
+            config["learning_rate"],
+            use_mup=True,
+            mup_base_width=config.get("mup_base_width", 64),
+        )
+    else:
+        # Standard case: single parameter group
+        param_groups = model.parameters()
+
     # Select optimizer based on config
     opt_name = config.get("optimizer", "adam").lower()
     if opt_name == "adam":
-        optimizer = optim.Adam(model.parameters(), lr=config["learning_rate"])
+        if use_mup:
+            optimizer = optim.Adam(param_groups)
+        else:
+            optimizer = optim.Adam(param_groups, lr=config["learning_rate"])
     elif opt_name == "adamw":
-        optimizer = optim.AdamW(
-            model.parameters(),
-            lr=config["learning_rate"],
-            weight_decay=config.get("weight_decay", 0.0),
-        )
+        if use_mup:
+            optimizer = optim.AdamW(
+                param_groups,
+                weight_decay=config.get("weight_decay", 0.0),
+            )
+        else:
+            optimizer = optim.AdamW(
+                param_groups,
+                lr=config["learning_rate"],
+                weight_decay=config.get("weight_decay", 0.0),
+            )
     elif opt_name == "sgd":
-        optimizer = optim.SGD(
-            model.parameters(),
-            lr=config["learning_rate"],
-            momentum=config.get("momentum", 0.9),
-            weight_decay=config.get("weight_decay", 0.0),
-        )
+        if use_mup:
+            optimizer = optim.SGD(
+                param_groups,
+                momentum=config.get("momentum", 0.9),
+                weight_decay=config.get("weight_decay", 0.0),
+            )
+        else:
+            optimizer = optim.SGD(
+                param_groups,
+                lr=config["learning_rate"],
+                momentum=config.get("momentum", 0.9),
+                weight_decay=config.get("weight_decay", 0.0),
+            )
     else:
         raise ValueError(f"Unsupported optimizer: {config['optimizer']}")
 
@@ -783,11 +906,21 @@ def train_model(
                 device, non_blocking=True
             )
 
-            # Track FLOP count - FIXED: Only add FLOPs when optimizer steps occur
-            if (batch_idx + 1) % gradient_accumulation_steps == 0 or (
+            # Track FLOPs: add FLOPs once per optimizer step, scaled by number of microbatches.
+            is_optimizer_step = (batch_idx + 1) % gradient_accumulation_steps == 0 or (
                 batch_idx + 1 == len(train_loader)
-            ):
-                flop_counter.add_batch_flops()
+            )
+            if is_optimizer_step:
+                # Determine how many microbatches contributed to this step
+                if (batch_idx + 1) % gradient_accumulation_steps == 0:
+                    microbatches_this_step = gradient_accumulation_steps
+                else:
+                    # Last partial step of the epoch
+                    remainder = (batch_idx + 1) % gradient_accumulation_steps
+                    microbatches_this_step = (
+                        remainder if remainder != 0 else gradient_accumulation_steps
+                    )
+                flop_counter.add_batch_flops(microbatches_this_step)
 
             # Forward pass with mixed precision
             if use_amp:
@@ -971,17 +1104,26 @@ def train_model(
         )
         * 3
     )  # x3 for fwd+bwd
-    # FIXED: Count optimizer steps, not batch steps
-    total_optimizer_steps = (len(train_loader) // gradient_accumulation_steps) * config[
-        "num_epochs"
-    ]
-    total_flops_theoretical = flops_per_batch_manual * total_optimizer_steps
+    # Count optimizer steps and microbatches precisely
+    batches_per_epoch = len(train_loader)
+    full_steps_per_epoch = batches_per_epoch // gradient_accumulation_steps
+    remainder_microbatches = batches_per_epoch % gradient_accumulation_steps
+    optimizer_steps_per_epoch = full_steps_per_epoch + (
+        1 if remainder_microbatches > 0 else 0
+    )
+    total_optimizer_steps = optimizer_steps_per_epoch * config["num_epochs"]
+
+    # Total microbatches processed over all epochs
+    total_microbatches = batches_per_epoch * config["num_epochs"]
+    # Theoretical FLOPs: per-microbatch fwd+bwd (x3) times total microbatches
+    total_flops_theoretical = flops_per_batch_manual * total_microbatches
 
     # FIXED: Also calculate theoretical FLOPs using the standard formula
     # Theoretical FLOPs: 6 * non_embedding_params * total_tokens
     effective_batch_size = config["batch_size"] * gradient_accumulation_steps
+    # Tokens are counted per microbatch
     total_tokens_processed = (
-        total_optimizer_steps * effective_batch_size * config["sequence_length"]
+        total_microbatches * config["batch_size"] * config["sequence_length"]
     )
 
     # Count non-embedding parameters

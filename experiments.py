@@ -29,6 +29,7 @@ from experiment_definitions import (
     TWO_CHANGES_EXPERIMENTS,
     INITIALIZATION_EXPERIMENTS,
     SGD_VARIATION_EXPERIMENTS,
+    MUP_SCALING_EXPERIMENTS,
 )
 
 
@@ -234,7 +235,7 @@ if __name__ == "__main__":
         return result
 
     # wanted = {"32d_linear_warmup_123", "32d_transformer_123", "32d_cosine_standard_123"}
-    wanted = {"128d"}
+    # wanted = {"128d"}
     # EXPERIMENTS = subset_experiments(LR_SCHEDULE_EXPERIMENTS, wanted)
     # EXPERIMENTS = (
     #     HIDDEN_DIM_EXPERIMENTS_NO_ROTARY_123_EXTENSIONS
@@ -283,7 +284,8 @@ if __name__ == "__main__":
     # wanted = {"56d_123_sgd", "80d_123_sgd", "96d_123_sgd"}
     # EXPERIMENTS = subset_experiments(HIDDEN_DIM_EXPERIMENTS_123_SGD, wanted)
     # EXPERIMENTS = LR_EXPERIMENTS
-    EXPERIMENTS = HIDDEN_DIM_EXPERIMENTS_123_SGD
+    wanted = {"80d_2_mup_sgd", "96d_2_mup_sgd", "112d_2_mup_sgd", "128d_2_mup_sgd"}
+    EXPERIMENTS = subset_experiments(MUP_SCALING_EXPERIMENTS, wanted)
     # EXPERIMENTS = OPTIMIZER_EXPERIMENTS
 
     # ====================================================================

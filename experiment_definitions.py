@@ -363,6 +363,99 @@ LR_EXPERIMENTS = [
 ]
 
 
+LR_EXPERIMENTS_MUP = [
+    {
+        "name": "l_rate_hyper_param_tune_mup_sgd",
+        "subexperiments": [
+            {
+                "label": "mup_sgd_lr_10_-1",
+                "overrides": {
+                    "hidden_dim": 32,
+                    "num_layers": 3,
+                    "num_heads": 2,
+                    "learning_rate": 10 ** (-1),
+                    "wikitext_limit": int(32901760 * 4),
+                    "seed": 123,
+                    "optimizer": "sgd",
+                },
+            },
+            {
+                "label": "mup_sgd_lr_10_-1.5",
+                "overrides": {
+                    "hidden_dim": 32,
+                    "num_layers": 3,
+                    "num_heads": 2,
+                    "learning_rate": 10 ** (-1.5),
+                    "wikitext_limit": int(32901760 * 4),
+                    "seed": 123,
+                    "optimizer": "sgd",
+                },
+            },
+            {
+                "label": "mup_sgd_lr_10_-2",
+                "overrides": {
+                    "hidden_dim": 32,
+                    "num_layers": 3,
+                    "num_heads": 2,
+                    "learning_rate": 10 ** (-2),
+                    "wikitext_limit": int(32901760 * 4),
+                    "seed": 123,
+                    "optimizer": "sgd",
+                },
+            },
+            {
+                "label": "mup_sgd_lr_10_-2.5",
+                "overrides": {
+                    "hidden_dim": 32,
+                    "num_layers": 3,
+                    "num_heads": 2,
+                    "learning_rate": 10 ** (-2.5),
+                    "wikitext_limit": int(32901760 * 4),
+                    "seed": 123,
+                    "optimizer": "sgd",
+                },
+            },
+            {
+                "label": "mup_sgd_lr_10_-3",
+                "overrides": {
+                    "hidden_dim": 32,
+                    "num_layers": 3,
+                    "num_heads": 2,
+                    "learning_rate": 10 ** (-3),
+                    "wikitext_limit": int(32901760 * 4),
+                    "seed": 123,
+                    "optimizer": "sgd",
+                },
+            },
+            {
+                "label": "mup_sgd_lr_10_-3.5",
+                "overrides": {
+                    "hidden_dim": 32,
+                    "num_layers": 3,
+                    "num_heads": 2,
+                    "learning_rate": 10 ** (-3.5),
+                    "wikitext_limit": int(32901760 * 4),
+                    "seed": 123,
+                    "optimizer": "sgd",
+                },
+            },
+            {
+                "label": "mup_sgd_lr_10_-4",
+                "overrides": {
+                    "hidden_dim": 32,
+                    "num_layers": 3,
+                    "num_heads": 2,
+                    "learning_rate": 10 ** (-4),
+                    "wikitext_limit": int(32901760 * 4),
+                    "seed": 123,
+                    "optimizer": "sgd",
+                },
+            },
+        ],
+    },
+]
+
+
 SGD_VARIATION_EXPERIMENTS = [
     {
         "label": "32d_cosine_warmup_sgd",
@@ -1000,6 +1093,140 @@ BASIC_TEST_EXPERIMENT = [
                     "wikitext_limit": int(3290176),
                     "seed": 123,
                     "lr_schedule": "cosine",
+                },
+            },
+        ],
+    },
+]
+
+MUP_SCALING_EXPERIMENTS = [
+    {
+        "name": "muP_scaling_experiments",
+        "subexperiments": [
+            {
+                "label": "16d_mup_sgd",
+                "overrides": {
+                    "hidden_dim": 16,
+                    "num_layers": 2,
+                    "num_heads": 2,
+                    "learning_rate": 10 ** (-1.5),
+                    "wikitext_limit": 16205120 * 4,
+                    "seed": 123,
+                    "optimizer": "sgd",
+                    "use_mup": True,
+                    "mup_base_width": 16,  # Base width for muP scaling
+                },
+            },
+            {
+                "label": "24d_mup_sgd",
+                "overrides": {
+                    "hidden_dim": 24,
+                    "num_layers": 3,
+                    "num_heads": 2,
+                    "learning_rate": 10 ** (-1.5),
+                    "wikitext_limit": 24538080 * 4,
+                    "seed": 123,
+                    "optimizer": "sgd",
+                    "use_mup": True,
+                    "mup_base_width": 24,  # Base width for muP scaling
+                },
+            },
+            {
+                "label": "32d_mup_sgd",
+                "overrides": {
+                    "hidden_dim": 32,
+                    "num_layers": 3,  # Base: 32d -> 3 layers
+                    "num_heads": 2,
+                    "learning_rate": 10 ** (-1.5),
+                    "wikitext_limit": 32901760 * 4,
+                    "seed": 123,
+                    "optimizer": "sgd",
+                    "use_mup": True,
+                    "mup_base_width": 32,  # Base width for muP scaling
+                },
+            },
+            {
+                "label": "48d_mup_sgd",
+                "overrides": {
+                    "hidden_dim": 48,
+                    "num_layers": 4,  # 48/32 * 3 = 4.5 -> 4 layers
+                    "num_heads": 3,  # Scale heads proportionally: 48/32 * 2 = 3
+                    "learning_rate": 10 ** (-1.5),
+                    "wikitext_limit": 50458560 * 4,
+                    "seed": 123,
+                    "optimizer": "sgd",
+                    "use_mup": True,
+                    "mup_base_width": 32,  # Base width for muP scaling
+                },
+            },
+            {
+                "label": "64d_mup_sgd",
+                "overrides": {
+                    "hidden_dim": 64,
+                    "num_layers": 6,  # 64/32 * 3 = 6 layers
+                    "num_heads": 4,  # Scale heads proportionally: 64/32 * 2 = 4
+                    "learning_rate": 10 ** (-1.5),
+                    "wikitext_limit": 68261120 * 4,
+                    "seed": 123,
+                    "use_mup": True,
+                    "optimizer": "sgd",
+                    "mup_base_width": 32,  # Base width for muP scaling
+                },
+            },
+            {
+                "label": "80d_2_mup_sgd",
+                "overrides": {
+                    "hidden_dim": 80,
+                    "num_layers": 7,  # 80/32 * 3 = 7.5 -> 7 layers
+                    "num_heads": 5,  # Scale heads proportionally: 80/32 * 2 = 5
+                    "learning_rate": 10 ** (-1.5),
+                    "wikitext_limit": 88091200 * 4,
+                    "seed": 123,
+                    "use_mup": True,
+                    "optimizer": "sgd",
+                    "mup_base_width": 32,  # Base width for muP scaling
+                },
+            },
+            {
+                "label": "96d_2_mup_sgd",
+                "overrides": {
+                    "hidden_dim": 96,
+                    "num_layers": 9,  # 96/32 * 3 = 9 layers
+                    "num_heads": 6,  # Scale heads proportionally: 96/32 * 2 = 6
+                    "learning_rate": 10 ** (-1.5),
+                    "wikitext_limit": 109764480 * 4,
+                    "seed": 123,
+                    "use_mup": True,
+                    "optimizer": "sgd",
+                    "mup_base_width": 32,  # Base width for muP scaling
+                },
+            },
+            {
+                "label": "112d_2_mup_sgd",
+                "overrides": {
+                    "hidden_dim": 112,
+                    "num_layers": 10,  # 112/32 * 3 = 10.5 -> 10 layers
+                    "num_heads": 7,  # Scale heads proportionally: 112/32 * 2 = 7
+                    "learning_rate": 10 ** (-1.5),
+                    "wikitext_limit": 133649600 * 4,
+                    "seed": 123,
+                    "use_mup": True,
+                    "optimizer": "sgd",
+                    "mup_base_width": 32,  # Base width for muP scaling
+                },
+            },
+            {
+                "label": "128d_2_mup_sgd",
+                "overrides": {
+                    "hidden_dim": 128,
+                    "num_layers": 12,  # 128/32 * 3 = 12 layers
+                    "num_heads": 8,  # Scale heads proportionally: 128/32 * 2 = 8
+                    "learning_rate": 10 ** (-1.5),
+                    "wikitext_limit": 160115200 * 4,
+                    "seed": 123,
+                    "use_mup": True,
+                    "optimizer": "sgd",
+                    "mup_base_width": 32,  # Base width for muP scaling
                 },
             },
         ],
