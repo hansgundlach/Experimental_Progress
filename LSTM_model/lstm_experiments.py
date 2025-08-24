@@ -4,6 +4,10 @@ import os
 import time
 import copy
 import math
+import sys
+
+# Ensure local directory is on sys.path for relative imports when launched by Slurm
+sys.path.append(os.path.dirname(os.path.abspath(__file__)))
 from lstm_training import train_model
 import argparse
 import torch.multiprocessing as mp
@@ -132,6 +136,61 @@ LSTM_OPTIMIZER_EXPERIMENTS = [
     },
 ]
 
+
+LSTM_OPTIMAL_SCALING = [
+    {
+        "name": "lstm_optimal_scaling",
+        "subexperiments": [
+            {
+                "label": "lstm_16d",
+                "overrides": {
+                    "learning_rate": 10 ** (-1.5),
+                    "hidden_size": 16,
+                    "max_characters": 129e6,
+                    "seed": 123,
+                },
+            },
+            {
+                "label": "lstm_24d",
+                "overrides": {
+                    "learning_rate": 10 ** (-1.5),
+                    "max_characters": 193e6,
+                    "seed": 123,
+                    "hidden_size": 24,
+                },
+            },
+            {
+                "label": "lstm_32d",
+                "overrides": {
+                    "learning_rate": 10 ** (-1.5),
+                    "max_characters": 258e6,
+                    "seed": 123,
+                    "hidden_size": 32,
+                },
+            },
+            {
+                "label": "lstm_48d",
+                "overrides": {
+                    "learning_rate": 1e-2,
+                    "max_characters": 388e6,
+                    "seed": 123,
+                    "hidden_size": 48,
+                },
+            },
+            {
+                "label": "LSTM_64d",
+                "overrides": {
+                    "learning_rate": 1e-2,
+                    "max_characters": 519e6,
+                    "seed": 123,
+                    "hidden_size": 64,
+                },
+            },
+        ],
+    },
+]
+
+
 # – Add more experiments here, e.g.
 # {
 #   "name": "Another_experiment",
@@ -142,55 +201,234 @@ LSTM_OPTIMIZER_EXPERIMENTS = [
 # },
 # ]
 
-# =====
-
+# ===
 # 193.7e6 258.6e6 388.8e6 520e6
 
 
-LSTM_HIDDEN_DIM_EXPERIMENTS = [
+LSTM_HIDDEN_DIM_EXPERIMENTS_LR_TUNES = [
     {
-        "name": "lstm_hidden_dim_scaling",
+        "name": "lstm_hidden_dim_scaling_lr_tunes",
         "subexperiments": [
             {
-                "label": "lstm_16d",
+                "label": "lstm_16d_1e-3",
                 "overrides": {
-                    "learning_rate": 3 * 1e-3,
+                    "learning_rate": 1e-3,
                     "hidden_size": 16,
                     "max_characters": 129e6,
                     "seed": 123,
                 },
             },
             {
-                "label": "lstm_24d",
+                "label": "lstm_24d_1e-3",
                 "overrides": {
-                    "learning_rate": 3 * 1e-3,
+                    "learning_rate": 1e-3,
                     "max_characters": 129e6,
                     "seed": 123,
                     "hidden_size": 24,
                 },
             },
             {
-                "label": "lstm_32d",
+                "label": "lstm_32d_1e-3",
                 "overrides": {
-                    "learning_rate": 3 * 1e-3,
+                    "learning_rate": 1e-3,
                     "max_characters": 129e6,
                     "seed": 123,
                     "hidden_size": 32,
                 },
             },
             {
-                "label": "lstm_48d",
+                "label": "lstm_48d_1e-3",
                 "overrides": {
-                    "learning_rate": 3 * 1e-3,
+                    "learning_rate": 1e-3,
                     "max_characters": 129e6,
                     "seed": 123,
                     "hidden_size": 48,
                 },
             },
             {
-                "label": "LSTM_64d",
+                "label": "LSTM_64d_1e-3",
                 "overrides": {
-                    "learning_rate": 3 * 1e-3,
+                    "learning_rate": 1e-3,
+                    "max_characters": 129e6,
+                    "seed": 123,
+                    "hidden_size": 64,
+                },
+            },
+            {
+                "label": "lstm_16d_1e-2.5",
+                "overrides": {
+                    "learning_rate": 10 ** (-2.5),
+                    "hidden_size": 16,
+                    "max_characters": 129e6,
+                    "seed": 123,
+                },
+            },
+            {
+                "label": "lstm_24d_1e-2.5",
+                "overrides": {
+                    "learning_rate": 10 ** (-2.5),
+                    "max_characters": 129e6,
+                    "seed": 123,
+                    "hidden_size": 24,
+                },
+            },
+            {
+                "label": "lstm_32d_1e-2.5",
+                "overrides": {
+                    "learning_rate": 10 ** (-2.5),
+                    "max_characters": 129e6,
+                    "seed": 123,
+                    "hidden_size": 32,
+                },
+            },
+            {
+                "label": "lstm_48d_1e-2.5",
+                "overrides": {
+                    "learning_rate": 10 ** (-2.5),
+                    "max_characters": 129e6,
+                    "seed": 123,
+                    "hidden_size": 48,
+                },
+            },
+            {
+                "label": "LSTM_64d_1e-2.5",
+                "overrides": {
+                    "learning_rate": 10 ** (-2.5),
+                    "max_characters": 129e6,
+                    "seed": 123,
+                    "hidden_size": 64,
+                },
+            },
+            {
+                "label": "lstm_16d_1e-2",
+                "overrides": {
+                    "learning_rate": 1e-2,
+                    "hidden_size": 16,
+                    "max_characters": 129e6,
+                    "seed": 123,
+                },
+            },
+            {
+                "label": "lstm_24d_1e-2",
+                "overrides": {
+                    "learning_rate": 1e-2,
+                    "max_characters": 129e6,
+                    "seed": 123,
+                    "hidden_size": 24,
+                },
+            },
+            {
+                "label": "lstm_32d_1e-2",
+                "overrides": {
+                    "learning_rate": 1e-2,
+                    "max_characters": 129e6,
+                    "seed": 123,
+                    "hidden_size": 32,
+                },
+            },
+            {
+                "label": "lstm_48d_1e-2",
+                "overrides": {
+                    "learning_rate": 1e-2,
+                    "max_characters": 129e6,
+                    "seed": 123,
+                    "hidden_size": 48,
+                },
+            },
+            {
+                "label": "LSTM_64d_1e-2",
+                "overrides": {
+                    "learning_rate": 1e-2,
+                    "max_characters": 129e6,
+                    "seed": 123,
+                    "hidden_size": 64,
+                },
+            },
+            {
+                "label": "lstm_16d_1e-1.5",
+                "overrides": {
+                    "learning_rate": 10 ** (-1.5),
+                    "hidden_size": 16,
+                    "max_characters": 129e6,
+                    "seed": 123,
+                },
+            },
+            {
+                "label": "lstm_24d_1e-1.5",
+                "overrides": {
+                    "learning_rate": 10 ** (-1.5),
+                    "max_characters": 129e6,
+                    "seed": 123,
+                    "hidden_size": 24,
+                },
+            },
+            {
+                "label": "lstm_32d_1e-1.5",
+                "overrides": {
+                    "learning_rate": 10 ** (-1.5),
+                    "max_characters": 129e6,
+                    "seed": 123,
+                    "hidden_size": 32,
+                },
+            },
+            {
+                "label": "lstm_48d_1e-1.5",
+                "overrides": {
+                    "learning_rate": 10 ** (-1.5),
+                    "max_characters": 129e6,
+                    "seed": 123,
+                    "hidden_size": 48,
+                },
+            },
+            {
+                "label": "LSTM_64d_1e-1.5",
+                "overrides": {
+                    "learning_rate": 10 ** (-1.5),
+                    "max_characters": 129e6,
+                    "seed": 123,
+                    "hidden_size": 64,
+                },
+            },
+            {
+                "label": "lstm_16d_1e-1",
+                "overrides": {
+                    "learning_rate": 10 ** (-1),
+                    "hidden_size": 16,
+                    "max_characters": 129e6,
+                    "seed": 123,
+                },
+            },
+            {
+                "label": "lstm_24d_1e-1",
+                "overrides": {
+                    "learning_rate": 10 ** (-1),
+                    "max_characters": 129e6,
+                    "seed": 123,
+                    "hidden_size": 24,
+                },
+            },
+            {
+                "label": "lstm_32d_1e-1",
+                "overrides": {
+                    "learning_rate": 10 ** (-1),
+                    "max_characters": 129e6,
+                    "seed": 123,
+                    "hidden_size": 32,
+                },
+            },
+            {
+                "label": "lstm_48d_1e-1",
+                "overrides": {
+                    "learning_rate": 10 ** (-1),
+                    "max_characters": 129e6,
+                    "seed": 123,
+                    "hidden_size": 48,
+                },
+            },
+            {
+                "label": "LSTM_64d_1e-1",
+                "overrides": {
+                    "learning_rate": 10 ** (-1),
                     "max_characters": 129e6,
                     "seed": 123,
                     "hidden_size": 64,
@@ -249,7 +487,7 @@ LSTM_SGD_SCALING = [
                 "label": "LSTM_64d_sgd",
                 "overrides": {
                     "learning_rate": 3 * 1e-3,
-                    "max_characters": 388.8e6,
+                    "max_characters": 519.9e6,
                     "seed": 123,
                     "hidden_size": 64,
                     "optimizer": "sgd",
@@ -632,22 +870,22 @@ def create_multi_lr_experiments(base_experiments, learning_rates):
 # ====================================================================
 
 # Define standard learning rate sweeps
-STANDARD_LR_SWEEP = [1e-4, 10 ** (-3.5), 1e-3, 10 ** (-2.5), 1e-2, 10 ** (-1.5), 1e-1]
-NARROW_LR_SWEEP = [
-    10 ** (-3),
-    10 ** (-2.5),
-    10 ** (-2),
-    10 ** (-1.5),
-    1e-1,
-]  # Focused sweep around promising values
+# STANDARD_LR_SWEEP = [1e-4, 10 ** (-3.5), 1e-3, 10 ** (-2.5), 1e-2, 10 ** (-1.5), 1e-1]
+# NARROW_LR_SWEEP = [
+#     10 ** (-3),
+#     10 ** (-2.5),
+#     10 ** (-2),
+#     10 ** (-1.5),
+#     1e-1,
+# ]  # Focused sweep around promising values
 
 
-# Active configuration: Learning rate sweep on lstm_32d
-wanted = {"lstm_16d", "lstm_24d", "lstm_32d", "lstm_48d", "lstm_64d"}
-selected_experiments = subset_experiments(LSTM_HIDDEN_DIM_EXPERIMENTS, wanted)
-EXPERIMENTS = create_multi_lr_experiments(selected_experiments, NARROW_LR_SWEEP)
+# # Active configuration: Learning rate sweep on lstm_32d
+# wanted = {"lstm_16d", "lstm_24d", "lstm_32d", "lstm_48d", "lstm_64d"}
+# selected_experiments = subset_experiments(LSTM_HIDDEN_DIM_EXPERIMENTS, wanted)
+# EXPERIMENTS = create_multi_lr_experiments(selected_experiments, NARROW_LR_SWEEP)
 
-
+EXPERIMENTS = LSTM_OPTIMAL_SCALING
 # Example usage patterns:
 
 # Example 1: Generate a single learning rate sweep experiment
@@ -768,6 +1006,21 @@ if __name__ == "__main__":
         "--total_jobs", type=int, default=1, help="Total SLURM jobs in array"
     )
     args = parser.parse_args()
+
+    # Fallback: derive array info from SLURM env if not provided via CLI
+    if args.total_jobs == 1 and os.environ.get("SLURM_ARRAY_TASK_ID") is not None:
+        env_job_id = os.environ.get("SLURM_ARRAY_TASK_ID")
+        env_task_min = os.environ.get("SLURM_ARRAY_TASK_MIN")
+        env_task_max = os.environ.get("SLURM_ARRAY_TASK_MAX")
+        try:
+            args.job_id = int(env_job_id)
+            if env_task_min is not None and env_task_max is not None:
+                args.total_jobs = int(env_task_max) - int(env_task_min) + 1
+            elif env_task_max is not None:
+                # Assume min=0 if only max is present
+                args.total_jobs = int(env_task_max) + 1
+        except ValueError:
+            pass
 
     # --- 1. Prepare all sub-experiments from the EXPERIMENTS list ---
     all_sub_experiments = []

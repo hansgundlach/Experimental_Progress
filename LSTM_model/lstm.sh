@@ -7,7 +7,7 @@
 #SBATCH --ntasks-per-node=2
 #SBATCH --gres=gpu:volta:2
 #SBATCH --mem=32G
-#SBATCH --array=0-3
+#SBATCH --array=0-24%4
 
 # Create logs directory name with timestamp
 LOG_DIR="logs/lstm_runs/$(date +%d-%H)"
@@ -30,7 +30,13 @@ echo "GPU allocation for this task:"
 nvidia-smi || echo "nvidia-smi not found"
 
 # Run the main experiment, passing the array info
-TOTAL_JOBS=${SLURM_ARRAY_TASK_COUNT:-4} # Default to 4 if not set
+if [[ -n "${SLURM_ARRAY_TASK_COUNT}" ]]; then
+TOTAL_JOBS=${SLURM_ARRAY_TASK_COUNT}
+elif [[ -n "${SLURM_ARRAY_TASK_MAX}" && -n "${SLURM_ARRAY_TASK_MIN}" ]]; then
+TOTAL_JOBS=$((SLURM_ARRAY_TASK_MAX - SLURM_ARRAY_TASK_MIN + 1))
+else
+TOTAL_JOBS=1
+fi
 echo "Running experiment slice ${SLURM_ARRAY_TASK_ID} of ${TOTAL_JOBS}..."
 python lstm_experiments.py --job_id ${SLURM_ARRAY_TASK_ID} --total_jobs ${TOTAL_JOBS} 2>&1 | tee "$LOG_DIR/job_${SLURM_ARRAY_JOB_ID}_task_${SLURM_ARRAY_TASK_ID}.log"
 
