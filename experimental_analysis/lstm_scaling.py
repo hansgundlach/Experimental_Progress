@@ -308,39 +308,74 @@ if __name__ == "__main__":
     # Add experiments - you can modify these paths and names as needed
     experiments_config = [
         {
+            "name": "lstm optimal scaling 16",
+            "csv_path": "../experimental_data_folder/lstm_optimal_scaling/lstm_16d.csv",
+            "color": "tab:blue",
+            "marker": "o",
+            "include_in_frontier": True,  # Include in frontier analysis
+        },
+        {
+            "name": "lstm optimal scaling 24",
+            "csv_path": "../experimental_data_folder/lstm_optimal_scaling/lstm_24d.csv",
+            "color": "tab:blue",
+            "marker": "o",
+            "include_in_frontier": True,  # Include in frontier analysis
+        },
+        {
+            "name": "lstm optimal scaling 32",
+            "csv_path": "../experimental_data_folder/lstm_optimal_scaling/lstm_32d.csv",
+            "color": "tab:blue",
+            "marker": "o",
+            "include_in_frontier": True,  # Include in frontier analysis
+        },
+        {
+            "name": "lstm optimal scaling 48",
+            "csv_path": "../experimental_data_folder/lstm_optimal_scaling/lstm_48d.csv",
+            "color": "tab:blue",
+            "marker": "o",
+            "include_in_frontier": True,  # Include in frontier analysis
+        },
+        {
+            "name": "lstm optimal scaling 64",
+            "csv_path": "../experimental_data_folder/lstm_optimal_scaling/lstm_64d.csv",
+            "color": "tab:blue",
+            "marker": "o",
+            "include_in_frontier": True,  # Include in frontier analysis
+        },
+        {
             "name": "lstm 16d hidden dim scaling",
             "csv_path": "../experimental_data_folder/LSTM_Hidden_Dim_Scaling/LSTM_16d_123.csv",
             "color": "tab:orange",
             "marker": "o",
-            "include_in_frontier": True,  # Include in frontier analysis
+            "include_in_frontier": False,  # Include in frontier analysis
         },
         {
             "name": "lstm 24d hidden dim scaling",
             "csv_path": "../experimental_data_folder/LSTM_Hidden_Dim_Scaling/LSTM_24d_123.csv",
             "color": "tab:orange",
             "marker": "o",
-            "include_in_frontier": True,  # Include in frontier analysis
+            "include_in_frontier": False,  # Include in frontier analysis
         },
         {
             "name": "lstm 32d hidden dim scaling",
             "csv_path": "../experimental_data_folder/LSTM_Hidden_Dim_Scaling/LSTM_32d_123.csv",
             "color": "tab:orange",
             "marker": "o",
-            "include_in_frontier": True,  # Include in frontier analysis
+            "include_in_frontier": False,  # Include in frontier analysis
         },
         {
             "name": "lstm 48d hidden dim scaling",
             "csv_path": "../experimental_data_folder/LSTM_Hidden_Dim_Scaling/LSTM_48d_123.csv",
             "color": "tab:orange",
             "marker": "o",
-            "include_in_frontier": True,  # Include in frontier analysis
+            "include_in_frontier": False,  # Include in frontier analysis
         },
         {
             "name": "lstm 64d hidden dim scaling",
             "csv_path": "../experimental_data_folder/LSTM_Hidden_Dim_Scaling/LSTM_64d_123.csv",
             "color": "tab:orange",
             "marker": "o",
-            "include_in_frontier": True,  # Include in frontier analysis
+            "include_in_frontier": False,  # Include in frontier analysis
         },
         {
             "name": "lstm 128d hidden dim scaling",
@@ -352,7 +387,7 @@ if __name__ == "__main__":
         {
             "name": "lstm 16d mup",
             "csv_path": "../experimental_data_folder/muP_scaling_experiments/lstm_16d_mup.csv",
-            "color": "tab:blue",
+            "color": "tab:pink",
             "marker": "o",
             "include_in_frontier": True,  # Include in frontier analysis
         },
@@ -361,40 +396,40 @@ if __name__ == "__main__":
             "csv_path": "../experimental_data_folder/muP_scaling_experiments/lstm_16d_standard.csv",
             "color": "tab:orange",
             "marker": "o",
-            "include_in_frontier": True,  # Include in frontier analysis
+            "include_in_frontier": False,  # Include in frontier analysis
         },
         {
             "name": "lstm 24d mup",
             "csv_path": "../experimental_data_folder/muP_scaling_experiments/lstm_24d_mup.csv",
-            "color": "tab:blue",
+            "color": "tab:pink",
             "marker": "o",
             "include_in_frontier": True,  # Include in frontier analysis
         },
         {
             "name": "lstm 32d mup",
             "csv_path": "../experimental_data_folder/muP_scaling_experiments/lstm_32d_mup.csv",
-            "color": "tab:red",
+            "color": "tab:pink",
             "marker": "o",
             "include_in_frontier": True,  # Include in frontier analysis
         },
         {
             "name": "lstm 32d standard",
             "csv_path": "../experimental_data_folder/muP_scaling_experiments/lstm_32d_standard.csv",
-            "color": "tab:pink",
+            "color": "tab:orange",
             "marker": "o",
             "include_in_frontier": False,  # Include in frontier analysis
         },
         {
             "name": "lstm 64d mup",
             "csv_path": "../experimental_data_folder/muP_scaling_experiments/lstm_64d_mup.csv",
-            "color": "tab:green",
+            "color": "tab:pink",
             "marker": "o",
             "include_in_frontier": True,  # Include in frontier analysis
         },
         {
             "name": "lstm 128d mup",
             "csv_path": "../experimental_data_folder/muP_scaling_experiments/lstm_64d_mup.csv",
-            "color": "tab:green",
+            "color": "tab:pink",
             "marker": "o",
             "include_in_frontier": True,  # Include in frontier analysis
         },

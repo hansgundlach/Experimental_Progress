@@ -444,7 +444,7 @@ LSTM_SGD_SCALING = [
         "name": "lsmt_sgd_scaling",
         "subexperiments": [
             {
-                "label": "LSTM_16d_sgd",
+                "label": "lstm_16d_sgd",
                 "overrides": {
                     "learning_rate": 3 * 1e-3,
                     "hidden_size": 16,
@@ -454,10 +454,21 @@ LSTM_SGD_SCALING = [
                 },
             },
             {
+                "label": "lstm_16d_sgd_mup",
+                "overrides": {
+                    "learning_rate": 3 * 1e-3,
+                    "hidden_size": 16,
+                    "max_characters": 129e6,
+                    "seed": 123,
+                    "optimizer": "sgd",
+                    "use_mup": True,
+                },
+            },
+            {
                 "label": "LSTM_24d_sgd",
                 "overrides": {
                     "learning_rate": 3 * 1e-3,
-                    "max_characters": 193.7e6,
+                    "max_characters": 129e6,
                     "seed": 123,
                     "hidden_size": 24,
                     "optimizer": "sgd",
@@ -467,7 +478,7 @@ LSTM_SGD_SCALING = [
                 "label": "LSTM_32d_sgd",
                 "overrides": {
                     "learning_rate": 3 * 1e-3,
-                    "max_characters": 258.6e6,
+                    "max_characters": 129e6,
                     "seed": 123,
                     "hidden_size": 32,
                     "optimizer": "sgd",
@@ -477,7 +488,7 @@ LSTM_SGD_SCALING = [
                 "label": "LSTM_48d_sgd",
                 "overrides": {
                     "learning_rate": 3 * 1e-3,
-                    "max_characters": 388.8e6,
+                    "max_characters": 129e6,
                     "seed": 123,
                     "hidden_size": 48,
                     "optimizer": "sgd",
@@ -487,10 +498,21 @@ LSTM_SGD_SCALING = [
                 "label": "LSTM_64d_sgd",
                 "overrides": {
                     "learning_rate": 3 * 1e-3,
-                    "max_characters": 519.9e6,
+                    "max_characters": 129e6,
                     "seed": 123,
                     "hidden_size": 64,
                     "optimizer": "sgd",
+                },
+            },
+            {
+                "label": "LSTM_64d_sgd_mup",
+                "overrides": {
+                    "learning_rate": 3 * 1e-3,
+                    "max_characters": 129e6,
+                    "seed": 123,
+                    "hidden_size": 64,
+                    "optimizer": "sgd",
+                    "use_mup": True,
                 },
             },
         ],
@@ -871,21 +893,22 @@ def create_multi_lr_experiments(base_experiments, learning_rates):
 
 # Define standard learning rate sweeps
 # STANDARD_LR_SWEEP = [1e-4, 10 ** (-3.5), 1e-3, 10 ** (-2.5), 1e-2, 10 ** (-1.5), 1e-1]
-# NARROW_LR_SWEEP = [
-#     10 ** (-3),
-#     10 ** (-2.5),
-#     10 ** (-2),
-#     10 ** (-1.5),
-#     1e-1,
-# ]  # Focused sweep around promising values
+NARROW_LR_SWEEP = [
+    10 ** (-3),
+    10 ** (-2.5),
+    10 ** (-2),
+    10 ** (-1.5),
+    1e-1,
+]  # Focused sweep around promising values
 
-
+subset_experiments = subset_experiments(
+    LSTM_SGD_SCALING, {"lstm_16d_sgd_mup", "lstm_16_sgd"}
+)
 # # Active configuration: Learning rate sweep on lstm_32d
-# wanted = {"lstm_16d", "lstm_24d", "lstm_32d", "lstm_48d", "lstm_64d"}
-# selected_experiments = subset_experiments(LSTM_HIDDEN_DIM_EXPERIMENTS, wanted)
-# EXPERIMENTS = create_multi_lr_experiments(selected_experiments, NARROW_LR_SWEEP)
 
-EXPERIMENTS = LSTM_OPTIMAL_SCALING
+EXPERIMENTS = create_multi_lr_experiments(subset_experiments, NARROW_LR_SWEEP)
+
+# EXPERIMENTS = MUP_SCALING_EXPERIMENTS
 # Example usage patterns:
 
 # Example 1: Generate a single learning rate sweep experiment
