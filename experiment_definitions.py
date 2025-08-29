@@ -746,7 +746,7 @@ TRANSFORMER_SGD_SCALING_EXPERIMENTS = [
         "name": "transformer_sgd_scaling",
         "subexperiments": [
             {
-                "label": "16d_sgd",
+                "label": "16d_sgd_mup",
                 "overrides": {
                     "hidden_dim": 16,
                     "num_layers": 2,
@@ -758,7 +758,7 @@ TRANSFORMER_SGD_SCALING_EXPERIMENTS = [
                 },
             },
             {
-                "label": "24d_sgd",
+                "label": "24d_sgd_mup",
                 "overrides": {
                     "hidden_dim": 24,
                     "num_layers": 2,
@@ -770,7 +770,7 @@ TRANSFORMER_SGD_SCALING_EXPERIMENTS = [
                 },
             },
             {
-                "label": "32d_sgd",
+                "label": "32d_sgd_mup",
                 "overrides": {
                     "hidden_dim": 32,
                     "num_layers": 2,
@@ -782,7 +782,7 @@ TRANSFORMER_SGD_SCALING_EXPERIMENTS = [
                 },
             },
             {
-                "label": "40d_sgd",
+                "label": "40d_sgd_mup",
                 "overrides": {
                     "hidden_dim": 40,
                     "num_layers": 3,
@@ -794,7 +794,7 @@ TRANSFORMER_SGD_SCALING_EXPERIMENTS = [
                 },
             },
             {
-                "label": "48d_sgd",
+                "label": "48d_sgd_mup",
                 "overrides": {
                     "hidden_dim": 48,
                     "num_layers": 3,
@@ -806,7 +806,7 @@ TRANSFORMER_SGD_SCALING_EXPERIMENTS = [
                 },
             },
             {
-                "label": "64d_sgd",
+                "label": "64d_sgd_mup",
                 "overrides": {
                     "hidden_dim": 64,
                     "num_layers": 4,

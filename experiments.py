@@ -349,7 +349,42 @@ if __name__ == "__main__":
     # EXPERIMENT PROCESSING
     # ====================================================================
 
-    EXPERIMENTS = TRANSFORMER_VARIATION_EXPERIMENTS_HEAD
+    # EXPERIMENTS = TRANSFORMER_VARIATION_EXPERIMENTS_HEAD
+
+    NARROW_LR_SWEEP = [
+        10 ** (-3),
+        10 ** (-2.5),
+        10 ** (-2),
+        10 ** (-1.5),
+        1e-1,
+    ]  # Focused sweep around promising values
+
+    # lr-tune experiments
+    base_experiment = subset_experiments(
+        TRANSFORMER_SCALING_EXPERIMENTS, ["32d_standard_mup"]
+    )
+    lr_tune_experiments_standard = create_multi_lr_experiments(
+        base_experiment, NARROW_LR_SWEEP
+    )
+
+    base_experiment_sgd = subset_experiments(
+        TRANSFORMER_SGD_SCALING_EXPERIMENTS, ["32d_sgd_mup"]
+    )
+
+    lr_tune_experiment_sgd = create_multi_lr_experiments(
+        base_experiment_sgd, NARROW_LR_SWEEP
+    )
+
+    just_lr_tune_experiments = lr_tune_experiments_standard + lr_tune_experiment_sgd
+
+    # scaling experiments
+    scaling_experiments = (
+        TRANSFORMER_SCALING_EXPERIMENTS
+        + TRANSFORMER_SGD_SCALING_EXPERIMENTS
+        + NO_ROTARY_SCALING_EXPERIMENTS
+    )
+    #
+    EXPERIMENTS = just_lr_tune_experiments
 
     # Prepare all sub-experiments
     all_sub_experiments = []
