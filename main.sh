@@ -4,9 +4,9 @@
 #SBATCH --error=slurm-array-%A_task-%a.err
 #SBATCH --partition=xeon-g6-volta
 #SBATCH --nodes=1
-#SBATCH --gres=gpu:volta:2
+#SBATCH --gres=gpu:volta:1
 #SBATCH --mem=32G
-#SBATCH --array=0-3
+#SBATCH --array=0-87%8
 
 # Create logs directory name with timestamp
 LOG_DIR="logs/$(date +%d-%H)"
@@ -34,7 +34,13 @@ echo "Checking GPU availability..."
 # No need for check_gpu.py, our python script handles GPU detection.
 
 # Run the main experiment, passing the array info
-TOTAL_JOBS=${SLURM_ARRAY_TASK_COUNT:-2} # Default to 2 if not set
+if [[ -n "${SLURM_ARRAY_TASK_COUNT}" ]]; then
+TOTAL_JOBS=${SLURM_ARRAY_TASK_COUNT}
+elif [[ -n "${SLURM_ARRAY_TASK_MAX}" && -n "${SLURM_ARRAY_TASK_MIN}" ]]; then
+TOTAL_JOBS=$((SLURM_ARRAY_TASK_MAX - SLURM_ARRAY_TASK_MIN + 1))
+else
+TOTAL_JOBS=1
+fi
 echo "Running experiment slice ${SLURM_ARRAY_TASK_ID} of ${TOTAL_JOBS}..."
 python experiments.py --job_id ${SLURM_ARRAY_TASK_ID} --total_jobs ${TOTAL_JOBS} 2>&1 | tee "$LOG_DIR/job_${SLURM_ARRAY_JOB_ID}_task_${SLURM_ARRAY_TASK_ID}.log"
 

@@ -11,25 +11,19 @@ import copy
 import argparse
 import multiprocessing as mp
 from experiment_definitions import (
-    ACTIVATION_EXPERIMENTS,
-    HIDDEN_DIM_EXPERIMENTS,
-    HIDDEN_DIM_EXPERIMENTS_NO_ROTARY,
-    HIDDEN_DIM_EXPERIMENTS_123,
-    HIDDEN_DIM_EXPERIMENTS_NO_ROTARY_123,
-    LR_EXPERIMENTS,
-    HIDDEN_DIM_EXPERIMENTS_123_SGD,
-    OPTIMIZER_EXPERIMENTS,
-    LR_SCHEDULE_EXPERIMENTS,
-    NORM_EXPERIMENTS,
-    LR_SCHEDULE_EXPERIMENTS_LARGE,
     BASIC_TEST_EXPERIMENT,
-    HIDDEN_DIM_EXPERIMENTS_NO_ROTARY_123_EXTENSIONS,
+    ACTIVATION_EXPERIMENTS,
+    OPTIMIZER_EXPERIMENTS,
     POS_ENCODING_EXPERIMENTS,
-    NEW_HYPER_PARAM_EXPERIMENTS,
-    TWO_CHANGES_EXPERIMENTS,
     INITIALIZATION_EXPERIMENTS,
-    SGD_VARIATION_EXPERIMENTS,
-    MUP_SCALING_EXPERIMENTS,
+    NORM_EXPERIMENTS,
+    LR_SCHEDULE_EXPERIMENTS,
+    SGD_SCHEDULE_VARIATION_EXPERIMENTS,
+    TRANSFORMER_VARIATION_EXPERIMENTS_HEAD,
+    TWO_CHANGES_EXPERIMENTS,
+    TRANSFORMER_SCALING_EXPERIMENTS,
+    NO_ROTARY_SCALING_EXPERIMENTS,
+    TRANSFORMER_SGD_SCALING_EXPERIMENTS,
 )
 
 
@@ -133,6 +127,68 @@ def create_multi_seed_experiments(base_experiments, seeds):
     return multi_seed_experiments
 
 
+def create_multi_lr_experiments(base_experiments, learning_rates):
+    """
+    Create multiple versions of experiments with different learning rates.
+    Similar to create_multi_seed_experiments but for learning rates.
+
+    Args:
+        base_experiments: List of experiment dictionaries (e.g., LSTM_HIDDEN_DIM_EXPERIMENTS)
+        learning_rates: List of learning rate values (e.g., [1e-4, 1e-3, 1e-2])
+
+    Returns:
+        List of experiment dictionaries with learning rate variations
+    """
+    multi_lr_experiments = []
+
+    for experiment in base_experiments:
+        # Create a new experiment group for each base experiment
+        new_experiment = {
+            "name": f"{experiment['name']}_lr_sweep",
+            "subexperiments": [],
+        }
+
+        # For each subexperiment in the base experiment
+        for sub_exp in experiment["subexperiments"]:
+            # Create a version for each learning rate
+            for lr in learning_rates:
+                # Create new subexperiment with lr suffix
+                new_sub_exp = copy.deepcopy(sub_exp)
+
+                # Add learning rate to the label
+                original_label = sub_exp["label"]
+                # Format learning rate for filename-safe label
+                if lr >= 1:
+                    lr_str = f"{lr:.0f}"
+                elif lr >= 0.01:
+                    lr_str = f"{lr:.3f}".rstrip("0").rstrip(".")
+                else:
+                    # For very small learning rates, use scientific notation
+                    lr_str = f"{lr:.1e}".replace("-", "m").replace("+", "p")
+
+                new_sub_exp["label"] = f"{original_label}_lr_{lr_str}"
+
+                # Add learning rate and max_characters to overrides
+                if "overrides" in new_sub_exp:
+                    new_sub_exp["overrides"]["learning_rate"] = lr
+                    new_sub_exp["overrides"]["max_characters"] = 129e6
+                elif "config" in new_sub_exp:
+                    new_sub_exp["config"]["learning_rate"] = lr
+                    new_sub_exp["config"]["max_characters"] = 129e6
+                else:
+                    # If neither exists, create overrides with learning rate and max_characters
+                    new_sub_exp["overrides"] = {
+                        "learning_rate": lr,
+                        "max_characters": 129e6,
+                    }
+
+                new_experiment["subexperiments"].append(new_sub_exp)
+
+        multi_lr_experiments.append(new_experiment)
+
+    return multi_lr_experiments
+
+
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Run Transformer Experiments")
     parser.add_argument(
@@ -175,7 +231,7 @@ if __name__ == "__main__":
         "wikitext_limit": 5 * 10**7,
         "pos_encoding": "rotary",
         "init_scheme": "transformer_scaled",
-        "stride": 64,
+        "stride": 128,
         "pin_memory": True,
         "compile": False,
         "prefetch_factor": 8,
@@ -190,10 +246,10 @@ if __name__ == "__main__":
         "norm_type": "layer",
         "norm_placement": "pre",
         "results_folder": "Former_Experiments_Folder",
-        "csv_log_interval": 50,
+        "csv_log_interval": 25,
         "seed": 789,
         # Complete-P (default OFF; non-breaking)
-        "enable_completep": True,
+        "enable_completep": False,
         "completep_alpha": 1.0,
         # Base constants for scaling rules
         "n_base": 256,
@@ -284,13 +340,16 @@ if __name__ == "__main__":
     # wanted = {"56d_123_sgd", "80d_123_sgd", "96d_123_sgd"}
     # EXPERIMENTS = subset_experiments(HIDDEN_DIM_EXPERIMENTS_123_SGD, wanted)
     # EXPERIMENTS = LR_EXPERIMENTS
-    wanted = {"80d_2_mup_sgd", "96d_2_mup_sgd", "112d_2_mup_sgd", "128d_2_mup_sgd"}
-    EXPERIMENTS = subset_experiments(MUP_SCALING_EXPERIMENTS, wanted)
+    # wanted = {"80d_2_mup_sgd", "96d_2_mup_sgd", "112d_2_mup_sgd", "128d_2_mup_sgd"}
+    # EXPERIMENTS = subset_experiments(MUP_SCALING_EXPERIMENTS, wanted)
+
     # EXPERIMENTS = OPTIMIZER_EXPERIMENTS
 
     # ====================================================================
     # EXPERIMENT PROCESSING
     # ====================================================================
+
+    EXPERIMENTS = TRANSFORMER_VARIATION_EXPERIMENTS_HEAD
 
     # Prepare all sub-experiments
     all_sub_experiments = []
