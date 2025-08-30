@@ -793,125 +793,125 @@ if __name__ == "__main__":
     # Add experiments - you can modify these paths and names as needed
     experiments_config = [
         {
-            "name": "lstm_16d_sgd_mup",
-            "csv_path": "../experimental_data_folder/lstm_sgd_mup_scaling/lstm_16d_sgd_mup.csv",
+            "name": "16d sgd",
+            "csv_path": "../experimental_data_folder/muP_scaling_experiments/16d_mup_sgd.csv",
+            "color": "tab:orange",
+            "marker": "o",
+            "include_in_frontier": True,  # Include in frontier analysis
+            "class": "sgd_transformer",
+        },
+        {
+            "name": "24d sgd",
+            "csv_path": "../experimental_data_folder/muP_scaling_experiments/24d_mup_sgd.csv",
             "color": "tab:blue",
             "marker": "o",
             "include_in_frontier": True,  # Include in frontier analysis
-            "class": "sgd_lstm",
+            "class": "sgd_transformer",
         },
         {
-            "name": "lstm_24d_sgd_mup",
-            "csv_path": "../experimental_data_folder/lstm_sgd_mup_scaling/lstm_24d_sgd_mup.csv",
-            "color": "tab:blue",
-            "marker": "o",
-            "include_in_frontier": True,
-            "class": "sgd_lstm",
-        },
-        {
-            "name": "lstm_32d_sgd_mup",
-            "csv_path": "../experimental_data_folder/lstm_sgd_mup_scaling/lstm_32d_sgd_mup.csv",
-            "color": "tab:blue",
+            "name": "32d sgd",
+            "csv_path": "../experimental_data_folder/muP_scaling_experiments/32d_mup_sgd.csv",
+            "color": "tab:green",
             "marker": "o",
             "include_in_frontier": True,  # Include in frontier analysis
-            "class": "sgd_lstm",
+            "class": "sgd_transformer",
         },
         {
-            "name": "lstm_48d_sgd_mup",
-            "csv_path": "../experimental_data_folder/lstm_sgd_mup_scaling/lstm_48d_sgd_mup.csv",
-            "color": "tab:blue",
+            "name": "48d sgd",
+            "csv_path": "../experimental_data_folder/muP_scaling_experiments/48d_mup_sgd.csv",
+            "color": "tab:red",
             "marker": "o",
             "include_in_frontier": True,  # Include in frontier analysis
-            "class": "sgd_lstm",
+            "class": "sgd_transformer",
         },
         {
-            "name": "lstm_64d_sgd_mup",
-            "csv_path": "../experimental_data_folder/lstm_sgd_mup_scaling/lstm_64d_sgd_mup.csv",
-            "color": "tab:blue",
+            "name": "64d sgd",
+            "csv_path": "../experimental_data_folder/muP_scaling_experiments/64d_mup_sgd.csv",
+            "color": "cyan",
             "marker": "o",
             "include_in_frontier": True,  # Include in frontier analysis
-            "class": "sgd_lstm",
+            "class": "sgd_transformer",
         },
         {
-            "name": "lstm 16d optimal",
-            "csv_path": "../experimental_data_folder/lstm_sgd_scaling/lstm_16d_sgd.csv",
+            "name": "80d sgd",
+            "csv_path": "../experimental_data_folder/muP_scaling_experiments/80d_2_mup_sgd.csv",
+            "color": "tab:orange",
+            "marker": "o",
+            "include_in_frontier": True,  # Include in frontier analysis
+            "class": "sgd_transformer",
+        },
+        {
+            "name": "96d sgd",
+            "csv_path": "../experimental_data_folder/muP_scaling_experiments/96d_2_mup_sgd.csv",
+            "color": "tab:red",
+            "marker": "o",
+            "include_in_frontier": True,  # Include in frontier analysis
+            "class": "sgd_transformer",
+        },
+        {
+            "name": "128d sgd",
+            "csv_path": "../experimental_data_folder/muP_scaling_experiments/128d_2_mup_sgd.csv",
             "color": "tab:purple",
             "marker": "o",
             "include_in_frontier": True,  # Include in frontier analysis
-            "class": "sgd_lstm",
+            "class": "sgd_transformer",
         },
         {
-            "name": "lstm 24d optimal",
-            "csv_path": "../experimental_data_folder/lstm_sgd_scaling/lstm_24d_sgd.csv",
+            "name": "adam 16d",
+            "csv_path": "../experimental_data_folder/Hidden_Dim_Scaling/16d_123.csv",
             "color": "tab:purple",
             "marker": "o",
             "include_in_frontier": True,  # Include in frontier analysis
-            "class": "sgd_lstm",
+            "class": "adam_transformer",
         },
         {
-            "name": "lstm 32d optimal",
-            "csv_path": "../experimental_data_folder/lstm_sgd_scaling/lstm_32d_sgd.csv",
+            "name": "adam 24d",
+            "csv_path": "../experimental_data_folder/Hidden_Dim_Scaling/24d_123.csv",
             "color": "tab:purple",
             "marker": "o",
             "include_in_frontier": True,  # Include in frontier analysis
-            "class": "sgd_lstm",
+            "class": "adam_transformer",
         },
         {
-            "name": "lstm 48d optimal",
-            "csv_path": "../experimental_data_folder/lstm_sgd_scaling/lstm_48d_sgd.csv",
+            "name": "adam 32d",
+            "csv_path": "../experimental_data_folder/Hidden_Dim_Scaling/32d_123.csv",
             "color": "tab:purple",
             "marker": "o",
             "include_in_frontier": True,  # Include in frontier analysis
-            "class": "sgd_lstmd",
+            "class": "adam_transformer",
         },
         {
-            "name": "lstm 64d optimal",
-            "csv_path": "../experimental_data_folder/lstm_sgd_scaling/lstm_64d_sgd.csv",
+            "name": "adam 64d",
+            "csv_path": "../experimental_data_folder/Hidden_Dim_Scaling/64d_123.csv",
             "color": "tab:purple",
             "marker": "o",
             "include_in_frontier": True,  # Include in frontier analysis
-            "class": "sgd_lstm",
+            "class": "adam_transformer",
         },
         {
-            "name": "lstm optimal scaling 16",
-            "csv_path": "../experimental_data_folder/lstm_optimal_scaling/lstm_16d.csv",
-            "color": "tab:blue",
+            "name": "adam 96d",
+            "csv_path": "../experimental_data_folder/Hidden_Dim_Scaling/96d_123.csv",
+            "color": "tab:purple",
             "marker": "o",
             "include_in_frontier": True,  # Include in frontier analysis
-            "class": "lstm_standard",
+            "class": "adam_transformer",
         },
         {
-            "name": "lstm optimal scaling 24",
-            "csv_path": "../experimental_data_folder/lstm_optimal_scaling/lstm_24d.csv",
-            "color": "tab:blue",
+            "name": "adam 128d",
+            "csv_path": "../experimental_data_folder/Hidden_Dim_Scaling/128d_123.csv",
+            "color": "tab:purple",
             "marker": "o",
             "include_in_frontier": True,  # Include in frontier analysis
-            "class": "lstm_standard",
+            "class": "adam_transformer",
         },
-        {
-            "name": "lstm optimal scaling 32",
-            "csv_path": "../experimental_data_folder/lstm_optimal_scaling/lstm_32d.csv",
-            "color": "tab:blue",
-            "marker": "o",
-            "include_in_frontier": True,  # Include in frontier analysis
-            "class": "lstm_standard",
-        },
-        {
-            "name": "lstm optimal scaling 48",
-            "csv_path": "../experimental_data_folder/lstm_optimal_scaling/lstm_48d.csv",
-            "color": "tab:blue",
-            "marker": "o",
-            "include_in_frontier": True,  # Include in frontier analysis
-            "class": "lstm_standard",
-        },
-        {
-            "name": "lstm optimal scaling 64",
-            "csv_path": "../experimental_data_folder/lstm_optimal_scaling/lstm_64d.csv",
-            "color": "tab:blue",
-            "marker": "o",
-            "include_in_frontier": True,  # Include in frontier analysis
-            "class": "lstm_standard",
-        },
+        # Example of an experiment that won't be included in frontier analysis
+        # {
+        #     "name": "baseline experiment",
+        #     "csv_path": "../experimental_data_folder/baseline/baseline.csv",
+        #     "color": "gray",
+        #     "marker": "s",
+        #     "include_in_frontier": False,  # Won't be included in frontier analysis
+        # },
     ]
 
     # Add experiments
@@ -928,10 +928,10 @@ if __name__ == "__main__":
     # Identify per-class frontiers
     analyzer.identify_frontier_by_class(
         method="pareto",
-        classes=["lstm_standard", "sgd_lstm"],
+        classes=["sgd_transformer", "adam_transformer"],
         flop_range_by_class={
-            "lstm_standard": (1e12, 1e14),
-            "sgd_lstm": (1e13, 1e15),
+            "sgd_transformer": (1e14, 1e15),
+            "adam_transformer": (1e13, 1e14),
         },
     )
 
@@ -940,10 +940,10 @@ if __name__ == "__main__":
         show_all_curves=True,
         show_power_law_fit=True,
         save_path="Figures/universal_scaling_law_study_by_class.png",
-        classes_to_plot=["lstm_standard", "sgd_lstm"],
+        classes_to_plot=["sgd_transformer", "adam_transformer"],
         flop_range_by_class={
-            "lstm_standard": (1e14, 1e15),
-            "sgd_lstm": (1e14, 1e15),
+            "sgd_transformer": (1e14, 1e15),
+            "adam_transformer": (1e13, 1e14),
         },
     )
 
