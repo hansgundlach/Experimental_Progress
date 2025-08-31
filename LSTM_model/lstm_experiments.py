@@ -49,7 +49,7 @@ CONFIG = {
     "gradient_clip_val": 1.0,
     # NEW: CSV logging settings
     "results_folder": "Experiments_Folder",
-    "csv_log_interval": 25,
+    "csv_log_interval": 20,
     # NEW: Data loading optimization settings
     "num_workers": "auto",  # Will be set automatically based on CPU cores
     "pin_memory": True,  # Faster GPU memory transfer

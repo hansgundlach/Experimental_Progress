@@ -1091,17 +1091,27 @@ def train(gpu_id=None, csv_log_path=None):
         )
         scheduler_type = "step"
     elif config.lr_schedule == "cosine_warmup":
+        # Determine effective min_lr
+        min_lr_multiplier = getattr(config, "min_lr_multiplier", None)
+        if min_lr_multiplier is not None:
+            effective_min_lr = min_lr_multiplier * config.learning_rate
+        else:
+            effective_min_lr = config.min_lr
+
+        # Calculate min_lr ratio for cosine decay
+        min_lr_ratio = effective_min_lr / config.learning_rate
 
         def warmup_cosine_step(step):
             step = max(1, step)
             # Linear warmup
             if step < warmup_steps:
                 return float(step) / float(max(1, warmup_steps))
-            # Cosine decay
+            # Cosine decay from 1.0 to min_lr_ratio
             if total_steps == warmup_steps:
                 return 1.0
             progress = (step - warmup_steps) / (total_steps - warmup_steps)
-            return 0.5 * (1.0 + math.cos(math.pi * progress))
+            cosine_factor = 0.5 * (1.0 + math.cos(math.pi * progress))
+            return min_lr_ratio + (1.0 - min_lr_ratio) * cosine_factor
 
         scheduler = optim.lr_scheduler.LambdaLR(optimizer, lr_lambda=warmup_cosine_step)
         scheduler_type = "step"

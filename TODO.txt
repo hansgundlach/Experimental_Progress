@@ -1,4 +1,8 @@
 
+New experiment submission workflow: ./submit_experiments.sh 
+
+
+
 
 Make LSTM experiments with and without layernorm 
 +cosine warmup+ 

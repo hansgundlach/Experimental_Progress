@@ -222,7 +222,7 @@ if __name__ == "__main__":
         "min_lr": 1e-5,
         "lr_schedule": "cosine",
         "warmup_frac": 0.1,
-        "weight_decay": 0.1,
+        "weight_decay": 0.01,
         "hidden_dim": 64,  # Base hidden dimension
         "num_layers": 4,  # Base number of layers
         "num_heads": 4,
@@ -246,7 +246,7 @@ if __name__ == "__main__":
         "norm_type": "layer",
         "norm_placement": "pre",
         "results_folder": "Former_Experiments_Folder",
-        "csv_log_interval": 25,
+        "csv_log_interval": 20,
         "seed": 789,
         # Complete-P (default OFF; non-breaking)
         "enable_completep": False,
@@ -384,8 +384,7 @@ if __name__ == "__main__":
         + NO_ROTARY_SCALING_EXPERIMENTS
     )
     #
-    EXPERIMENTS = just_lr_tune_experiments
-
+    EXPERIMENTS = TRANSFORMER_SCALING_EXPERIMENTS
     # Prepare all sub-experiments
     all_sub_experiments = []
 

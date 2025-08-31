@@ -7,7 +7,7 @@
 #SBATCH --ntasks-per-node=2
 #SBATCH --gres=gpu:volta:2
 #SBATCH --mem=32G
-#SBATCH --array=0-88%4
+#SBATCH --array=0-10%4
 
 # Create logs directory name with timestamp
 LOG_DIR="logs/lstm_runs/$(date +%d-%H)"

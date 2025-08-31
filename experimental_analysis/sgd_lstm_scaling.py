@@ -46,6 +46,7 @@ class TrainingCurveAnalyzer:
         alpha: float = 0.6,
         include_in_frontier: bool = True,
         class_name: Optional[str] = None,
+        hidden_dim: Optional[int] = None,
     ) -> None:
         """
         Add an experiment from a CSV file.
@@ -60,6 +61,8 @@ class TrainingCurveAnalyzer:
             linestyle: Line style for plotting
             alpha: Transparency for plotting
             include_in_frontier: Whether to include this experiment in frontier analysis
+            class_name: Class/category name for the experiment
+            hidden_dim: Hidden dimension size for the model
         """
         try:
             df = pd.read_csv(csv_path)
@@ -91,6 +94,7 @@ class TrainingCurveAnalyzer:
                 "final_loss": final_loss,
                 "include_in_frontier": include_in_frontier,
                 "class": class_name or "default",
+                "hidden_dim": hidden_dim,
             }
 
             print(
@@ -413,14 +417,16 @@ class TrainingCurveAnalyzer:
         show_all_curves: bool = True,
         show_power_law_fit: bool = True,
         flop_range: Optional[Tuple[float, float]] = None,
-        figsize: Tuple[int, int] = (12, 8),
+        figsize: Tuple[int, int] = (16, 10),
         save_path: Optional[str] = None,
         use_all_points: bool = True,
         classes_to_plot: Optional[List[str]] = None,
         flop_range_by_class: Optional[Dict[str, Tuple[float, float]]] = None,
+        colormap: str = "viridis",
     ) -> None:
         """
         Plot training curves and per-class frontiers and fits.
+        Colors experiments by hidden dimension and shows experiment classes in legend.
         """
         # Optionally recompute per-class frontier for this plot only if a range is provided
         original_frontier_by_class = self.frontier_points_by_class.copy()
@@ -436,7 +442,22 @@ class TrainingCurveAnalyzer:
                 flop_range_by_class=flop_range_by_class,
             )
 
-        plt.figure(figsize=figsize)
+        # Create figure and axis
+        fig, ax = plt.subplots(figsize=figsize)
+
+        # Collect all hidden dimensions to set up colormap
+        hidden_dims = []
+        for exp in self.experiments.values():
+            hidden_dim = exp.get("hidden_dim")
+            if hidden_dim is not None:
+                hidden_dims.append(hidden_dim)
+
+        if hidden_dims:
+            min_dim = min(hidden_dims)
+            max_dim = max(hidden_dims)
+            # Create colormap normalizer
+            norm = plt.Normalize(vmin=min_dim, vmax=max_dim)
+            cmap = plt.cm.get_cmap(colormap)
 
         # Filter classes to plot
         if classes_to_plot is None:
@@ -444,47 +465,68 @@ class TrainingCurveAnalyzer:
                 {exp.get("class", "default") for exp in self.experiments.values()}
             )
 
-        # Optionally plot all training curves (faded)
+        # Track which classes have been added to legend
+        legend_classes = set()
+
+        # Optionally plot all training curves (colored by hidden dimension)
         if show_all_curves:
             for name, exp in self.experiments.items():
                 cls = exp.get("class", "default")
                 if cls not in classes_to_plot:
                     continue
+
+                # Get color based on hidden dimension
+                hidden_dim = exp.get("hidden_dim")
+                if hidden_dim is not None and hidden_dims:
+                    color = cmap(norm(hidden_dim))
+                else:
+                    # Fallback to default color if no hidden_dim
+                    color = exp.get("color", "tab:blue")
+
                 compute_vals = exp["data"][exp["compute_col"]].values
                 loss_vals = exp["data"][exp["loss_col"]].values - self.irreducible_loss
                 mask = loss_vals > 0
                 if np.any(mask):
-                    plt.plot(
+                    # Only add class to legend once per class
+                    label = cls if cls not in legend_classes else None
+                    if label:
+                        legend_classes.add(cls)
+
+                    ax.plot(
                         compute_vals[mask],
                         loss_vals[mask],
                         marker=exp["marker"],
                         linestyle=exp["linestyle"],
-                        color=exp["color"],
+                        color=color,
                         alpha=exp["alpha"],
-                        label=f"{name} (training)",
-                        linewidth=1,
-                        markersize=3,
+                        label=label,
+                        linewidth=2,
+                        markersize=6,
                     )
 
-        # Plot class-specific frontier points as stars
+        # Plot class-specific frontier points as stars (colored by hidden dimension)
         if use_all_points:
             for cls in classes_to_plot:
                 pts = self.frontier_points_all_by_class.get(cls, [])
                 for name, comp, loss in pts:
-                    color = (
-                        self.experiments[name]["color"]
-                        if name in self.experiments
-                        else "k"
-                    )
-                    plt.scatter(
+                    if name in self.experiments:
+                        hidden_dim = self.experiments[name].get("hidden_dim")
+                        if hidden_dim is not None and hidden_dims:
+                            color = cmap(norm(hidden_dim))
+                        else:
+                            color = self.experiments[name].get("color", "tab:blue")
+                    else:
+                        color = "k"
+
+                    ax.scatter(
                         comp,
                         loss,
                         color=color,
-                        s=160,
+                        s=200,
                         marker="*",
                         zorder=120,
                         edgecolors="black",
-                        linewidth=1.5,
+                        linewidth=2,
                         label=None,
                     )
         else:
@@ -492,16 +534,22 @@ class TrainingCurveAnalyzer:
                 names = self.frontier_points_by_class.get(cls, [])
                 for name in names:
                     exp = self.experiments[name]
-                    plt.scatter(
+                    hidden_dim = exp.get("hidden_dim")
+                    if hidden_dim is not None and hidden_dims:
+                        color = cmap(norm(hidden_dim))
+                    else:
+                        color = exp.get("color", "tab:blue")
+
+                    ax.scatter(
                         exp["final_compute"],
                         exp["final_loss"],
-                        color=exp["color"],
-                        s=300,
+                        color=color,
+                        s=400,
                         marker="*",
                         zorder=100,
                         edgecolors="black",
-                        linewidth=2,
-                        label=f"{name} (final)",
+                        linewidth=2.5,
+                        label=None,
                     )
 
         # Plot per-class power-law fits
@@ -533,28 +581,55 @@ class TrainingCurveAnalyzer:
                 y_fit = a * np.power(x_fit, b)
                 # Use a unique linestyle per class for clarity; color black to overlay
                 linestyle = "--"
-                plt.plot(
+                ax.plot(
                     x_fit,
                     y_fit,
                     linestyle,
-                    linewidth=2,
+                    linewidth=3,
                     alpha=0.9,
-                    label=f"{cls} fit: y = {a:.2e} * x^({b:.3f}) (R² = {r2:.3f})",
+                    label=f"{cls} fit: \n y = {a:.2e} * x^({b:.3f})",
                     color="black",
                 )
 
-        plt.xlabel("Compute (FLOPS)", fontsize=12)
-        plt.ylabel("Validation Loss (Irreducible)", fontsize=12)
-        plt.yscale("log")
-        plt.xscale("log")
-        plt.grid(True, alpha=0.3)
-        plt.title(
+        # Add colorbar for hidden dimension scale
+        if hidden_dims:
+            sm = plt.cm.ScalarMappable(cmap=cmap, norm=norm)
+            sm.set_array([])
+            # Create colorbar with explicit positioning
+            cbar = fig.colorbar(sm, ax=ax, pad=0.02, shrink=0.8, aspect=20)
+            cbar.set_label("Hidden Dimension", fontsize=16, rotation=270, labelpad=25)
+            # Set the colorbar ticks to show actual hidden dimension values
+            tick_values = sorted(list(set(hidden_dims)))
+            cbar.set_ticks(tick_values)
+            cbar.set_ticklabels([str(int(dim)) for dim in tick_values])
+            # Increase colorbar tick label size
+            cbar.ax.tick_params(labelsize=14)
+
+        ax.set_xlabel("Compute (FLOPS)", fontsize=18)
+        ax.set_ylabel("Validation Loss (Irreducible)", fontsize=18)
+        ax.set_yscale("log")
+        ax.set_xscale("log")
+        ax.grid(True, alpha=0.3)
+        ax.set_title(
             "Per-Class Training Curves and Scaling Analysis",
-            fontsize=14,
+            fontsize=20,
             fontweight="bold",
         )
-        plt.legend(bbox_to_anchor=(1.05, 1), loc="upper left", fontsize=10)
-        plt.tight_layout()
+        # Increase tick label sizes
+        ax.tick_params(axis="both", which="major", labelsize=16)
+        ax.tick_params(axis="both", which="minor", labelsize=14)
+
+        # Position legend to avoid colorbar
+        if hidden_dims:
+            ax.legend(bbox_to_anchor=(1.2, 1), loc="upper left", fontsize=16)
+        else:
+            ax.legend(bbox_to_anchor=(1.05, 1), loc="upper left", fontsize=16)
+
+        # Adjust layout to accommodate colorbar and legend
+        if hidden_dims:
+            plt.subplots_adjust(right=0.7)
+        else:
+            plt.tight_layout()
 
         if save_path:
             plt.savefig(save_path, dpi=300, bbox_inches="tight")
@@ -771,7 +846,7 @@ class TrainingCurveAnalyzer:
         )
 
         # Add legend
-        plt.legend(bbox_to_anchor=(1.05, 1), loc="upper left", fontsize=10)
+        plt.legend(bbox_to_anchor=(1.05, 1), loc="upper left", fontsize=25, fontweight="bold")
         plt.tight_layout()
 
         if save_path:
@@ -795,98 +870,59 @@ if __name__ == "__main__":
         {
             "name": "lstm_16d_sgd_mup",
             "csv_path": "../experimental_data_folder/lstm_sgd_mup_scaling/lstm_16d_sgd_mup.csv",
-            "color": "tab:blue",
             "marker": "o",
             "include_in_frontier": True,  # Include in frontier analysis
             "class": "sgd_lstm",
+            "hidden_dim": 16,
         },
         {
             "name": "lstm_24d_sgd_mup",
             "csv_path": "../experimental_data_folder/lstm_sgd_mup_scaling/lstm_24d_sgd_mup.csv",
-            "color": "tab:blue",
             "marker": "o",
             "include_in_frontier": True,
             "class": "sgd_lstm",
+            "hidden_dim": 24,
         },
         {
             "name": "lstm_32d_sgd_mup",
             "csv_path": "../experimental_data_folder/lstm_sgd_mup_scaling/lstm_32d_sgd_mup.csv",
-            "color": "tab:blue",
             "marker": "o",
             "include_in_frontier": True,  # Include in frontier analysis
             "class": "sgd_lstm",
+            "hidden_dim": 32,
         },
         {
             "name": "lstm_48d_sgd_mup",
             "csv_path": "../experimental_data_folder/lstm_sgd_mup_scaling/lstm_48d_sgd_mup.csv",
-            "color": "tab:blue",
             "marker": "o",
             "include_in_frontier": True,  # Include in frontier analysis
             "class": "sgd_lstm",
+            "hidden_dim": 48,
         },
         {
             "name": "lstm_64d_sgd_mup",
             "csv_path": "../experimental_data_folder/lstm_sgd_mup_scaling/lstm_64d_sgd_mup.csv",
-            "color": "tab:blue",
             "marker": "o",
             "include_in_frontier": True,  # Include in frontier analysis
             "class": "sgd_lstm",
+            "hidden_dim": 64,
         },
-        {
-            "name": "lstm 16d optimal",
-            "csv_path": "../experimental_data_folder/lstm_sgd_scaling/lstm_16d_sgd.csv",
-            "color": "tab:purple",
-            "marker": "o",
-            "include_in_frontier": True,  # Include in frontier analysis
-            "class": "sgd_lstm",
-        },
-        {
-            "name": "lstm 24d optimal",
-            "csv_path": "../experimental_data_folder/lstm_sgd_scaling/lstm_24d_sgd.csv",
-            "color": "tab:purple",
-            "marker": "o",
-            "include_in_frontier": True,  # Include in frontier analysis
-            "class": "sgd_lstm",
-        },
-        {
-            "name": "lstm 32d optimal",
-            "csv_path": "../experimental_data_folder/lstm_sgd_scaling/lstm_32d_sgd.csv",
-            "color": "tab:purple",
-            "marker": "o",
-            "include_in_frontier": True,  # Include in frontier analysis
-            "class": "sgd_lstm",
-        },
-        {
-            "name": "lstm 48d optimal",
-            "csv_path": "../experimental_data_folder/lstm_sgd_scaling/lstm_48d_sgd.csv",
-            "color": "tab:purple",
-            "marker": "o",
-            "include_in_frontier": True,  # Include in frontier analysis
-            "class": "sgd_lstmd",
-        },
-        {
-            "name": "lstm 64d optimal",
-            "csv_path": "../experimental_data_folder/lstm_sgd_scaling/lstm_64d_sgd.csv",
-            "color": "tab:purple",
-            "marker": "o",
-            "include_in_frontier": True,  # Include in frontier analysis
-            "class": "sgd_lstm",
-        },
+      
         {
             "name": "lstm optimal scaling 16",
             "csv_path": "../experimental_data_folder/lstm_optimal_scaling/lstm_16d.csv",
-            "color": "tab:blue",
             "marker": "o",
             "include_in_frontier": True,  # Include in frontier analysis
             "class": "lstm_standard",
+            "hidden_dim": 16,
         },
         {
             "name": "lstm optimal scaling 24",
             "csv_path": "../experimental_data_folder/lstm_optimal_scaling/lstm_24d.csv",
-            "color": "tab:blue",
             "marker": "o",
             "include_in_frontier": True,  # Include in frontier analysis
             "class": "lstm_standard",
+            "hidden_dim": 24,
         },
         {
             "name": "lstm optimal scaling 32",
@@ -895,6 +931,7 @@ if __name__ == "__main__":
             "marker": "o",
             "include_in_frontier": True,  # Include in frontier analysis
             "class": "lstm_standard",
+            "hidden_dim": 32,
         },
         {
             "name": "lstm optimal scaling 48",
@@ -903,6 +940,7 @@ if __name__ == "__main__":
             "marker": "o",
             "include_in_frontier": True,  # Include in frontier analysis
             "class": "lstm_standard",
+            "hidden_dim": 48,
         },
         {
             "name": "lstm optimal scaling 64",
@@ -911,8 +949,51 @@ if __name__ == "__main__":
             "marker": "o",
             "include_in_frontier": True,  # Include in frontier analysis
             "class": "lstm_standard",
+            "hidden_dim": 64,
         },
     ]
+
+
+    #   {
+    #         "name": "lstm 16d optimal",
+    #         "csv_path": "../experimental_data_folder/lstm_sgd_scaling/lstm_16d_sgd.csv",
+    #         "marker": "o",
+    #         "include_in_frontier": True,  # Include in frontier analysis
+    #         "class": "sgd_lstm",
+    #         "hidden_dim": 16,
+    #     },
+    #     {
+    #         "name": "lstm 24d optimal",
+    #         "csv_path": "../experimental_data_folder/lstm_sgd_scaling/lstm_24d_sgd.csv",
+    #         "marker": "o",
+    #         "include_in_frontier": True,  # Include in frontier analysis
+    #         "class": "sgd_lstm",
+    #         "hidden_dim": 24,
+    #     },
+    #     {
+    #         "name": "lstm 32d optimal",
+    #         "csv_path": "../experimental_data_folder/lstm_sgd_scaling/lstm_32d_sgd.csv",
+    #         "marker": "o",
+    #         "include_in_frontier": True,  # Include in frontier analysis
+    #         "class": "sgd_lstm",
+    #         "hidden_dim": 32,
+    #     },
+    #     {
+    #         "name": "lstm 48d optimal",
+    #         "csv_path": "../experimental_data_folder/lstm_sgd_scaling/lstm_48d_sgd.csv",
+    #         "marker": "o",
+    #         "include_in_frontier": True,  # Include in frontier analysis
+    #         "class": "sgd_lstm",
+    #         "hidden_dim": 48,
+    #     },
+    #     {
+    #         "name": "lstm 64d optimal",
+    #         "csv_path": "../experimental_data_folder/lstm_sgd_scaling/lstm_64d_sgd.csv",
+    #         "marker": "o",
+    #         "include_in_frontier": True,  # Include in frontier analysis
+    #         "class": "sgd_lstm",
+    #         "hidden_dim": 64,
+    #     },
 
     # Add experiments
     for config in experiments_config:
@@ -923,6 +1004,7 @@ if __name__ == "__main__":
             marker=config.get("marker", "o"),
             include_in_frontier=config.get("include_in_frontier", True),
             class_name=config.get("class"),
+            hidden_dim=config.get("hidden_dim"),
         )
 
     # Identify per-class frontiers
@@ -945,6 +1027,7 @@ if __name__ == "__main__":
             "lstm_standard": (1e14, 1e15),
             "sgd_lstm": (1e14, 1e15),
         },
+        colormap="viridis",  # Color experiments by hidden dimension
     )
 
     # Example 2: Plot with specific FLOP range to focus on a region

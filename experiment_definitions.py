@@ -529,7 +529,7 @@ TWO_CHANGES_EXPERIMENTS = [
 # Hidden Dimension Scaling Experiments (simple override approach)
 TRANSFORMER_SCALING_EXPERIMENTS = [
     {
-        "name": "transformer_standard_scaling",
+        "name": "transformer_standard_scaling_mup",
         "subexperiments": [
             {
                 "label": "16d_standard_mup",
@@ -537,10 +537,10 @@ TRANSFORMER_SCALING_EXPERIMENTS = [
                     "hidden_dim": 16,
                     "num_layers": 2,
                     "num_heads": 1,
-                    "learning_rate": 10 ** (-1.5),
+                    "learning_rate": 10 ** (-1),
                     "wikitext_limit": 16205120 * 4,
                     "use_mup": True,
-                    "mup_base_width": 16,
+                    "mup_base_width": 32,
                 },
             },
             {
@@ -548,11 +548,11 @@ TRANSFORMER_SCALING_EXPERIMENTS = [
                 "overrides": {
                     "hidden_dim": 24,
                     "num_layers": 2,
-                    "num_heads": 1,
-                    "learning_rate": 10 ** (-1.5),
+                    "num_heads": 2,
+                    "learning_rate": 10 ** (-1),
                     "wikitext_limit": 24538080 * 4 * 2,
                     "use_mup": True,
-                    "mup_base_width": 16,
+                    "mup_base_width": 32,
                 },
             },
             {
@@ -560,11 +560,11 @@ TRANSFORMER_SCALING_EXPERIMENTS = [
                 "overrides": {
                     "hidden_dim": 32,
                     "num_layers": 2,
-                    "num_heads": 1,
-                    "learning_rate": 10 ** (-1.5),
+                    "num_heads": 2,
+                    "learning_rate": 10 ** (-1),
                     "wikitext_limit": 32901760 * 4 * 2,
                     "use_mup": True,
-                    "mup_base_width": 16,
+                    "mup_base_width": 32,
                 },
             },
             {
@@ -572,11 +572,11 @@ TRANSFORMER_SCALING_EXPERIMENTS = [
                 "overrides": {
                     "hidden_dim": 40,
                     "num_layers": 3,
-                    "num_heads": 1,
-                    "learning_rate": 10 ** (-1.5),
+                    "num_heads": 3,
+                    "learning_rate": 10 ** (-1),
                     "wikitext_limit": 41127200 * 4 * 2,
                     "use_mup": True,
-                    "mup_base_width": 16,
+                    "mup_base_width": 32,
                 },
             },
             {
@@ -584,28 +584,28 @@ TRANSFORMER_SCALING_EXPERIMENTS = [
                 "overrides": {
                     "hidden_dim": 48,
                     "num_layers": 3,
-                    "num_heads": 1,
-                    "learning_rate": 10 ** (-1.5),
+                    "num_heads": 3,
+                    "learning_rate": 10 ** (-1),
                     "wikitext_limit": 50458560 * 4 * 2,
                     "use_mup": True,
-                    "mup_base_width": 16,
-                },
-            },
-            {
-                "label": "64d_standard_mup",
-                "overrides": {
-                    "hidden_dim": 64,
-                    "num_layers": 4,
-                    "num_heads": 1,
-                    "learning_rate": 10 ** (-1.5),
-                    "wikitext_limit": 68261120 * 4 * 2,
-                    "use_mup": True,
-                    "mup_base_width": 16,
+                    "mup_base_width": 32,
                 },
             },
         ],
     },
 ]
+# {
+#                 "label": "64d_standard_mup",
+#                 "overrides": {
+#                     "hidden_dim": 64,
+#                     "num_layers": 4,
+#                     "num_heads": 4,
+#                     "learning_rate": 10 ** (-1),
+#                     "wikitext_limit": 68261120 * 4 * 2,
+#                     "use_mup": True,
+#                     "mup_base_width": 32,
+#                 },
+#             },
 
 
 # NO_ROTARY_SCALING_EXPERIMENT = [
@@ -657,7 +657,7 @@ TRANSFORMER_SCALING_EXPERIMENTS = [
 
 NO_ROTARY_SCALING_EXPERIMENTS = [
     {
-        "name": "transformer_no_rotary_scaling",
+        "name": "transformer_no_rotary_scaling_mup",
         "subexperiments": [
             {
                 "label": "16d_mup_no_rotary",
@@ -665,10 +665,10 @@ NO_ROTARY_SCALING_EXPERIMENTS = [
                     "hidden_dim": 16,
                     "num_layers": 2,
                     "num_heads": 1,
-                    "learning_rate": 10 ** (-1.5),
-                    "wikitext_limit": 16205120 * 4,
+                    "learning_rate": 10 ** (-1),
+                    "wikitext_limit": 16205120 * 4 * 2,
                     "use_mup": True,
-                    "mup_base_width": 16,
+                    "mup_base_width": 32,
                     "pos_encoding": "sinusoidal",
                 },
             },
@@ -677,11 +677,11 @@ NO_ROTARY_SCALING_EXPERIMENTS = [
                 "overrides": {
                     "hidden_dim": 24,
                     "num_layers": 2,
-                    "num_heads": 1,
-                    "learning_rate": 10 ** (-1.5),
+                    "num_heads": 2,
+                    "learning_rate": 10 ** (-1),
                     "wikitext_limit": 24538080 * 4 * 2,
                     "use_mup": True,
-                    "mup_base_width": 16,
+                    "mup_base_width": 32,
                     "pos_encoding": "sinusoidal",
                 },
             },
@@ -690,11 +690,11 @@ NO_ROTARY_SCALING_EXPERIMENTS = [
                 "overrides": {
                     "hidden_dim": 32,
                     "num_layers": 2,
-                    "num_heads": 1,
-                    "learning_rate": 10 ** (-1.5),
+                    "num_heads": 2,
+                    "learning_rate": 10 ** (-1),
                     "wikitext_limit": 32901760 * 4 * 2,
                     "use_mup": True,
-                    "mup_base_width": 16,
+                    "mup_base_width": 32,
                     "pos_encoding": "sinusoidal",
                 },
             },
@@ -703,11 +703,11 @@ NO_ROTARY_SCALING_EXPERIMENTS = [
                 "overrides": {
                     "hidden_dim": 40,
                     "num_layers": 3,
-                    "num_heads": 1,
-                    "learning_rate": 10 ** (-1.5),
+                    "num_heads": 3,
+                    "learning_rate": 10 ** (-1),
                     "wikitext_limit": 41127200 * 4 * 2,
                     "use_mup": True,
-                    "mup_base_width": 16,
+                    "mup_base_width": 32,
                     "pos_encoding": "sinusoidal",
                 },
             },
@@ -716,11 +716,11 @@ NO_ROTARY_SCALING_EXPERIMENTS = [
                 "overrides": {
                     "hidden_dim": 48,
                     "num_layers": 3,
-                    "num_heads": 1,
-                    "learning_rate": 10 ** (-1.5),
+                    "num_heads": 3,
+                    "learning_rate": 10 ** (-1),
                     "wikitext_limit": 50458560 * 4 * 2,
                     "use_mup": True,
-                    "mup_base_width": 16,
+                    "mup_base_width": 32,
                     "pos_encoding": "sinusoidal",
                 },
             },
@@ -729,11 +729,11 @@ NO_ROTARY_SCALING_EXPERIMENTS = [
                 "overrides": {
                     "hidden_dim": 64,
                     "num_layers": 4,
-                    "num_heads": 1,
-                    "learning_rate": 10 ** (-1.5),
+                    "num_heads": 4,
+                    "learning_rate": 10 ** (-1),
                     "wikitext_limit": 68261120 * 4 * 2,
                     "use_mup": True,
-                    "mup_base_width": 16,
+                    "mup_base_width": 32,
                     "pos_encoding": "sinusoidal",
                 },
             },
@@ -743,7 +743,7 @@ NO_ROTARY_SCALING_EXPERIMENTS = [
 
 TRANSFORMER_SGD_SCALING_EXPERIMENTS = [
     {
-        "name": "transformer_sgd_scaling",
+        "name": "transformer_sgd_scaling_mup",
         "subexperiments": [
             {
                 "label": "16d_sgd_mup",
@@ -751,10 +751,10 @@ TRANSFORMER_SGD_SCALING_EXPERIMENTS = [
                     "hidden_dim": 16,
                     "num_layers": 2,
                     "num_heads": 1,
-                    "learning_rate": 10 ** (-1.5),
+                    "learning_rate": 10 ** (-1),
                     "wikitext_limit": 16205120 * 4 * 2,
                     "use_mup": True,
-                    "mup_base_width": 16,
+                    "mup_base_width": 32,
                 },
             },
             {
@@ -762,11 +762,11 @@ TRANSFORMER_SGD_SCALING_EXPERIMENTS = [
                 "overrides": {
                     "hidden_dim": 24,
                     "num_layers": 2,
-                    "num_heads": 1,
-                    "learning_rate": 10 ** (-1.5),
+                    "num_heads": 2,
+                    "learning_rate": 10 ** (-1),
                     "wikitext_limit": 24538080 * 4 * 2,
                     "use_mup": True,
-                    "mup_base_width": 16,
+                    "mup_base_width": 32,
                 },
             },
             {
@@ -775,10 +775,10 @@ TRANSFORMER_SGD_SCALING_EXPERIMENTS = [
                     "hidden_dim": 32,
                     "num_layers": 2,
                     "num_heads": 2,
-                    "learning_rate": 10 ** (-1.5),
+                    "learning_rate": 10 ** (-1),
                     "wikitext_limit": 32901760 * 4 * 2,
                     "use_mup": True,
-                    "mup_base_width": 16,
+                    "mup_base_width": 32,
                 },
             },
             {
@@ -786,11 +786,11 @@ TRANSFORMER_SGD_SCALING_EXPERIMENTS = [
                 "overrides": {
                     "hidden_dim": 40,
                     "num_layers": 3,
-                    "num_heads": 2,
-                    "learning_rate": 10 ** (-1.5),
+                    "num_heads": 3,
+                    "learning_rate": 10 ** (-1),
                     "wikitext_limit": 41127200 * 4 * 2,
                     "use_mup": True,
-                    "mup_base_width": 16,
+                    "mup_base_width": 32,
                 },
             },
             {
@@ -798,11 +798,11 @@ TRANSFORMER_SGD_SCALING_EXPERIMENTS = [
                 "overrides": {
                     "hidden_dim": 48,
                     "num_layers": 3,
-                    "num_heads": 2,
-                    "learning_rate": 10 ** (-1.5),
+                    "num_heads": 3,
+                    "learning_rate": 10 ** (-1),
                     "wikitext_limit": 50458560 * 4 * 2,
                     "use_mup": True,
-                    "mup_base_width": 16,
+                    "mup_base_width": 32,
                 },
             },
             {
@@ -811,10 +811,10 @@ TRANSFORMER_SGD_SCALING_EXPERIMENTS = [
                     "hidden_dim": 64,
                     "num_layers": 4,
                     "num_heads": 4,
-                    "learning_rate": 10 ** (-1.5),
+                    "learning_rate": 10 ** (-1),
                     "wikitext_limit": 68261120 * 4 * 2,
                     "use_mup": True,
-                    "mup_base_width": 16,
+                    "mup_base_width": 32,
                 },
             },
         ],
