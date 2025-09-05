@@ -1,5 +1,9 @@
 # Model Organism of Algorithmic Progress
 
+
+<img width="1126" height="736" alt="image" src="https://github.com/user-attachments/assets/0f5c78c6-2d16-433e-bb65-ac3d3adb307e" />
+
+
 Ultra efficient transformers for benchmarking the impact of algorithmic improvements. 
 
 
