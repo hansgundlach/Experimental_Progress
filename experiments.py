@@ -255,7 +255,13 @@ if __name__ == "__main__":
     #     TRANSFORMER_SCALING_EXPERIMENTS_OPTIMAL_LR, NARROW_LR_SWEEP
     # )
 
-    EXPERIMENTS = gen_experim(32, label="32d_test_experiment", learning_rate=0.001)
+    EXPERIMENTS = (
+        gen_experim(32, label="32d_test_experiment", learning_rate=0.01)
+        + gen_experim(40, label="40d_test_experiment", learning_rate=0.01)
+        + gen_experim(48, label="48d_test_experiment", learning_rate=0.001)
+        + gen_experim(56, label="56d_test_experiment", learning_rate=0.001)
+        + gen_experim(64, label="64d_test_experiment", learning_rate=0.001)
+    )
 
     # Initialize the list to store all sub-experiments
     all_sub_experiments = []
