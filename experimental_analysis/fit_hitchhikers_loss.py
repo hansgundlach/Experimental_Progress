@@ -12,7 +12,7 @@ import torch
 # --------------------------------------------------------------------------------------
 # Data structures
 # --------------------------------------------------------------------------------------
-TOKENS_PER_STEP: int = int(65500 * 10)
+TOKENS_PER_STEP: int = 0
 
 
 @dataclass
@@ -43,12 +43,22 @@ class FitResult:
 
 
 def read_and_aggregate_csv(
-    csv_path: str, tokens_per_step: int, loss_column: str
+    csv_path: str,
+    tokens_per_step: int,
+    loss_column: str,
+    use_tokens_column: bool = True,
 ) -> pd.DataFrame:
     """
     Reads a CSV with columns including 'step' and the given loss column, averages over duplicate steps,
     filters out step == 0 (since D=0 tokens is not valid for the model), and returns a DataFrame with
     columns: step, tokens (D), loss.
+
+    Args:
+        csv_path: Path to the CSV file
+        tokens_per_step: Tokens per step (used only if use_tokens_column=False)
+        loss_column: Name of the loss column
+        use_tokens_column: If True, read tokens directly from 'tokens' column in CSV.
+                          If False, calculate tokens as step * tokens_per_step.
     """
     df = pd.read_csv(csv_path)
     if "step" not in df.columns:
@@ -56,27 +66,55 @@ def read_and_aggregate_csv(
     if loss_column not in df.columns:
         raise ValueError(f"CSV {csv_path} must contain a '{loss_column}' column.")
 
-    # Group by step to average repeated evaluations/log lines
-    grouped = (
-        df[["step", loss_column]]
-        .groupby("step", as_index=False)
-        .mean()
-        .sort_values("step")
-    )
+    if use_tokens_column:
+        if "tokens" not in df.columns:
+            raise ValueError(
+                f"CSV {csv_path} must contain a 'tokens' column when use_tokens_column=True."
+            )
 
-    # Filter out step==0 to avoid division by zero in D**beta
-    grouped = grouped[grouped["step"] > 0].copy()
+        # Group by step to average repeated evaluations/log lines, including tokens
+        grouped = (
+            df[["step", "tokens", loss_column]]
+            .groupby("step", as_index=False)
+            .mean()
+            .sort_values("step")
+        )
 
-    grouped["tokens"] = grouped["step"].astype(np.float64) * float(tokens_per_step)
+        # Filter out entries where tokens <= 0 to avoid division by zero in D**beta
+        grouped = grouped[grouped["tokens"] > 0].copy()
+    else:
+        # Original behavior: calculate tokens from steps
+        grouped = (
+            df[["step", loss_column]]
+            .groupby("step", as_index=False)
+            .mean()
+            .sort_values("step")
+        )
+
+        # Filter out step==0 to avoid division by zero in D**beta
+        grouped = grouped[grouped["step"] > 0].copy()
+        grouped["tokens"] = grouped["step"].astype(np.float64) * float(tokens_per_step)
+
     grouped.rename(columns={loss_column: "loss"}, inplace=True)
     return grouped[["step", "tokens", "loss"]]
 
 
 def build_dataset(
-    pairs: Sequence[RunSpec], tokens_per_step: int, loss_column: str
+    pairs: Sequence[RunSpec],
+    tokens_per_step: int,
+    loss_column: str,
+    use_tokens_column: bool = True,
 ) -> Tuple[np.ndarray, np.ndarray, np.ndarray]:
     """
     For each (csv_path, N), load and aggregate, then create arrays of N, D (tokens), and observed loss.
+
+    Args:
+        pairs: Sequence of RunSpec objects with csv_path and num_parameters
+        tokens_per_step: Tokens per step (used only if use_tokens_column=False)
+        loss_column: Name of the loss column
+        use_tokens_column: If True, read tokens directly from 'tokens' column in CSV.
+                          If False, calculate tokens as step * tokens_per_step.
+
     Returns:
       - N_all: shape [M]
       - D_all: shape [M]
@@ -87,7 +125,9 @@ def build_dataset(
     y_list: List[float] = []
 
     for spec in pairs:
-        agg = read_and_aggregate_csv(spec.csv_path, tokens_per_step, loss_column)
+        agg = read_and_aggregate_csv(
+            spec.csv_path, tokens_per_step, loss_column, use_tokens_column
+        )
         N_vals = np.full(
             shape=(len(agg),), fill_value=float(spec.num_parameters), dtype=np.float64
         )
@@ -278,6 +318,7 @@ def fit_validation_loss_from_pairs(
     *,
     tokens_per_step: int = TOKENS_PER_STEP,
     loss_column: str = "validation_loss",
+    use_tokens_column: bool = True,
     huber_beta: float = 0.1,
     adam_lr: float = 0.05,
     adam_steps: int = 4000,
@@ -289,8 +330,10 @@ def fit_validation_loss_from_pairs(
 
     Args:
         files_and_N: Sequence of (csv_path, num_parameters) pairs.
-        tokens_per_step: Tokens per training step (default: 65500).
+        tokens_per_step: Tokens per training step (used only if use_tokens_column=False, default: 65500).
         loss_column: Column name to use as target loss (default: 'validation_loss').
+        use_tokens_column: If True, read tokens directly from 'tokens' column in CSV.
+                          If False, calculate tokens as step * tokens_per_step (default: True).
         huber_beta: Huber loss beta threshold.
         adam_lr: Adam learning rate.
         adam_steps: Number of Adam steps.
@@ -314,7 +357,10 @@ def fit_validation_loss_from_pairs(
         run_specs.append(RunSpec(csv_path=str(csv_path), num_parameters=int(n_params)))
 
     N_all, D_all, y_all = build_dataset(
-        pairs=run_specs, tokens_per_step=tokens_per_step, loss_column=loss_column
+        pairs=run_specs,
+        tokens_per_step=tokens_per_step,
+        loss_column=loss_column,
+        use_tokens_column=use_tokens_column,
     )
 
     fit = fit_parameters(
@@ -368,13 +414,12 @@ def _default_files_and_N() -> List[Tuple[str, int]]:
     #     (mup / "128d_2_mup_sgd.csv", 15295569),
     # ]
 
-    mup = repo_root / "experimental_data_folder" / "transformer_standard_scaling_mup"
+    mup = repo_root / "experimental_data_folder" / "generated_experiments_v100"
 
     mup_pairs = [
-        (mup / "16d_standard_optimal_lr.csv", int(823e3)),
-        (mup / "32d_standard_optimal_lr.csv", int(1666e3)),
-        (mup / "48d_standard_optimal_lr.csv", int(2546e3)),
-        (mup / "64d_standard_optimal_lr.csv", int(3482e3)),
+        (mup / "32d_test_experiment.csv", int(1666e3)),
+        (mup / "40d_test_experiment.csv", int(2546e3)),
+        (mup / "64d_test_experiment.csv", int(3482e3)),
     ]
 
     existing_mup = [(str(p), n) for p, n in mup_pairs if p.exists()]
@@ -390,7 +435,9 @@ if __name__ == "__main__":
         raise SystemExit(0)
 
     fit = fit_validation_loss_from_pairs(
-        pairs, tokens_per_step=TOKENS_PER_STEP, loss_column="validation_loss"
+        pairs,
+        loss_column="validation_loss",
+        use_tokens_column=True,
     )
     print("Fitted parameters (L = exp(E) + exp(A) * N^alpha + exp(B) * D^beta):")
     print("Log-space parameters:")
