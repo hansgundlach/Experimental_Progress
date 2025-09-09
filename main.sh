@@ -6,7 +6,8 @@
 #SBATCH --nodes=1
 #SBATCH --gres=gpu:volta:1
 #SBATCH --mem=32G
-#SBATCH --array=0-24%8
+
+# Array specification is now handled by submit_job.sh wrapper
 
 # Create logs directory name with timestamp
 LOG_DIR="logs/$(date +%d-%H)"

@@ -455,6 +455,74 @@ TRANSFORMER_VARIATION_EXPERIMENTS_HEAD = [
 ]
 
 
+# original experiments
+
+HIDDEN_DIM_EXPERIMENTS_123 = [
+    {
+        "name": "Hidden_Dim_Scaling_Try2",
+        "subexperiments": [
+            {
+                "label": "16d_123_try2",
+                "overrides": {
+                    "hidden_dim": 16,
+                    "num_layers": 2,
+                    "num_heads": 1,
+                    "learning_rate": 0.001,
+                    "wikitext_limit": 16205120 * 4,
+                    "seed": 123,
+                },
+            },
+            {
+                "label": "24d_123_try2",
+                "overrides": {
+                    "hidden_dim": 24,
+                    "num_layers": 3,
+                    "num_heads": 1,
+                    "learning_rate": 0.001224744871391589,
+                    "wikitext_limit": 24538080 * 4,
+                    "seed": 123,
+                },
+            },
+            # {'hidden_dim': 48, 'num_layers': 4, 'num_heads': 3, 'learning_rate': 0.0017320508075688772, 'batch_size': 32, 'gradient_accumulation_steps': 8, 'train_tokens': 50458560}
+            # 2522928 for  48 d model
+            {
+                "label": "32d_123_try2",
+                "overrides": {
+                    "hidden_dim": 32,
+                    "num_layers": 3,
+                    "num_heads": 2,
+                    "learning_rate": 0.001,
+                    "wikitext_limit": 32901760 * 4,
+                    "seed": 123,
+                },
+            },
+            {
+                "label": "64d_123_try2",
+                "overrides": {
+                    "hidden_dim": 64,
+                    "num_layers": 4,
+                    "num_heads": 4,
+                    "learning_rate": 0.002,
+                    "wikitext_limit": 68261120 * 4,
+                    "seed": 123,
+                },
+            },
+            {
+                "label": "96d_123_try2",
+                "overrides": {
+                    "hidden_dim": 96,
+                    "num_layers": 6,
+                    "num_heads": 6,
+                    "learning_rate": 0.0024,
+                    "wikitext_limit": 109764480 * 4,
+                    "seed": 123,
+                },
+            },
+        ],
+    },
+]
+
+
 # NEW_HYPER_PARAM_EXPERIMENTS = [
 #     {
 #         "name": "New_Hyper_Param_Experiments",
@@ -535,58 +603,70 @@ TRANSFORMER_SCALING_EXPERIMENTS = [
                 "label": "16d_standard_mup",
                 "overrides": {
                     "hidden_dim": 16,
-                    "num_layers": 2,
+                    "num_layers": 1,
                     "num_heads": 1,
-                    "learning_rate": 10 ** (-1),
-                    "wikitext_limit": 16205120 * 4,
+                    "learning_rate": 10 ** (-1.5),
+                    "wikitext_limit": 16205120 * 4 * 2,
                     "use_mup": True,
                     "mup_base_width": 32,
                 },
             },
-            {
-                "label": "24d_standard_mup",
-                "overrides": {
-                    "hidden_dim": 24,
-                    "num_layers": 2,
-                    "num_heads": 2,
-                    "learning_rate": 10 ** (-1),
-                    "wikitext_limit": 24538080 * 4 * 2,
-                    "use_mup": True,
-                    "mup_base_width": 32,
-                },
-            },
+            # {
+            #     "label": "24d_standard_mup",
+            #     "overrides": {
+            #         "hidden_dim": 24,
+            #         "num_layers": 2,
+            #         "num_heads": 2,
+            #         "learning_rate": 10 ** (-1),
+            #         "wikitext_limit": 24538080 * 4 * 2,
+            #         "use_mup": True,
+            #         "mup_base_width": 32,
+            #     },
+            # },
             {
                 "label": "32d_standard_mup",
                 "overrides": {
                     "hidden_dim": 32,
                     "num_layers": 2,
                     "num_heads": 2,
-                    "learning_rate": 10 ** (-1),
+                    "learning_rate": 10 ** (-1.5),
                     "wikitext_limit": 32901760 * 4 * 2,
                     "use_mup": True,
                     "mup_base_width": 32,
                 },
             },
-            {
-                "label": "40d_standard_mup",
-                "overrides": {
-                    "hidden_dim": 40,
-                    "num_layers": 3,
-                    "num_heads": 3,
-                    "learning_rate": 10 ** (-1),
-                    "wikitext_limit": 41127200 * 4 * 2,
-                    "use_mup": True,
-                    "mup_base_width": 32,
-                },
-            },
+            # {
+            #     "label": "40d_standard_mup",
+            #     "overrides": {
+            #         "hidden_dim": 40,
+            #         "num_layers": 3,
+            #         "num_heads": 3,
+            #         "learning_rate": 10 ** (-1),
+            #         "wikitext_limit": 41127200 * 4 * 2,
+            #         "use_mup": True,
+            #         "mup_base_width": 32,
+            #     },
+            # },
             {
                 "label": "48d_standard_mup",
                 "overrides": {
                     "hidden_dim": 48,
                     "num_layers": 3,
                     "num_heads": 3,
-                    "learning_rate": 10 ** (-1),
+                    "learning_rate": 10 ** (-1.5),
                     "wikitext_limit": 50458560 * 4 * 2,
+                    "use_mup": True,
+                    "mup_base_width": 32,
+                },
+            },
+            {
+                "label": "64d_standard_mup",
+                "overrides": {
+                    "hidden_dim": 64,
+                    "num_layers": 4,
+                    "num_heads": 4,
+                    "learning_rate": 10 ** (-1.5),
+                    "wikitext_limit": 68261120 * 4 * 2,
                     "use_mup": True,
                     "mup_base_width": 32,
                 },
@@ -594,6 +674,61 @@ TRANSFORMER_SCALING_EXPERIMENTS = [
         ],
     },
 ]
+
+
+TRANSFORMER_SCALING_EXPERIMENTS_OPTIMAL_LR = [
+    {
+        "name": "transformer_standard_scaling_mup",
+        "subexperiments": [
+            {
+                "label": "16d_standard_optimal_lr",
+                "overrides": {
+                    "hidden_dim": 16,
+                    "num_layers": 1,
+                    "num_heads": 1,
+                    "learning_rate": 10 ** (-2),
+                    "wikitext_limit": 16205120 * 4 * 2,
+                    "use_mup": False,
+                },
+            },
+            {
+                "label": "32d_standard_optimal_lr",
+                "overrides": {
+                    "hidden_dim": 32,
+                    "num_layers": 2,
+                    "num_heads": 2,
+                    "learning_rate": 10 ** (-2),
+                    "wikitext_limit": 32901760 * 4 * 2,
+                    "use_mup": False,
+                },
+            },
+            {
+                "label": "48d_standard_optimal_lr",
+                "overrides": {
+                    "hidden_dim": 48,
+                    "num_layers": 3,
+                    "num_heads": 3,
+                    "learning_rate": 10 ** (-2.5),
+                    "wikitext_limit": 50458560 * 4 * 2,
+                    "use_mup": False,
+                },
+            },
+            {
+                "label": "64d_standard_optimal_lr",
+                "overrides": {
+                    "hidden_dim": 64,
+                    "num_layers": 4,
+                    "num_heads": 4,
+                    "learning_rate": 10 ** (-2.5),
+                    "wikitext_limit": 68261120 * 4 * 2,
+                    "use_mup": False,
+                },
+            },
+        ],
+    },
+]
+
+
 # {
 #                 "label": "64d_standard_mup",
 #                 "overrides": {
@@ -749,12 +884,13 @@ TRANSFORMER_SGD_SCALING_EXPERIMENTS = [
                 "label": "16d_sgd_mup",
                 "overrides": {
                     "hidden_dim": 16,
-                    "num_layers": 2,
+                    "num_layers": 1,
                     "num_heads": 1,
                     "learning_rate": 10 ** (-1),
                     "wikitext_limit": 16205120 * 4 * 2,
-                    "use_mup": True,
+                    "use_mup": False,
                     "mup_base_width": 32,
+                    "optimizer": "sgd",
                 },
             },
             {
@@ -767,6 +903,7 @@ TRANSFORMER_SGD_SCALING_EXPERIMENTS = [
                     "wikitext_limit": 24538080 * 4 * 2,
                     "use_mup": True,
                     "mup_base_width": 32,
+                    "optimizer": "sgd",
                 },
             },
             {
@@ -779,6 +916,7 @@ TRANSFORMER_SGD_SCALING_EXPERIMENTS = [
                     "wikitext_limit": 32901760 * 4 * 2,
                     "use_mup": True,
                     "mup_base_width": 32,
+                    "optimizer": "sgd",
                 },
             },
             {
@@ -791,6 +929,7 @@ TRANSFORMER_SGD_SCALING_EXPERIMENTS = [
                     "wikitext_limit": 41127200 * 4 * 2,
                     "use_mup": True,
                     "mup_base_width": 32,
+                    "optimizer": "sgd",
                 },
             },
             {
@@ -803,6 +942,7 @@ TRANSFORMER_SGD_SCALING_EXPERIMENTS = [
                     "wikitext_limit": 50458560 * 4 * 2,
                     "use_mup": True,
                     "mup_base_width": 32,
+                    "optimizer": "sgd",
                 },
             },
             {
@@ -815,6 +955,88 @@ TRANSFORMER_SGD_SCALING_EXPERIMENTS = [
                     "wikitext_limit": 68261120 * 4 * 2,
                     "use_mup": True,
                     "mup_base_width": 32,
+                    "optimizer": "sgd",
+                },
+            },
+        ],
+    },
+]
+
+
+TRANSFORMER_SGD_SCALING_EXPERIMENTS_OPTIMAL_LR = [
+    {
+        "name": "transformer_sgd_scaling_optimal_lr",
+        "subexperiments": [
+            {
+                "label": "16d_sgd_optimal_lr",
+                "overrides": {
+                    "hidden_dim": 16,
+                    "num_layers": 1,
+                    "num_heads": 1,
+                    "learning_rate": 10 ** (-1),
+                    "wikitext_limit": 16205120 * 4 * 2,
+                    "use_mup": False,
+                    "optimizer": "sgd",
+                },
+            },
+            # {
+            #     "label": "24d_sgd_optimal_lr",
+            #     "overrides": {
+            #         "hidden_dim": 24,
+            #         "num_layers": 2,
+            #         "num_heads": 2,
+            #         "learning_rate": 10 ** (-1),
+            #         "wikitext_limit": 24538080 * 4 * 2,
+            #         "use_mup": False,
+            #         "optimizer": "sgd",
+            #     },
+            # },
+            {
+                "label": "32d_sgd_optimal_lr",
+                "overrides": {
+                    "hidden_dim": 32,
+                    "num_layers": 2,
+                    "num_heads": 2,
+                    "learning_rate": 10 ** (-1),
+                    "wikitext_limit": 32901760 * 4 * 2,
+                    "use_mup": False,
+                    "optimizer": "sgd",
+                },
+            },
+            {
+                "label": "40d_sgd_optimal_lr",
+                "overrides": {
+                    "hidden_dim": 40,
+                    "num_layers": 3,
+                    "num_heads": 3,
+                    "learning_rate": 10 ** (-1),
+                    "wikitext_limit": 41127200 * 4 * 2,
+                    "use_mup": False,
+                    "optimizer": "sgd",
+                },
+            },
+            {
+                "label": "48d_sgd_optimal_lr",
+                "overrides": {
+                    "hidden_dim": 48,
+                    "num_layers": 3,
+                    "num_heads": 3,
+                    "learning_rate": 10 ** (-1),
+                    "wikitext_limit": 50458560 * 4 * 2,
+                    "use_mup": True,
+                    "optimizer": "sgd",
+                },
+            },
+            {
+                "label": "64d_sgd_optimal_lr",
+                "overrides": {
+                    "hidden_dim": 64,
+                    "num_layers": 4,
+                    "num_heads": 4,
+                    "learning_rate": 10 ** (-1),
+                    "wikitext_limit": 68261120 * 4 * 2,
+                    "use_mup": True,
+                    "optimizer": "sgd",
                 },
             },
         ],

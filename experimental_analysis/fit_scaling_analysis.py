@@ -30,7 +30,7 @@ torch.set_default_dtype(torch.float64)
 TOKENS_PER_STEP_DEFAULT: float = 65536
 
 # Optional: set to a float (e.g., 1.7) to FIX E during optimization
-FIX_E_TO: Optional[float] = 1.7
+FIX_E_TO: Optional[float] = None
 
 # Safety: limit number of grid initializations (set None for full grid)
 MAX_GRID_EVALS: Optional[int] = 1000
@@ -478,14 +478,25 @@ def main():
 
     # {'hidden_dim': 96, 'num_layers
 
-    data_dir = repo_root / "experimental_data_folder" / "Hidden_Dim_Scaling"
+    # data_dir = repo_root / "experimental_data_folder" / "Hidden_Dim_Scaling"
+
+    # files_and_N = [
+    #     (data_dir / "16d_123.csv", 810256),
+    #     (data_dir / "24d_123.csv", 1219992),
+    #     (data_dir / "32d_123.csv", 1632800),
+    #     (data_dir / "64d_123.csv", 3413056),
+    #     (data_dir / "96d_123.csv", 5488224),
+    # ]
+
+    data_dir = (
+        repo_root / "experimental_data_folder" / "transformer_standard_scaling_mup"
+    )
 
     files_and_N = [
-        (data_dir / "16d_123.csv", 810256),
-        (data_dir / "24d_123.csv", 1219992),
-        (data_dir / "32d_123.csv", 1632800),
-        (data_dir / "64d_123.csv", 3413056),
-        (data_dir / "96d_123.csv", 5488224),
+        (data_dir / "16d_standard_optimal_lr.csv", 823e3),
+        (data_dir / "32d_standard_optimal_lr.csv", 1666e3),
+        (data_dir / "48d_standard_optimal_lr.csv", 2546e3),
+        (data_dir / "64d_standard_optimal_lr.csv", 3482e3),
     ]
 
     # Filter existing files

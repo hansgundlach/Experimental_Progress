@@ -200,29 +200,64 @@ class AdvancedLSTMLanguageModel(nn.Module):
                     [nn.LayerNorm(hidden_size) for _ in range(num_layers)]
                 )
 
-        # Apply muP initialization if enabled
+        # Apply initialization based on configuration
         if use_mup:
             self._apply_mup_init()
+        else:
+            self._apply_standard_lstm_init()
 
-    def _apply_mup_init(self):
-        """Apply muP (Maximal Update Parametrization) initialization"""
-        # Embedding layer: scale by 1/sqrt(width)
-        nn.init.normal_(
-            self.embedding.weight, mean=0, std=1 / math.sqrt(self.hidden_size)
-        )
-
-        # LSTM layers: scale input-to-hidden weights by 1/sqrt(width)
+    def _apply_standard_lstm_init(self):
+        """Apply standard LSTM initialization recipe"""
+        # Embedding layer: Xavier uniform initialization
+        nn.init.xavier_uniform_(self.embedding.weight)
+        
+        # LSTM layers: follow standard LSTM initialization
         for lstm_layer in self.lstm_layers:
             for name, param in lstm_layer.named_parameters():
-                if "weight_ih" in name:  # input-to-hidden weights
-                    nn.init.normal_(param, mean=0, std=1 / math.sqrt(self.hidden_size))
-                elif "weight_hh" in name:  # hidden-to-hidden weights
-                    nn.init.normal_(param, mean=0, std=1 / math.sqrt(self.hidden_size))
-                elif "bias" in name:  # biases
-                    nn.init.zeros_(param)
+                if 'weight_ih' in name:
+                    # Input-to-hidden weights: Xavier uniform
+                    nn.init.xavier_uniform_(param.data)
+                elif 'weight_hh' in name:
+                    # Hidden-to-hidden weights: Orthogonal
+                    nn.init.orthogonal_(param.data)
+                elif 'bias' in name:
+                    # Set all biases to 0, then forget gate bias to +1
+                    param.data.fill_(0.)
+                    hidden_size = param.size(0) // 4
+                    param.data[hidden_size:2*hidden_size].fill_(1.)  # forget gate bias
 
-        # Output layer: scale by 1/width (not sqrt)
-        nn.init.normal_(self.linear.weight, mean=0, std=1 / self.hidden_size)
+        # Output layer: Xavier uniform initialization  
+        nn.init.xavier_uniform_(self.linear.weight)
+        nn.init.zeros_(self.linear.bias)
+
+    def _apply_mup_init(self):
+        """Apply muP initialization with standard LSTM practices"""
+        # Embedding layer: scale by 1/sqrt(width) but use uniform distribution
+        std = 1 / math.sqrt(self.hidden_size)
+        bound = math.sqrt(3.0) * std  # Convert to uniform bound
+        nn.init.uniform_(self.embedding.weight, -bound, bound)
+
+        # LSTM layers: combine muP scaling with standard LSTM practices
+        for lstm_layer in self.lstm_layers:
+            for name, param in lstm_layer.named_parameters():
+                if 'weight_ih' in name:
+                    # Input-to-hidden: muP scaled Xavier uniform
+                    std = 1 / math.sqrt(self.hidden_size)
+                    bound = math.sqrt(3.0) * std
+                    nn.init.uniform_(param.data, -bound, bound)
+                elif 'weight_hh' in name:
+                    # Hidden-to-hidden: Orthogonal (standard LSTM practice)
+                    nn.init.orthogonal_(param.data)
+                elif 'bias' in name:
+                    # Standard LSTM bias initialization
+                    param.data.fill_(0.)
+                    hidden_size = param.size(0) // 4
+                    param.data[hidden_size:2*hidden_size].fill_(1.)  # forget gate bias
+
+        # Output layer: muP scaled initialization
+        std = 1 / self.hidden_size
+        bound = math.sqrt(3.0) * std
+        nn.init.uniform_(self.linear.weight, -bound, bound)
         nn.init.zeros_(self.linear.bias)
 
     def forward(self, x, hidden=None):

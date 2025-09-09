@@ -340,7 +340,7 @@ lstm_sgd_lr_at_all_scales = create_multi_lr_experiments(
 # # scaling experiments optimal
 # LSTM_SGD_OPTIMAL_SCALING
 
-EXPERIMENTS = just_lr_tune
+EXPERIMENTS = lstm_lr_at_all_scales + lstm_sgd_lr_at_all_scales
 
 
 def find_free_port():

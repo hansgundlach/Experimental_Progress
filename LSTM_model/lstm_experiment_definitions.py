@@ -18,7 +18,7 @@ TEST_EXPERIMENTS = [
 
 LSTM_OPTIMAL_SCALING = [
     {
-        "name": "lstm_optimal_optimal_scaling",
+        "name": "lstm_optimal_scaling",
         "subexperiments": [
             {
                 "label": "lstm_16d",
@@ -67,7 +67,7 @@ LSTM_OPTIMAL_SCALING = [
 
 LSTM_SGD_OPTIMAL_SCALING = [
     {
-        "name": "lsmt_sgd_optimal_scaling",
+        "name": "lstm_sgd_optimal_scaling",
         "subexperiments": [
             {
                 "label": "lstm_16d_sgd",

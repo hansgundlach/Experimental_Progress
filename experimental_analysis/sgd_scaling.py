@@ -1,7 +1,7 @@
 # %%
 print("hello")
 
-#%%
+# %%
 import pandas as pd
 import numpy as np
 from scipy.optimize import curve_fit
@@ -11,6 +11,8 @@ import matplotlib.colors as mcolors
 from typing import List, Dict, Tuple, Optional
 import warnings
 
+IRREDUCIBLE_LOSS = 1.8
+
 
 class TrainingCurveAnalyzer:
     """
@@ -18,7 +20,7 @@ class TrainingCurveAnalyzer:
     identifying frontier points and fitting power laws.
     """
 
-    def __init__(self, irreducible_loss: float = 1.76):
+    def __init__(self, irreducible_loss: float = IRREDUCIBLE_LOSS):
         """
         Initialize the analyzer.
 
@@ -67,6 +69,7 @@ class TrainingCurveAnalyzer:
             final_point = df.iloc[-1]
             final_compute = final_point[compute_col]
             final_loss = final_point[loss_col] - self.irreducible_loss
+            final_loss_raw = final_point[loss_col]  # Store raw loss too
 
             # Assign color if not provided
             if color is None:
@@ -84,6 +87,7 @@ class TrainingCurveAnalyzer:
                 "alpha": alpha,
                 "final_compute": final_compute,
                 "final_loss": final_loss,
+                "final_loss_raw": final_loss_raw,  # Add raw loss
                 "include_in_frontier": include_in_frontier,
             }
 
@@ -141,16 +145,23 @@ class TrainingCurveAnalyzer:
         return frontier
 
     def fit_power_law(
-        self, experiment_names: Optional[List[str]] = None
-    ) -> Optional[Tuple[float, float]]:
+        self,
+        experiment_names: Optional[List[str]] = None,
+        fit_type: str = "irreducible_subtracted",
+    ) -> Optional[Tuple[float, ...]]:
         """
         Fit a power law to the specified experiments.
 
         Args:
             experiment_names: List of experiment names to fit (uses frontier if None)
+            fit_type: Type of fit to perform:
+                - "irreducible_subtracted": Fit (loss - irreducible) = A * C^alpha
+                - "full_model": Fit loss = E + A * C^alpha (3-parameter fit)
 
         Returns:
-            Tuple of (a, b) parameters for power law y = a * x^b, or None if fitting fails
+            - For "irreducible_subtracted": Tuple of (a, b) parameters for power law y = a * x^b
+            - For "full_model": Tuple of (E, A, alpha) parameters for y = E + A * x^alpha
+            - None if fitting fails
         """
         if experiment_names is None:
             experiment_names = self.frontier_points
@@ -168,30 +179,104 @@ class TrainingCurveAnalyzer:
                 # Only include in power law fit if it's marked for frontier analysis
                 if exp["include_in_frontier"]:
                     x_data.append(exp["final_compute"])
-                    y_data.append(exp["final_loss"])
+                    if fit_type == "irreducible_subtracted":
+                        y_data.append(
+                            exp["final_loss"]
+                        )  # Already has irreducible subtracted
+                    elif fit_type == "full_model":
+                        # Use raw loss (add back the irreducible loss)
+                        y_data.append(exp["final_loss"] + self.irreducible_loss)
 
         if len(x_data) < 2:
             print("Need at least 2 points to fit power law")
             return None
 
-        # Fit power law
-        def power_law(x, a, b):
-            return a * np.power(x, b)
+        if fit_type == "irreducible_subtracted":
+            # Original fit: (loss - irreducible) = A * C^alpha
+            def power_law(x, a, b):
+                return a * np.power(x, b)
 
-        try:
-            params, covariance = curve_fit(power_law, x_data, y_data)
-            a, b = params
-            print(f"Power law fit: y = {a:.4e} * x^({b:.4f})")
-            return a, b
-        except Exception as e:
-            print(f"Error fitting power law: {e}")
-            return None
+            try:
+                params, covariance = curve_fit(power_law, x_data, y_data)
+                a, b = params
+                print(
+                    f"Power law fit (irreducible subtracted): y = {a:.4e} * x^({b:.4f})"
+                )
+                return a, b
+            except Exception as e:
+                print(f"Error fitting power law: {e}")
+                return None
+
+        elif fit_type == "full_model":
+            # New fit: loss = exp(E) + exp(A) * C^alpha (exponential form for guaranteed positivity)
+            def full_scaling_law(x, E_log, A_log, alpha):
+                return np.exp(E_log) + np.exp(A_log) * np.power(x, alpha)
+
+            try:
+                # Initial guesses in log space for exp(E) + exp(A) * C^alpha
+                E_baseline = max(np.percentile(y_data, 10), 1e-6)
+                E_log_init = np.log(E_baseline)  # Log of baseline loss
+
+                range_y = max(
+                    np.percentile(y_data, 90) - np.percentile(y_data, 10), 1e-3
+                )
+                A_log_init = np.log(range_y)  # Log of scaling coefficient
+
+                alpha_init = -0.5  # Common scaling exponent (negative)
+
+                initial_guess = [E_log_init, A_log_init, alpha_init]
+
+                # No bounds needed since exp() guarantees positivity for E and A
+                # Only constrain alpha to be negative
+                lower_bounds = [-np.inf, -np.inf, -np.inf]
+                upper_bounds = [np.inf, np.inf, -0.001]  # alpha < 0
+
+                params, covariance = curve_fit(
+                    full_scaling_law,
+                    x_data,
+                    y_data,
+                    p0=initial_guess,
+                    bounds=(lower_bounds, upper_bounds),
+                    maxfev=5000,  # Increase max iterations
+                )
+                E_log, A_log, alpha = params
+
+                # Convert to exponential form for display
+                E_exp = np.exp(E_log)
+                A_exp = np.exp(A_log)
+
+                # Calculate R-squared for goodness of fit
+                y_pred = full_scaling_law(np.array(x_data), E_log, A_log, alpha)
+                ss_res = np.sum((np.array(y_data) - y_pred) ** 2)
+                ss_tot = np.sum((np.array(y_data) - np.mean(y_data)) ** 2)
+                r_squared = 1 - (ss_res / ss_tot)
+
+                print(
+                    f"Full scaling law fit: y = {E_exp:.4f} + {A_exp:.4e} * x^({alpha:.4f})"
+                )
+                print(f"R-squared: {r_squared:.4f}")
+                print(
+                    f"Fitted irreducible loss: {E_exp:.4f} (original assumption: {self.irreducible_loss:.4f})"
+                )
+                print(f"Log-space parameters: E_log={E_log:.4f}, A_log={A_log:.4f}")
+
+                # Return exponential values for consistency with previous interface
+                return E_exp, A_exp, alpha
+            except Exception as e:
+                print(f"Error fitting full scaling law: {e}")
+                return None
+
+        else:
+            raise ValueError(
+                f"Unknown fit_type: {fit_type}. Use 'irreducible_subtracted' or 'full_model'"
+            )
 
     def plot_training_curves(
         self,
         show_all_curves: bool = True,
         show_frontier_only: bool = False,
         show_power_law_fit: bool = True,
+        fit_type: str = "irreducible_subtracted",
         figsize: Tuple[int, int] = (12, 8),
         save_path: Optional[str] = None,
     ) -> None:
@@ -202,6 +287,7 @@ class TrainingCurveAnalyzer:
             show_all_curves: Whether to show all training curves
             show_frontier_only: Whether to only show frontier experiments
             show_power_law_fit: Whether to show power law fit
+            fit_type: Type of fit to show ("irreducible_subtracted" or "full_model")
             figsize: Figure size
             save_path: Path to save the plot
         """
@@ -220,10 +306,15 @@ class TrainingCurveAnalyzer:
         # Plot training curves
         for name, exp in experiments_to_plot.items():
             compute_vals = exp["data"][exp["compute_col"]].values
-            loss_vals = exp["data"][exp["loss_col"]].values - self.irreducible_loss
 
-            # Only plot points with positive loss after subtraction
-            mask = loss_vals > 0
+            if fit_type == "irreducible_subtracted":
+                loss_vals = exp["data"][exp["loss_col"]].values - self.irreducible_loss
+                # Only plot points with positive loss after subtraction
+                mask = loss_vals > 0
+            else:  # full_model
+                loss_vals = exp["data"][exp["loss_col"]].values  # Use raw loss
+                mask = np.ones(len(loss_vals), dtype=bool)  # Plot all points
+
             if np.any(mask):
                 plt.plot(
                     compute_vals[mask],
@@ -244,9 +335,15 @@ class TrainingCurveAnalyzer:
             marker = "*" if is_frontier else "o"
             zorder = 100 if is_frontier else 50
 
+            # Use appropriate final loss value based on fit type
+            if fit_type == "irreducible_subtracted":
+                final_loss = exp["final_loss"]
+            else:  # full_model
+                final_loss = exp["final_loss_raw"]
+
             plt.scatter(
                 exp["final_compute"],
-                exp["final_loss"],
+                final_loss,
                 color=exp["color"],
                 s=marker_size,
                 marker=marker,
@@ -258,9 +355,8 @@ class TrainingCurveAnalyzer:
 
         # Plot power law fit if requested
         if show_power_law_fit and self.frontier_points:
-            power_law_result = self.fit_power_law()
+            power_law_result = self.fit_power_law(fit_type=fit_type)
             if power_law_result is not None:
-                a, b = power_law_result
                 # Generate fit curve
                 min_compute = min(
                     exp["final_compute"] for exp in experiments_to_plot.values()
@@ -269,7 +365,15 @@ class TrainingCurveAnalyzer:
                     exp["final_compute"] for exp in experiments_to_plot.values()
                 )
                 x_fit = np.logspace(np.log10(min_compute), np.log10(max_compute), 100)
-                y_fit = a * np.power(x_fit, b)
+
+                if fit_type == "irreducible_subtracted":
+                    a, b = power_law_result
+                    y_fit = a * np.power(x_fit, b)
+                    fit_label = f"Power law fit: y = {a:.2e} * x^({b:.4f})"
+                else:  # full_model
+                    E_exp, A_exp, alpha = power_law_result
+                    y_fit = E_exp + A_exp * np.power(x_fit, alpha)
+                    fit_label = f"Scaling law fit: y = {E_exp:.4f} + {A_exp:.2e} * x^({alpha:.4f})"
 
                 plt.plot(
                     x_fit,
@@ -277,12 +381,15 @@ class TrainingCurveAnalyzer:
                     "k--",
                     linewidth=2,
                     alpha=0.8,
-                    label=f"Power law fit: y = {a:.2e} * x^({b:.4f})",
+                    label=fit_label,
                 )
 
         # Customize plot
         plt.xlabel("Compute (FLOPS)", fontsize=12)
-        plt.ylabel("Validation Loss (Irreducible)", fontsize=12)
+        if fit_type == "irreducible_subtracted":
+            plt.ylabel("Validation Loss (Irreducible Subtracted)", fontsize=12)
+        else:
+            plt.ylabel("Validation Loss", fontsize=12)
         plt.yscale("log")
         plt.xscale("log")
         plt.grid(True, alpha=0.3)
@@ -304,7 +411,7 @@ class TrainingCurveAnalyzer:
 # Example usage and demonstration
 if __name__ == "__main__":
     # Initialize analyzer
-    analyzer = TrainingCurveAnalyzer(irreducible_loss=1.76)
+    analyzer = TrainingCurveAnalyzer(irreducible_loss=IRREDUCIBLE_LOSS)
 
     # Add experiments - you can modify these paths and names as needed
     experiments_config = [
@@ -353,7 +460,7 @@ if __name__ == "__main__":
         {
             "name": "96d sgd",
             "csv_path": "../experimental_data_folder/muP_scaling_experiments/96d_2_mup_sgd.csv",
-            "color": "tab:red",
+            "color": "tab:purple",
             "marker": "o",
             "include_in_frontier": True,  # Include in frontier analysis
         },
@@ -365,55 +472,139 @@ if __name__ == "__main__":
             "include_in_frontier": True,  # Include in frontier analysis
         },
         {
-            "name": "adam 16d",
-            "csv_path": "../experimental_data_folder/Hidden_Dim_Scaling/16d_123.csv",
-            "color": "tab:purple",
+            "name": "16d optimal lr scaling",
+            "csv_path": "../experimental_data_folder/transformer_standard_scaling_mup/16d_standard_optimal_lr.csv",
+            "color": "tab:cyan",
             "marker": "o",
-            "include_in_frontier": False,  # Include in frontier analysis
+            "include_in_frontier": True,  # Include in frontier analysis
         },
         {
-            "name": "adam 24d",
-            "csv_path": "../experimental_data_folder/Hidden_Dim_Scaling/24d_123.csv",
-            "color": "tab:purple",
+            "name": "32d optimal lr scaling",
+            "csv_path": "../experimental_data_folder/transformer_standard_scaling_mup/32d_standard_optimal_lr.csv",
+            "color": "tab:cyan",
             "marker": "o",
-            "include_in_frontier": False,  # Include in frontier analysis
+            "include_in_frontier": True,  # Include in frontier analysis
+        },
+        # 48d
+        {
+            "name": "48d optimal lr scaling",
+            "csv_path": "../experimental_data_folder/transformer_standard_scaling_mup/48d_standard_optimal_lr.csv",
+            "color": "tab:cyan",
+            "marker": "o",
+            "include_in_frontier": True,  # Include in frontier analysis
         },
         {
-            "name": "adam 32d",
-            "csv_path": "../experimental_data_folder/Hidden_Dim_Scaling/32d_123.csv",
-            "color": "tab:purple",
+            "name": "64d optimal lr scaling",
+            "csv_path": "../experimental_data_folder/transformer_standard_scaling_mup/64d_standard_optimal_lr.csv",
+            "color": "tab:cyan",
             "marker": "o",
-            "include_in_frontier": False,  # Include in frontier analysis
+            "include_in_frontier": True,  # Include in frontier analysis
         },
-        {
-            "name": "adam 64d",
-            "csv_path": "../experimental_data_folder/Hidden_Dim_Scaling/64d_123.csv",
-            "color": "tab:purple",
-            "marker": "o",
-            "include_in_frontier": False,  # Include in frontier analysis
-        },
-        {
-            "name": "adam 96d",
-            "csv_path": "../experimental_data_folder/Hidden_Dim_Scaling/96d_123.csv",
-            "color": "tab:purple",
-            "marker": "o",
-            "include_in_frontier": False,  # Include in frontier analysis
-        },
-        {
-            "name": "adam 128d",
-            "csv_path": "../experimental_data_folder/Hidden_Dim_Scaling/128d_123.csv",
-            "color": "tab:purple",
-            "marker": "o",
-            "include_in_frontier": False,  # Include in frontier analysis
-        },
-        # Example of an experiment that won't be included in frontier analysis
         # {
-        #     "name": "baseline experiment",
-        #     "csv_path": "../experimental_data_folder/baseline/baseline.csv",
-        #     "color": "gray",
-        #     "marker": "s",
-        #     "include_in_frontier": False,  # Won't be included in frontier analysis
+        #     "name": "adam 16d 123 original",
+        #     "csv_path": "../experimental_data_folder/Hidden_Dim_Scaling/16d_123.csv",
+        #     "color": "tab:purple",
+        #     "marker": "o",
+        #     "include_in_frontier": True,  # Include in frontier analysis
         # },
+        # {
+        #     "name": "adam 24d 123 original",
+        #     "csv_path": "../experimental_data_folder/Hidden_Dim_Scaling/24d_123.csv",
+        #     "color": "tab:purple",
+        #     "marker": "o",
+        #     "include_in_frontier": True,  # Include in frontier analysis
+        # },
+        # {
+        #     "name": "adam 32d 123 original",
+        #     "csv_path": "../experimental_data_folder/Hidden_Dim_Scaling/32d_123.csv",
+        #     "color": "tab:purple",
+        #     "marker": "o",
+        #     "include_in_frontier": True,  # Include in frontier analysis
+        # },
+        # {
+        #     "name": "adam 64d 123 original",
+        #     "csv_path": "../experimental_data_folder/Hidden_Dim_Scaling/64d_123.csv",
+        #     "color": "tab:purple",
+        #     "marker": "o",
+        #     "include_in_frontier": True,  # Include in frontier analysis
+        # },
+        # {
+        #     "name": "adam 96d 123 original",
+        #     "csv_path": "../experimental_data_folder/Hidden_Dim_Scaling/96d_123.csv",
+        #     "color": "tab:purple",
+        #     "marker": "o",
+        #     "include_in_frontier": False,  # Include in frontier analysis
+        # },
+        # {
+        #     "name": "adam 128d 123 original",
+        #     "csv_path": "../experimental_data_folder/Hidden_Dim_Scaling/128d_123.csv",
+        #     "color": "tab:purple",
+        #     "marker": "o",
+        #     "include_in_frontier": True,  # Include in frontier analysis
+        # },
+        {
+            "name": "adam 16d try2",
+            "csv_path": "../experimental_data_folder/Hidden_Dim_Scaling_Try2/16d_123_try2.csv",
+            "color": "tab:red",
+            "marker": "o",
+            "include_in_frontier": True,  # Include in frontier analysis
+        },
+        {
+            "name": "adam 24d try2",
+            "csv_path": "../experimental_data_folder/Hidden_Dim_Scaling_Try2/24d_123_try2.csv",
+            "color": "tab:red",
+            "marker": "o",
+            "include_in_frontier": True,  # Include in frontier analysis
+        },
+        {
+            "name": "adam 32d try2",
+            "csv_path": "../experimental_data_folder/Hidden_Dim_Scaling_Try2/32d_123_try2.csv",
+            "color": "tab:red",
+            "marker": "o",
+            "include_in_frontier": True,  # Include in frontier analysis
+        },
+        {
+            "name": "adam 64d try2",
+            "csv_path": "../experimental_data_folder/Hidden_Dim_Scaling_Try2/64d_123_try2.csv",
+            "color": "tab:red",
+            "marker": "o",
+            "include_in_frontier": True,  # Include in frontier analysis
+        },
+        {
+            "name": "adam 16d mup",
+            "csv_path": "../experimental_data_folder/transformer_standard_scaling_mup/16d_standard_mup.csv",
+            "color": "tab:purple",
+            "marker": "o",
+            "include_in_frontier": True,  # Include in frontier analysis
+        },
+        {
+            "name": "adam 24d mup",
+            "csv_path": "../experimental_data_folder/transformer_standard_scaling_mup/24d_standard_mup.csv",
+            "color": "tab:purple",
+            "marker": "o",
+            "include_in_frontier": True,  # Include in frontier analysis
+        },
+        {
+            "name": "adam 32d mup",
+            "csv_path": "../experimental_data_folder/transformer_standard_scaling_mup/32d_standard_mup.csv",
+            "color": "tab:purple",
+            "marker": "o",
+            "include_in_frontier": True,  # Include in frontier analysis
+        },
+        {
+            "name": "adam 40d mup",
+            "csv_path": "../experimental_data_folder/transformer_standard_scaling_mup/40d_standard_mup.csv",
+            "color": "tab:purple",
+            "marker": "o",
+            "include_in_frontier": True,  # Include in frontier analysis
+        },
+        {
+            "name": "adam 48d mup",
+            "csv_path": "../experimental_data_folder/transformer_standard_scaling_mup/48d_standard_mup.csv",
+            "color": "tab:purple",
+            "marker": "o",
+            "include_in_frontier": True,  # Include in frontier analysis
+        },
     ]
 
     # Add experiments
@@ -429,12 +620,24 @@ if __name__ == "__main__":
     # Identify frontier
     analyzer.identify_frontier(method="pareto")
 
-    # Plot results
+    # Plot results with traditional fit (irreducible subtracted)
     analyzer.plot_training_curves(
         show_all_curves=True,
         show_frontier_only=False,
         show_power_law_fit=True,
+        fit_type="irreducible_subtracted",
         save_path="Figures/universal_scaling_law_study.png",
+    )
+
+    # option for full_model or irreducible_subtracted
+
+    # Plot results with full model fit (E + A*C^alpha)
+    analyzer.plot_training_curves(
+        show_all_curves=True,
+        show_frontier_only=False,
+        show_power_law_fit=True,
+        fit_type="irreducible_subtracted",
+        save_path="Figures/universal_scaling_law_study_full_model.png",
     )
 
 # %%

@@ -12,6 +12,7 @@ import torch
 # --------------------------------------------------------------------------------------
 # Data structures
 # --------------------------------------------------------------------------------------
+TOKENS_PER_STEP: int = int(65500 * 10)
 
 
 @dataclass
@@ -22,14 +23,18 @@ class RunSpec:
 
 @dataclass
 class FitResult:
-    E: float
-    A: float
-    alpha: float
-    B: float
-    beta: float
+    E: float  # Log-space parameter (actual irreducible loss is exp(E))
+    A: float  # Log-space parameter (actual coefficient is exp(A))
+    alpha: float  # Scaling exponent for parameters (should be negative)
+    B: float  # Log-space parameter (actual coefficient is exp(B))
+    beta: float  # Scaling exponent for data (should be negative)
     huber_beta: float
     num_points: int
     final_loss: float
+    # Derived quantities for easier interpretation
+    exp_E: float  # exp(E) - irreducible loss
+    exp_A: float  # exp(A) - parameter scaling coefficient
+    exp_B: float  # exp(B) - data scaling coefficient
 
 
 # --------------------------------------------------------------------------------------
@@ -111,8 +116,9 @@ def build_dataset(
 
 class ValidationLossModel(torch.nn.Module):
     """
-    L(N, D) = E + A / N^alpha + B / D^beta
-    Enforces positivity for A, alpha, B, beta via softplus. E is free.
+    L(N, D) = exp(E) + exp(A) * N^(-alpha) + exp(B) * D^(-beta)
+    Following Hoffmann et al. (2022) form: L(f) = e^E + e^A * #params(f)^α + e^B * #toks(f)^β
+    where alpha and beta are negative (scaling exponents), E, A, B are log-space parameters.
     """
 
     def __init__(
@@ -124,52 +130,27 @@ class ValidationLossModel(torch.nn.Module):
         beta_init: float,
     ):
         super().__init__()
-        # raw parameters (unconstrained)
+        # All parameters are unconstrained in log space
+        # E, A, B will be exponentiated, alpha and beta are direct scaling exponents
         self.E = torch.nn.Parameter(torch.tensor(float(E_init), dtype=torch.float64))
-        self.A_raw = torch.nn.Parameter(
-            torch.tensor(math.log(math.expm1(max(A_init, 1e-6))), dtype=torch.float64)
+        self.A = torch.nn.Parameter(torch.tensor(float(A_init), dtype=torch.float64))
+        self.alpha = torch.nn.Parameter(
+            torch.tensor(float(alpha_init), dtype=torch.float64)
         )
-        self.alpha_raw = torch.nn.Parameter(
-            torch.tensor(
-                math.log(math.expm1(max(alpha_init, 1e-6))), dtype=torch.float64
-            )
+        self.B = torch.nn.Parameter(torch.tensor(float(B_init), dtype=torch.float64))
+        self.beta = torch.nn.Parameter(
+            torch.tensor(float(beta_init), dtype=torch.float64)
         )
-        self.B_raw = torch.nn.Parameter(
-            torch.tensor(math.log(math.expm1(max(B_init, 1e-6))), dtype=torch.float64)
-        )
-        self.beta_raw = torch.nn.Parameter(
-            torch.tensor(
-                math.log(math.expm1(max(beta_init, 1e-6))), dtype=torch.float64
-            )
-        )
-
-        self.softplus = torch.nn.Softplus()
-
-    @property
-    def A(self) -> torch.Tensor:
-        return self.softplus(self.A_raw)
-
-    @property
-    def alpha(self) -> torch.Tensor:
-        return self.softplus(self.alpha_raw)
-
-    @property
-    def B(self) -> torch.Tensor:
-        return self.softplus(self.B_raw)
-
-    @property
-    def beta(self) -> torch.Tensor:
-        return self.softplus(self.beta_raw)
 
     def forward(self, N: torch.Tensor, D: torch.Tensor) -> torch.Tensor:
-        # Compute L = E + A / N^alpha + B / D^beta
+        # Compute L = exp(E) + exp(A) * N^alpha + exp(B) * D^beta
         # Guard against numerical issues with extremely small N or D using clamp
         N_clamped = torch.clamp(N, min=1.0)
         D_clamped = torch.clamp(D, min=1.0)
         return (
-            self.E
-            + self.A / torch.pow(N_clamped, self.alpha)
-            + self.B / torch.pow(D_clamped, self.beta)
+            torch.exp(self.E)
+            + torch.exp(self.A) * torch.pow(N_clamped, self.alpha)
+            + torch.exp(self.B) * torch.pow(D_clamped, self.beta)
         )
 
 
@@ -191,12 +172,16 @@ def fit_parameters(
     D_t = torch.from_numpy(D_all.astype(np.float64)).to(device)
     y_t = torch.from_numpy(y_all.astype(np.float64)).to(device)
 
-    # Initial guesses
-    E_init = float(np.percentile(y_all, 10))
-    A_init = max(float(np.percentile(y_all - E_init, 90)), 1e-3)
-    alpha_init = 0.5
-    B_init = max(float(np.percentile(y_all - E_init, 90)), 1e-3)
-    beta_init = 0.5
+    # Initial guesses for exponential form: L = exp(E) + exp(A) * N^alpha + exp(B) * D^beta
+    # E_init: log of baseline loss level
+    E_init = float(np.log(max(np.percentile(y_all, 10), 1e-6)))
+    # A_init and B_init: log of scaling coefficients
+    range_y = max(float(np.percentile(y_all, 90) - np.percentile(y_all, 10)), 1e-3)
+    A_init = float(np.log(range_y))
+    B_init = float(np.log(range_y))
+    # alpha and beta: scaling exponents (should be negative for compute scaling)
+    alpha_init = -0.5  # Negative for parameter scaling
+    beta_init = -0.2  # Negative for data scaling
 
     model = ValidationLossModel(
         E_init=E_init,
@@ -218,8 +203,8 @@ def fit_parameters(
         opt.zero_grad(set_to_none=True)
         pred = model(N_t, D_t)
         loss = huber(pred, y_t)
-        # Encourage E to be near the lower envelope (weak regularization)
-        reg = 1e-6 * (model.E - y_t.min()).abs()
+        # Encourage exp(E) to be near the lower envelope (weak regularization)
+        reg = 1e-6 * (torch.exp(model.E) - y_t.min()).abs()
         total = loss + reg
         total.backward()
         opt.step()
@@ -262,15 +247,23 @@ def fit_parameters(
     with torch.no_grad():
         pred_final = model(N_t, D_t)
         final_loss = float(huber(pred_final, y_t).item())
+
+        E_val = float(model.E.item())
+        A_val = float(model.A.item())
+        B_val = float(model.B.item())
+
         result = FitResult(
-            E=float(model.E.item()),
-            A=float(model.A.item()),
+            E=E_val,
+            A=A_val,
             alpha=float(model.alpha.item()),
-            B=float(model.B.item()),
+            B=B_val,
             beta=float(model.beta.item()),
             huber_beta=float(huber_beta),
             num_points=int(y_all.shape[0]),
             final_loss=final_loss,
+            exp_E=float(np.exp(E_val)),
+            exp_A=float(np.exp(A_val)),
+            exp_B=float(np.exp(B_val)),
         )
     return result
 
@@ -283,7 +276,7 @@ def fit_parameters(
 def fit_validation_loss_from_pairs(
     files_and_N: Sequence[Tuple[str, int]],
     *,
-    tokens_per_step: int = 65500,
+    tokens_per_step: int = TOKENS_PER_STEP,
     loss_column: str = "validation_loss",
     huber_beta: float = 0.1,
     adam_lr: float = 0.05,
@@ -363,17 +356,27 @@ def _default_files_and_N() -> List[Tuple[str, int]]:
     #     return existing_hds
 
     # Option 2: muP_scaling_experiments (fallback)
-    mup = repo_root / "experimental_data_folder" / "muP_scaling_experiments"
+    # mup = repo_root / "experimental_data_folder" / "muP_scaling_experiments"
+    # mup_pairs = [
+    #     (mup / "16d_mup_sgd.csv", 1665073),
+    #     (mup / "24d_mup_sgd.csv", 2484313),
+    #     (mup / "32d_mup_sgd.csv", 3304881),
+    #     (mup / "48d_mup_sgd.csv", 4988113),
+    #     (mup / "64d_mup_sgd.csv", 6783185),
+    #     (mup / "80d_2_mup_sgd.csv", 8636417),
+    #     (mup / "96d_2_mup_sgd.csv", 10706353),
+    #     (mup / "128d_2_mup_sgd.csv", 15295569),
+    # ]
+
+    mup = repo_root / "experimental_data_folder" / "transformer_standard_scaling_mup"
+
     mup_pairs = [
-        (mup / "16d_mup_sgd.csv", 1665073),
-        (mup / "24d_mup_sgd.csv", 2484313),
-        (mup / "32d_mup_sgd.csv", 3304881),
-        (mup / "48d_mup_sgd.csv", 4988113),
-        (mup / "64d_mup_sgd.csv", 6783185),
-        (mup / "80d_2_mup_sgd.csv", 8636417),
-        (mup / "96d_2_mup_sgd.csv", 10706353),
-        (mup / "128d_2_mup_sgd.csv", 15295569),
+        (mup / "16d_standard_optimal_lr.csv", int(823e3)),
+        (mup / "32d_standard_optimal_lr.csv", int(1666e3)),
+        (mup / "48d_standard_optimal_lr.csv", int(2546e3)),
+        (mup / "64d_standard_optimal_lr.csv", int(3482e3)),
     ]
+
     existing_mup = [(str(p), n) for p, n in mup_pairs if p.exists()]
     return existing_mup
 
@@ -387,15 +390,21 @@ if __name__ == "__main__":
         raise SystemExit(0)
 
     fit = fit_validation_loss_from_pairs(
-        pairs, tokens_per_step=65500, loss_column="validation_loss"
+        pairs, tokens_per_step=TOKENS_PER_STEP, loss_column="validation_loss"
     )
-    print("Fitted parameters (L = E + A/N^alpha + B/D^beta):")
+    print("Fitted parameters (L = exp(E) + exp(A) * N^alpha + exp(B) * D^beta):")
+    print("Log-space parameters:")
     print(f"  E     = {fit.E:.6f}")
     print(f"  A     = {fit.A:.6f}")
-    print(f"  alpha = {fit.alpha:.6f}")
     print(f"  B     = {fit.B:.6f}")
+    print("Scaling exponents:")
+    print(f"  alpha = {fit.alpha:.6f}")
     print(f"  beta  = {fit.beta:.6f}")
-    if (fit.alpha + fit.beta) > 0:
+    print("Exponential form (actual scaling law coefficients):")
+    print(f"  exp(E) = {fit.exp_E:.6f}  (irreducible loss)")
+    print(f"  exp(A) = {fit.exp_A:.6f}  (parameter scaling coefficient)")
+    print(f"  exp(B) = {fit.exp_B:.6f}  (data scaling coefficient)")
+    if (fit.alpha + fit.beta) != 0:
         print(
             f"  alpha*beta/(alpha+beta) = {fit.alpha * fit.beta / (fit.alpha + fit.beta):.6f}"
         )

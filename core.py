@@ -547,53 +547,52 @@ class SimpleTransformer(nn.Module):
 
     def _apply_mup_init(self):
         """Apply muP (Maximal Update Parametrization) initialization"""
-        # Embedding layer: scale by 1/sqrt(width)
-        nn.init.normal_(
-            self.embedding.weight, mean=0, std=1 / math.sqrt(self.hidden_dim)
-        )
+        # Embedding layer: scale by 1/sqrt(width), use uniform distribution
+        std = 1 / math.sqrt(self.hidden_dim)
+        bound = math.sqrt(3.0) * std  # Convert to uniform bound
+        nn.init.uniform_(self.embedding.weight, -bound, bound)
 
         # Learned positional embeddings: scale by 1/sqrt(width)
         if self.pos_encoding == "learned" and hasattr(self, "pos_emb"):
-            nn.init.normal_(self.pos_emb, mean=0, std=1 / math.sqrt(self.hidden_dim))
+            std = 1 / math.sqrt(self.hidden_dim)
+            bound = math.sqrt(3.0) * std
+            nn.init.uniform_(self.pos_emb, -bound, bound)
 
         # Transformer layers: scale attention and feedforward weights
         for layer in self.layers:
             # QKV projection: scale by 1/sqrt(width)
-            nn.init.normal_(
-                layer.qkv.weight, mean=0, std=1 / math.sqrt(self.hidden_dim)
-            )
+            std = 1 / math.sqrt(self.hidden_dim)
+            bound = math.sqrt(3.0) * std
+            nn.init.uniform_(layer.qkv.weight, -bound, bound)
             nn.init.zeros_(layer.qkv.bias)
 
             # Output projection: scale by 1/sqrt(width)
-            nn.init.normal_(
-                layer.out_proj.weight, mean=0, std=1 / math.sqrt(self.hidden_dim)
-            )
+            std = 1 / math.sqrt(self.hidden_dim)
+            bound = math.sqrt(3.0) * std
+            nn.init.uniform_(layer.out_proj.weight, -bound, bound)
             nn.init.zeros_(layer.out_proj.bias)
 
             # Feedforward layers: scale by 1/sqrt(width)
+            std = 1 / math.sqrt(self.hidden_dim)
+            bound = math.sqrt(3.0) * std
+            
             if hasattr(layer.ff, "linear1"):
-                nn.init.normal_(
-                    layer.ff.linear1.weight, mean=0, std=1 / math.sqrt(self.hidden_dim)
-                )
+                nn.init.uniform_(layer.ff.linear1.weight, -bound, bound)
                 nn.init.zeros_(layer.ff.linear1.bias)
             if hasattr(layer.ff, "linear2"):
-                nn.init.normal_(
-                    layer.ff.linear2.weight, mean=0, std=1 / math.sqrt(self.hidden_dim)
-                )
+                nn.init.uniform_(layer.ff.linear2.weight, -bound, bound)
                 nn.init.zeros_(layer.ff.linear2.bias)
             if hasattr(layer.ff, "to_out"):
-                nn.init.normal_(
-                    layer.ff.to_out.weight, mean=0, std=1 / math.sqrt(self.hidden_dim)
-                )
+                nn.init.uniform_(layer.ff.to_out.weight, -bound, bound)
                 nn.init.zeros_(layer.ff.to_out.bias)
             if hasattr(layer.ff, "proj"):
-                nn.init.normal_(
-                    layer.ff.proj.weight, mean=0, std=1 / math.sqrt(self.hidden_dim)
-                )
+                nn.init.uniform_(layer.ff.proj.weight, -bound, bound)
                 nn.init.zeros_(layer.ff.proj.bias)
 
-        # Output layer: scale by 1/width (not sqrt)
-        nn.init.normal_(self.fc.weight, mean=0, std=1 / self.hidden_dim)
+        # Output layer: scale by 1/width (not sqrt) for muP
+        std = 1 / self.hidden_dim
+        bound = math.sqrt(3.0) * std
+        nn.init.uniform_(self.fc.weight, -bound, bound)
         nn.init.zeros_(self.fc.bias)
 
     def forward(self, x):
@@ -1013,7 +1012,10 @@ def train(gpu_id=None, csv_log_path=None):
         )
         opt_name = getattr(config, "optimizer", "adamw").lower()
         if opt_name == "adam":
-            optimizer = optim.Adam(param_groups)
+            optimizer = optim.Adam(
+                param_groups,
+                weight_decay=config.weight_decay,
+            )
         elif opt_name == "adamw":
             optimizer = optim.AdamW(
                 param_groups,
@@ -1084,10 +1086,17 @@ def train(gpu_id=None, csv_log_path=None):
 
     # After optimizer creation, add step-based schedulers
     if config.lr_schedule == "cosine":
+        # Determine effective min_lr
+        min_lr_multiplier = getattr(config, "min_lr_multiplier", None)
+        if min_lr_multiplier is not None:
+            effective_min_lr = min_lr_multiplier * config.learning_rate
+        else:
+            effective_min_lr = config.min_lr
+
         scheduler = optim.lr_scheduler.CosineAnnealingLR(
             optimizer,
             T_max=total_steps,  # T_max should be total steps for cosine
-            eta_min=config.min_lr,
+            eta_min=effective_min_lr,
         )
         scheduler_type = "step"
     elif config.lr_schedule == "cosine_warmup":

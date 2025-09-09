@@ -870,6 +870,15 @@ if __name__ == "__main__":
     # Add experiments - you can modify these paths and names as needed
     experiments_config = [
         {
+            "name": "adam 16d",
+            "csv_path": "../experimental_data_folder/transformer_standard_scaling_mup/16d_standard_mup.csv",
+            "color": "tab:purple",
+            "marker": "o",
+            "include_in_frontier": True,  # Include in frontier analysis
+            "class": "adam_transformer",
+            "hidden_dim": 16,
+        },
+        {
             "name": "adam 24d",
             "csv_path": "../experimental_data_folder/transformer_standard_scaling_mup/24d_standard_mup.csv",
             "color": "tab:purple",
@@ -905,14 +914,152 @@ if __name__ == "__main__":
             "class": "adam_transformer",
             "hidden_dim": 48,
         },
-        # Example of an experiment that won't be included in frontier analysis
-        # {
-        #     "name": "baseline experiment",
-        #     "csv_path": "../experimental_data_folder/baseline/baseline.csv",
-        #     "color": "gray",
-        #     "marker": "s",
-        #     "include_in_frontier": False,  # Won't be included in frontier analysis
-        # },
+        {
+            "name": "adam 16d original ",
+            "csv_path": "../experimental_data_folder/Hidden_Dim_Scaling/16d_123_try2.csv.csv",
+            "color": "tab:purple",
+            "marker": "o",
+            "include_in_frontier": True,  # Include in frontier analysis
+            "class": "adam_transfomer_original",
+            "hidden_dim": 16,
+        },
+        {
+            "name": "adam 24d original ",
+            "csv_path": "../experimental_data_folder/Hidden_Dim_Scaling/24d_123_try2.csv.csv",
+            "color": "tab:purple",
+            "marker": "o",
+            "include_in_frontier": True,  # Include in frontier analysis
+            "class": "adam_transfomer_original",
+            "hidden_dim": 24,
+        },
+        {
+            "name": "adam 32d original ",
+            "csv_path": "../experimental_data_folder/Hidden_Dim_Scaling/32d_123_try2.csv.csv",
+            "color": "tab:purple",
+            "marker": "o",
+            "include_in_frontier": True,  # Include in frontier analysis
+            "class": "adam_transfomer_original",
+            "hidden_dim": 32,
+        },
+        {
+            "name": "adam 64d original ",
+            "csv_path": "../experimental_data_folder/Hidden_Dim_Scaling/64d_123_try2.csv.csv",
+            "color": "tab:purple",
+            "marker": "o",
+            "include_in_frontier": True,  # Include in frontier analysis
+            "class": "adam_transfomer_original",
+            "hidden_dim": 64,
+        },
+        {
+            "name": "adam 16d original try 2",
+            "csv_path": "../experimental_data_folder/Hidden_Dim_Scaling/16d_123_try2.csv.csv",
+            "color": "tab:purple",
+            "marker": "o",
+            "include_in_frontier": True,  # Include in frontier analysis
+            "class": "adam_transfomer_original",
+            "hidden_dim": 16,
+        },
+        {
+            "name": "adam 24d original try 2 ",
+            "csv_path": "../experimental_data_folder/Hidden_Dim_Scaling/24d_123_try2.csv.csv",
+            "color": "tab:purple",
+            "marker": "o",
+            "include_in_frontier": True,  # Include in frontier analysis
+            "class": "adam_transfomer_original",
+            "hidden_dim": 24,
+        },
+        {
+            "name": "adam 32d original try 2 ",
+            "csv_path": "../experimental_data_folder/Hidden_Dim_Scaling/32d_123_try2.csv.csv",
+            "color": "tab:purple",
+            "marker": "o",
+            "include_in_frontier": True,  # Include in frontier analysis
+            "class": "adam_transfomer_original",
+            "hidden_dim": 32,
+        },
+        {
+            "name": "adam 64d original ",
+            "csv_path": "../experimental_data_folder/Hidden_Dim_Scaling/64d_123_try2.csv.csv",
+            "color": "tab:purple",
+            "marker": "o",
+            "include_in_frontier": True,  # Include in frontier analysis
+            "class": "adam_transfomer_original",
+            "hidden_dim": 64,
+        },
+        {
+            "name": "adam 16d original ",
+            "csv_path": "../experimental_data_folder/Hidden_Dim_Scaling/16d.csv.csv",
+            "color": "tab:purple",
+            "marker": "o",
+            "include_in_frontier": True,  # Include in frontier analysis
+            "class": "adam_transfomer_original",
+            "hidden_dim": 16,
+        },
+        {
+            "name": "adam 24d original ",
+            "csv_path": "../experimental_data_folder/Hidden_Dim_Scaling/24d.csv.csv",
+            "color": "tab:purple",
+            "marker": "o",
+            "include_in_frontier": True,  # Include in frontier analysis
+            "class": "adam_transfomer_original",
+            "hidden_dim": 24,
+        },
+        {
+            "name": "adam 32d original ",
+            "csv_path": "../experimental_data_folder/Hidden_Dim_Scaling/32d.csv.csv",
+            "color": "tab:purple",
+            "marker": "o",
+            "include_in_frontier": True,  # Include in frontier analysis
+            "class": "adam_transfomer_original",
+            "hidden_dim": 32,
+        },
+        {
+            "name": "adam 64d original ",
+            "csv_path": "../experimental_data_folder/Hidden_Dim_Scaling/64d.csv",
+            "color": "tab:purple",
+            "marker": "o",
+            "include_in_frontier": True,  # Include in frontier analysis
+            "class": "adam_transfomer_original",
+            "hidden_dim": 64,
+        },
+        {
+            "name": "adam 16d original try 2",
+            "csv_path": "../experimental_data_folder/Hidden_Dim_Scaling/16d_123_try2.csv.csv",
+            "color": "tab:purple",
+            "marker": "o",
+            "include_in_frontier": True,  # Include in frontier analysis
+            "class": "adam_transfomer_original",
+            "hidden_dim": 16,
+        },
+        {
+            "name": "adam 24d original try 2 ",
+            "csv_path": "../experimental_data_folder/Hidden_Dim_Scaling/24d_123_try2.csv.csv",
+            "color": "tab:purple",
+            "marker": "o",
+            "include_in_frontier": True,  # Include in frontier analysis
+            "class": "adam_transfomer_original",
+            "hidden_dim": 24,
+        },
+        {
+            "name": "adam 32d original try 2 ",
+            "csv_path": "../experimental_data_folder/Hidden_Dim_Scaling/32d_123_try2.csv.csv",
+            "color": "tab:purple",
+            "marker": "o",
+            "include_in_frontier": True,  # Include in frontier analysis
+            "class": "adam_transfomer_original",
+            "hidden_dim": 32,
+        },
+        {
+            "name": "adam 64d original ",
+            "csv_path": "../experimental_data_folder/Hidden_Dim_Scaling/64d_123_try2.csv.csv",
+            "color": "tab:purple",
+            "marker": "o",
+            "include_in_frontier": True,  # Include in frontier analysis
+            "class": "adam_transfomer_original",
+            "hidden_dim": 64,
+        },
+
+
     ]
 
     #   {
@@ -971,7 +1118,7 @@ if __name__ == "__main__":
     # Identify per-class frontiers
     analyzer.identify_frontier_by_class(
         method="pareto",
-        classes=["adam_transformer", "sgd_transformer"],
+        classes=["adam_transformer", "adam_transfomer_original"],
         flop_range_by_class={
             "adam_transformer": (1e12, 1e14),
             "sgd_transformer": (1e13, 1e15),
@@ -983,10 +1130,15 @@ if __name__ == "__main__":
         show_all_curves=True,
         show_power_law_fit=True,
         save_path="Figures/universal_scaling_law_study_by_class.png",
-        classes_to_plot=["adam_transformer", "sgd_transformer"],
+        classes_to_plot=[
+            "adam_transformer",
+            "sgd_transformer",
+            "adam_transfomer_original",
+        ],
         flop_range_by_class={
             "lstm_standard": (1e14, 1e15),
             "sgd_lstm": (1e14, 1e15),
+            "adam_transfomer_original": (1e12, 1e14),
         },
         colormap="viridis",  # Color experiments by hidden dimension
     )

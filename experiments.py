@@ -24,6 +24,9 @@ from experiment_definitions import (
     TRANSFORMER_SCALING_EXPERIMENTS,
     NO_ROTARY_SCALING_EXPERIMENTS,
     TRANSFORMER_SGD_SCALING_EXPERIMENTS,
+    HIDDEN_DIM_EXPERIMENTS_123,
+    TRANSFORMER_SCALING_EXPERIMENTS_OPTIMAL_LR,
+    TRANSFORMER_SGD_SCALING_EXPERIMENTS_OPTIMAL_LR,
 )
 
 
@@ -172,14 +175,21 @@ def create_multi_lr_experiments(base_experiments, learning_rates):
                 if "overrides" in new_sub_exp:
                     new_sub_exp["overrides"]["learning_rate"] = lr
                     new_sub_exp["overrides"]["max_characters"] = 129e6
+                    new_sub_exp["overrides"][
+                        "wikitext_limit"
+                    ] = 129e6  # Same as max_characters
                 elif "config" in new_sub_exp:
                     new_sub_exp["config"]["learning_rate"] = lr
                     new_sub_exp["config"]["max_characters"] = 129e6
+                    new_sub_exp["config"][
+                        "wikitext_limit"
+                    ] = 129e6  # Same as max_characters
                 else:
                     # If neither exists, create overrides with learning rate and max_characters
                     new_sub_exp["overrides"] = {
                         "learning_rate": lr,
                         "max_characters": 129e6,
+                        "wikitext_limit": 129e6,  # Same as max_characters
                     }
 
                 new_experiment["subexperiments"].append(new_sub_exp)
@@ -220,6 +230,7 @@ if __name__ == "__main__":
         "batch_size": 32,  # physical batch size 256
         "learning_rate": 0.001 * math.sqrt(4),
         "min_lr": 1e-5,
+        "min_lr_multiplier": 0.1,
         "lr_schedule": "cosine",
         "warmup_frac": 0.1,
         "weight_decay": 0.01,
@@ -384,9 +395,14 @@ if __name__ == "__main__":
         + NO_ROTARY_SCALING_EXPERIMENTS
     )
     #
-    EXPERIMENTS = TRANSFORMER_SCALING_EXPERIMENTS
+    # EXPERIMENTS = (
+    #     lr_tune_experiments_standard + TRANSFORMER_SCALING_EXPERIMENTS_OPTIMAL_LR
+    # )
+
     # Prepare all sub-experiments
-    all_sub_experiments = []
+    EXPERIMENTS = create_multi_lr_experiments(
+        TRANSFORMER_SGD_SCALING_EXPERIMENTS_OPTIMAL_LR, NARROW_LR_SWEEP
+    )
 
     for exp in EXPERIMENTS:
         exp_name = exp["name"]
