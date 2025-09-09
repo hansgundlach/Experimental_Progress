@@ -6,10 +6,16 @@ import time
 import os
 import numpy as np
 from core import *  # Import everything from core
-from config_generator import chinchilla_scale  # Import the scaling function
 import copy
 import argparse
 import multiprocessing as mp
+from experiment_utils import (
+    create_multi_seed_experiments,
+    create_multi_lr_experiments,
+    calculate_transformer_params,
+    gen_experim,
+    get_base_config,
+)
 from experiment_definitions import (
     BASIC_TEST_EXPERIMENT,
     ACTIVATION_EXPERIMENTS,
@@ -86,119 +92,6 @@ def run_experiments_on_gpu(gpu_id, sub_experiments, project_name_base):
     return results
 
 
-def create_multi_seed_experiments(base_experiments, seeds):
-    """
-    Create multiple versions of experiments with different random seeds.
-
-    Args:
-        base_experiments: List of experiment dictionaries (e.g., HIDDEN_DIM_EXPERIMENTS)
-        seeds: List of seed values (e.g., [123, 789])
-
-    Returns:
-        List of experiment dictionaries with seed variations
-    """
-    multi_seed_experiments = []
-
-    for experiment in base_experiments:
-        # Create a new experiment group for each base experiment
-        new_experiment = {"name": experiment["name"], "subexperiments": []}
-
-        # For each subexperiment in the base experiment
-        for sub_exp in experiment["subexperiments"]:
-            # Create a version for each seed
-            for seed in seeds:
-                # Create new subexperiment with seed suffix
-                new_sub_exp = copy.deepcopy(sub_exp)
-
-                # Add seed to the label
-                original_label = sub_exp["label"]
-                new_sub_exp["label"] = f"{original_label}_{seed}"
-
-                # Add seed to overrides (or config if using pre-generated configs)
-                if "overrides" in new_sub_exp:
-                    new_sub_exp["overrides"]["seed"] = seed
-                elif "config" in new_sub_exp:
-                    new_sub_exp["config"]["seed"] = seed
-                else:
-                    # If neither exists, create overrides with just the seed
-                    new_sub_exp["overrides"] = {"seed": seed}
-
-                new_experiment["subexperiments"].append(new_sub_exp)
-
-        multi_seed_experiments.append(new_experiment)
-
-    return multi_seed_experiments
-
-
-def create_multi_lr_experiments(base_experiments, learning_rates):
-    """
-    Create multiple versions of experiments with different learning rates.
-    Similar to create_multi_seed_experiments but for learning rates.
-
-    Args:
-        base_experiments: List of experiment dictionaries (e.g., LSTM_HIDDEN_DIM_EXPERIMENTS)
-        learning_rates: List of learning rate values (e.g., [1e-4, 1e-3, 1e-2])
-
-    Returns:
-        List of experiment dictionaries with learning rate variations
-    """
-    multi_lr_experiments = []
-
-    for experiment in base_experiments:
-        # Create a new experiment group for each base experiment
-        new_experiment = {
-            "name": f"{experiment['name']}_lr_sweep",
-            "subexperiments": [],
-        }
-
-        # For each subexperiment in the base experiment
-        for sub_exp in experiment["subexperiments"]:
-            # Create a version for each learning rate
-            for lr in learning_rates:
-                # Create new subexperiment with lr suffix
-                new_sub_exp = copy.deepcopy(sub_exp)
-
-                # Add learning rate to the label
-                original_label = sub_exp["label"]
-                # Format learning rate for filename-safe label
-                if lr >= 1:
-                    lr_str = f"{lr:.0f}"
-                elif lr >= 0.01:
-                    lr_str = f"{lr:.3f}".rstrip("0").rstrip(".")
-                else:
-                    # For very small learning rates, use scientific notation
-                    lr_str = f"{lr:.1e}".replace("-", "m").replace("+", "p")
-
-                new_sub_exp["label"] = f"{original_label}_lr_{lr_str}"
-
-                # Add learning rate and max_characters to overrides
-                if "overrides" in new_sub_exp:
-                    new_sub_exp["overrides"]["learning_rate"] = lr
-                    new_sub_exp["overrides"]["max_characters"] = 129e6
-                    new_sub_exp["overrides"][
-                        "wikitext_limit"
-                    ] = 129e6  # Same as max_characters
-                elif "config" in new_sub_exp:
-                    new_sub_exp["config"]["learning_rate"] = lr
-                    new_sub_exp["config"]["max_characters"] = 129e6
-                    new_sub_exp["config"][
-                        "wikitext_limit"
-                    ] = 129e6  # Same as max_characters
-                else:
-                    # If neither exists, create overrides with learning rate and max_characters
-                    new_sub_exp["overrides"] = {
-                        "learning_rate": lr,
-                        "max_characters": 129e6,
-                        "wikitext_limit": 129e6,  # Same as max_characters
-                    }
-
-                new_experiment["subexperiments"].append(new_sub_exp)
-
-        multi_lr_experiments.append(new_experiment)
-
-    return multi_lr_experiments
-
-
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Run Transformer Experiments")
     parser.add_argument(
@@ -224,51 +117,8 @@ if __name__ == "__main__":
     if n_gpus == 0:
         print("Warning: No GPUs detected. Running on CPU.")
 
-    # Base configuration for all experiments
-    base_config = {
-        "dataset": "c4_subset",
-        "batch_size": 32,  # physical batch size 256
-        "learning_rate": 0.001 * math.sqrt(4),
-        "min_lr": 1e-5,
-        "min_lr_multiplier": 0.1,
-        "lr_schedule": "cosine",
-        "warmup_frac": 0.1,
-        "weight_decay": 0.01,
-        "hidden_dim": 64,  # Base hidden dimension
-        "num_layers": 4,  # Base number of layers
-        "num_heads": 4,
-        "dropout": 0.0,
-        "seq_length": 128,
-        "wikitext_limit": 5 * 10**7,
-        "pos_encoding": "rotary",
-        "init_scheme": "transformer_scaled",
-        "stride": 128,
-        "pin_memory": True,
-        "compile": False,
-        "prefetch_factor": 8,
-        "min_epochs": 1,
-        "max_epochs": 1,
-        "use_gradient_clipping": True,
-        "gradient_clip_val": 1.0,
-        "label_smoothing": 0.0,
-        "gradient_accumulation_steps": 16,
-        "optimizer": "adamw",
-        "activation": "gelu",
-        "norm_type": "layer",
-        "norm_placement": "pre",
-        "results_folder": "Former_Experiments_Folder",
-        "csv_log_interval": 20,
-        "seed": 789,
-        # Complete-P (default OFF; non-breaking)
-        "enable_completep": False,
-        "completep_alpha": 1.0,
-        # Base constants for scaling rules
-        "n_base": 256,
-        "l_base": 2,
-        "eta_base": 3.9e-3,
-        "wd_base": 0.10,
-        "eps_base": 1e-16,
-    }
+    # Get base configuration from utilities
+    base_config = get_base_config()
 
     # Generate the Chinchilla-scaled experiments
     # CHINCHILLA_SCALED_EXPERIMENTS = create_chinchilla_scaled_experiments()
@@ -400,10 +250,17 @@ if __name__ == "__main__":
     # )
 
     # Prepare all sub-experiments
-    EXPERIMENTS = create_multi_lr_experiments(
-        TRANSFORMER_SGD_SCALING_EXPERIMENTS_OPTIMAL_LR, NARROW_LR_SWEEP
-    )
 
+    # EXPERIMENTS = create_multi_lr_experiments(
+    #     TRANSFORMER_SCALING_EXPERIMENTS_OPTIMAL_LR, NARROW_LR_SWEEP
+    # )
+
+    EXPERIMENTS = gen_experim(32, label="32d_test_experiment", learning_rate=0.001)
+
+    # Initialize the list to store all sub-experiments
+    all_sub_experiments = []
+
+    # EXPERIMENTS =
     for exp in EXPERIMENTS:
         exp_name = exp["name"]
         for sub_exp in exp["subexperiments"]:

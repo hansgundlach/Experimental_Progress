@@ -774,7 +774,7 @@ def train(gpu_id=None, csv_log_path=None):
             csv_file = open(csv_log_path, "w", newline="")
             csv_writer = csv.writer(csv_file)
             csv_writer.writerow(
-                ["step", "training_loss", "validation_loss", "total_flops_profiler"]
+                ["step", "training_loss", "validation_loss", "total_flops_profiler", "theoretical_flops", "tokens"]
             )
             csv_file.flush()  # Immediately write header to disk
             print(f"Logging training progress to {csv_log_path}")
@@ -1240,6 +1240,7 @@ def train(gpu_id=None, csv_log_path=None):
     # now continue with your normal epoch loop
     # initialize step counter before it's used below
     optimizer_step_counter = 0
+    last_csv_logged_step = -1  # Track last step we logged to CSV
     for epoch in range(config.max_epochs):
         model.train()
         total_loss = 0
@@ -1330,31 +1331,43 @@ def train(gpu_id=None, csv_log_path=None):
                     }
                     wandb.log(step_metrics)
 
-                # Log to CSV if enabled (uses optimizer steps)
+                # Log to CSV if enabled (uses optimizer steps) - only once per step
                 if csv_writer and (optimizer_step_counter % csv_log_interval == 0):
-                    current_train_loss = raw_loss.item()
-                    # Run validation
-                    current_val_loss = evaluate_loss(
-                        model,
-                        val_dataloader,
-                        criterion,
-                        device,
-                        len(primary_tokenizer),
-                        use_amp,
-                    )
-                    model.train()  # Switch back to train mode
+                    # Check if we already logged this step
+                    if last_csv_logged_step != optimizer_step_counter:
+                        current_train_loss = raw_loss.item()
+                        # Run validation
+                        current_val_loss = evaluate_loss(
+                            model,
+                            val_dataloader,
+                            criterion,
+                            device,
+                            len(primary_tokenizer),
+                            use_amp,
+                        )
+                        model.train()  # Switch back to train mode
 
-                    cumulative_flops_profiler = flops_per_step * optimizer_step_counter
+                        cumulative_flops_profiler = flops_per_step * optimizer_step_counter
+                        
+                        # Calculate theoretical FLOPs using 6ND formula (Chinchilla) - including embedding params
+                        effective_batch_size = config.batch_size * config.gradient_accumulation_steps
+                        tokens_processed = optimizer_step_counter * effective_batch_size * config.seq_length
+                        theoretical_flops_chinchilla = 6 * num_params * tokens_processed
 
-                    csv_writer.writerow(
-                        [
-                            optimizer_step_counter,
-                            f"{current_train_loss:.4f}",
-                            f"{current_val_loss:.4f}",
-                            f"{cumulative_flops_profiler:.2e}",
-                        ]
-                    )
-                    csv_file.flush()
+                        csv_writer.writerow(
+                            [
+                                optimizer_step_counter,
+                                f"{current_train_loss:.4f}",
+                                f"{current_val_loss:.4f}",
+                                f"{cumulative_flops_profiler:.2e}",
+                                f"{theoretical_flops_chinchilla:.2e}",
+                                f"{tokens_processed}",
+                            ]
+                        )
+                        csv_file.flush()
+                        
+                        # Mark this step as logged
+                        last_csv_logged_step = optimizer_step_counter
 
             # accumulate the _raw_ loss for logging
             total_loss += raw_loss.item()
@@ -1369,31 +1382,6 @@ def train(gpu_id=None, csv_log_path=None):
                     }
                 )
 
-            # Log to CSV if enabled
-            if csv_writer and (optimizer_step_counter % csv_log_interval == 0):
-                current_train_loss = raw_loss.item()
-                # Run validation
-                current_val_loss = evaluate_loss(
-                    model,
-                    val_dataloader,
-                    criterion,
-                    device,
-                    len(primary_tokenizer),
-                    use_amp,
-                )
-                model.train()  # Switch back to train mode
-
-                cumulative_flops_profiler = flops_per_step * optimizer_step_counter
-
-                csv_writer.writerow(
-                    [
-                        optimizer_step_counter,
-                        f"{current_train_loss:.4f}",
-                        f"{current_val_loss:.4f}",
-                        f"{cumulative_flops_profiler:.2e}",
-                    ]
-                )
-                csv_file.flush()
 
         # Update metrics with loss after training loop
         avg_train_loss = total_loss / len(train_dataloader)
