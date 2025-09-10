@@ -5,6 +5,8 @@ from lstm_experiment_utils import (
     gen_lstm_experim,
     create_multi_seed_lstm_experiments,
     create_multi_lr_lstm_experiments,
+    create_multi_lr_experiments,
+    gen_lstm_experim,
     calculate_lstm_params,
     get_lstm_base_config,
 )
@@ -13,6 +15,46 @@ from lstm_experiment_utils import (
 TEST_EXPERIMENT = gen_lstm_experim(
     16, label="lstm_16d_test_experiment", learning_rate=0.01
 )
+
+
+NARROW_LR_SWEEP = [
+    10 ** (-3),
+    10 ** (-2.5),
+    10 ** (-2),
+    10 ** (-1.5),
+    1e-1,
+]
+
+
+LSTM_LR_TUNE_MUP_STANDARD = create_multi_lr_experiments(
+    gen_lstm_experim(
+        32, label="32d_lstm_mup", learning_rate=0.01, use_mup=True, mup_base_width=32
+    ),
+    NARROW_LR_SWEEP,
+)
+
+
+LSTM_SCALING_EXPERIMENTS_OPTIMAL_LR = EXPERIMENTS = (
+    gen_lstm_experim(32, label="32d_lstm_experiment", learning_rate=0.01)
+    + gen_lstm_experim(40, label="40d_lstm_experiment", learning_rate=0.01)
+    + gen_lstm_experim(48, label="48d_lstm_experiment", learning_rate=0.01)
+    + gen_lstm_experim(56, label="56d_lstm_experiment", learning_rate=0.01)
+    + gen_lstm_experim(64, label="64d_lstm_experiment", learning_rate=0.01)
+)
+
+
+LSTM_ALL_SCALE_LR_TUNE = create_multi_lr_experiments(
+    LSTM_SCALING_EXPERIMENTS_OPTIMAL_LR, NARROW_LR_SWEEP
+)
+
+
+# lr_tune_experiments standard
+# LSTM_LR_TUNE_STANDARD = create_multi_lr_experiments(
+#     gen_lstm_experim(
+#         32, label="32d_standard", learning_rate=0.01, use_mup=True, mup_base_width=32
+#     ),
+#     NARROW_LR_SWEEP,
+# )
 
 
 # ========= Experiment definitions (customize labels & overrides below) =========
