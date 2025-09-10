@@ -3,6 +3,9 @@ New experiment submission workflow: ./submit_experiments.sh
 
 
 
+rsync -avz hgundlach@txe1-login.mit.edu:/home/gridsan/hgundlach/Experimental_Progress/transformer_experiments/ experimental_data_folder/
+
+
 
 Make LSTM experiments with and without layernorm 
 +cosine warmup+ 

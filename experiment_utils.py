@@ -293,13 +293,13 @@ def gen_experim(hidden_dim, gpu_type="V100", label=None, **overrides):
 def get_base_config():
     """
     Get the base configuration for experiments.
-    
+
     Returns:
         Dictionary containing base configuration parameters
     """
     return {
         "dataset": "c4_subset",
-        "batch_size": 32,  # physical batch size 256
+        "batch_size": 128,
         "learning_rate": 0.001 * math.sqrt(4),
         "min_lr": 1e-5,
         "min_lr_multiplier": 0.1,
@@ -340,4 +340,6 @@ def get_base_config():
         "eta_base": 3.9e-3,
         "wd_base": 0.10,
         "eps_base": 1e-16,
+        "use_mup": False,
+        "mup_base_width": 128,
     }

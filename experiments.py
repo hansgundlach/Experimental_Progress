@@ -17,22 +17,8 @@ from experiment_utils import (
     get_base_config,
 )
 from experiment_definitions import (
-    BASIC_TEST_EXPERIMENT,
-    ACTIVATION_EXPERIMENTS,
-    OPTIMIZER_EXPERIMENTS,
-    POS_ENCODING_EXPERIMENTS,
-    INITIALIZATION_EXPERIMENTS,
-    NORM_EXPERIMENTS,
-    LR_SCHEDULE_EXPERIMENTS,
-    SGD_SCHEDULE_VARIATION_EXPERIMENTS,
-    TRANSFORMER_VARIATION_EXPERIMENTS_HEAD,
-    TWO_CHANGES_EXPERIMENTS,
-    TRANSFORMER_SCALING_EXPERIMENTS,
-    NO_ROTARY_SCALING_EXPERIMENTS,
-    TRANSFORMER_SGD_SCALING_EXPERIMENTS,
-    HIDDEN_DIM_EXPERIMENTS_123,
+    TEST_EXPERIMENT,
     TRANSFORMER_SCALING_EXPERIMENTS_OPTIMAL_LR,
-    TRANSFORMER_SGD_SCALING_EXPERIMENTS_OPTIMAL_LR,
 )
 
 
@@ -52,10 +38,22 @@ def run_experiments_on_gpu(gpu_id, sub_experiments, project_name_base):
 
             print(f"\nRunning sub-experiment: {exp_name} -> {sub_label}")
 
+            print(f"Starting training for: {sub_label} at {time.strftime('%H:%M:%S')}")
+            training_start_time = time.time()
+
             with wandb.init(
                 project=project_name, config=config, name=sub_label, reinit=True
             ) as run:
                 training_results = train(gpu_id=gpu_id, csv_log_path=csv_log_path)
+
+                training_elapsed = time.time() - training_start_time
+                print(f"Training completed for: {sub_label}")
+                print(
+                    f"Training time: {training_elapsed:.1f}s ({training_elapsed/60:.1f}min)"
+                )
+                print(
+                    f"Final validation loss: {training_results['final_val_loss']:.4f}"
+                )
 
                 if exp_name not in results:
                     results[exp_name] = {}
@@ -68,10 +66,9 @@ def run_experiments_on_gpu(gpu_id, sub_experiments, project_name_base):
                         "best_val_loss": training_results["best_val_loss"],
                     }
                 )
-                run.finish()
 
-                print(f"Completed sub-experiment: {exp_name} -> {sub_label}")
-                print(f"Results: {training_results}")
+            print(f"Completed sub-experiment: {exp_name} -> {sub_label}")
+            print(f"Results: {training_results}")
 
         except Exception as e:
             print(f"Error in sub-experiment {sub_exp} on GPU {gpu_id}: {str(e)}")
@@ -212,56 +209,8 @@ if __name__ == "__main__":
 
     # EXPERIMENTS = TRANSFORMER_VARIATION_EXPERIMENTS_HEAD
 
-    NARROW_LR_SWEEP = [
-        10 ** (-3),
-        10 ** (-2.5),
-        10 ** (-2),
-        10 ** (-1.5),
-        1e-1,
-    ]  # Focused sweep around promising values
-
-    # lr-tune experiments
-    base_experiment = subset_experiments(
-        TRANSFORMER_SCALING_EXPERIMENTS, ["32d_standard_mup"]
-    )
-    lr_tune_experiments_standard = create_multi_lr_experiments(
-        base_experiment, NARROW_LR_SWEEP
-    )
-
-    base_experiment_sgd = subset_experiments(
-        TRANSFORMER_SGD_SCALING_EXPERIMENTS, ["32d_sgd_mup"]
-    )
-
-    lr_tune_experiment_sgd = create_multi_lr_experiments(
-        base_experiment_sgd, NARROW_LR_SWEEP
-    )
-
-    just_lr_tune_experiments = lr_tune_experiments_standard + lr_tune_experiment_sgd
-
-    # scaling experiments
-    scaling_experiments = (
-        TRANSFORMER_SCALING_EXPERIMENTS
-        + TRANSFORMER_SGD_SCALING_EXPERIMENTS
-        + NO_ROTARY_SCALING_EXPERIMENTS
-    )
     #
-    # EXPERIMENTS = (
-    #     lr_tune_experiments_standard + TRANSFORMER_SCALING_EXPERIMENTS_OPTIMAL_LR
-    # )
-
-    # Prepare all sub-experiments
-
-    # EXPERIMENTS = create_multi_lr_experiments(
-    #     TRANSFORMER_SCALING_EXPERIMENTS_OPTIMAL_LR, NARROW_LR_SWEEP
-    # )
-
-    EXPERIMENTS = (
-        gen_experim(32, label="32d_test_experiment", learning_rate=0.01)
-        + gen_experim(40, label="40d_test_experiment", learning_rate=0.01)
-        + gen_experim(48, label="48d_test_experiment", learning_rate=0.001)
-        + gen_experim(56, label="56d_test_experiment", learning_rate=0.001)
-        + gen_experim(64, label="64d_test_experiment", learning_rate=0.001)
-    )
+    EXPERIMENTS = TEST_EXPERIMENT
 
     # Initialize the list to store all sub-experiments
     all_sub_experiments = []
