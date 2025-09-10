@@ -10,11 +10,7 @@ import sys
 sys.path.append(os.path.dirname(os.path.abspath(__file__)))
 from lstm_training import train_model
 from lstm_experiment_definitions import (
-    TEST_EXPERIMENTS,
-    LSTM_OPTIMAL_SCALING,
-    LSTM_SGD_OPTIMAL_SCALING,
-    LSTM_MUP_SCALING_EXPERIMENTS,
-    LSTM_SGD_MUP_SCALING,
+    TEST_EXPERIMENT,
 )
 import argparse
 import torch.multiprocessing as mp
@@ -297,43 +293,43 @@ NARROW_LR_SWEEP = [
 # EXPERIMENTS = create_multi_lr_experiments(LSTM_SGD_OPTIMAL_SCALING, NARROW_LR_SWEEP)
 
 # LSTM 16d mup lr tune
-lstm_16_mup = subset_experiments(LSTM_MUP_SCALING_EXPERIMENTS, ["lstm_16d_mup"])
-lstm_16_mup_lr_tune_exper = create_multi_lr_experiments(lstm_16_mup, NARROW_LR_SWEEP)
+# lstm_16_mup = subset_experiments(LSTM_MUP_SCALING_EXPERIMENTS, ["lstm_16d_mup"])
+# lstm_16_mup_lr_tune_exper = create_multi_lr_experiments(lstm_16_mup, NARROW_LR_SWEEP)
 
-lstm_16_mup_sgd = subset_experiments(LSTM_SGD_MUP_SCALING, ["lstm_16d_sgd_mup"])
-lstm_16_mup_lr_tune_sgd_exper = create_multi_lr_experiments(
-    lstm_16_mup_sgd, NARROW_LR_SWEEP
-)
-# scaling experiment mup lstm
-LSTM_MUP_SCALING_EXPERIMENTS
-# scaling experiment mup sgd lstm
-LSTM_SGD_MUP_SCALING
+# lstm_16_mup_sgd = subset_experiments(LSTM_SGD_MUP_SCALING, ["lstm_16d_sgd_mup"])
+# lstm_16_mup_lr_tune_sgd_exper = create_multi_lr_experiments(
+#     lstm_16_mup_sgd, NARROW_LR_SWEEP
+# )
+# # scaling experiment mup lstm
+# LSTM_MUP_SCALING_EXPERIMENTS
+# # scaling experiment mup sgd lstm
+# LSTM_SGD_MUP_SCALING
 
-# just lr tune
-just_lr_tune = lstm_16_mup_lr_tune_exper + lstm_16_mup_lr_tune_sgd_exper
+# # just lr tune
+# just_lr_tune = lstm_16_mup_lr_tune_exper + lstm_16_mup_lr_tune_sgd_exper
 
-# Full Minimal Set
-combined_minimal_experiments = (
-    lstm_16_mup_lr_tune_exper
-    + lstm_16_mup_lr_tune_sgd_exper
-    + LSTM_MUP_SCALING_EXPERIMENTS
-    + LSTM_SGD_MUP_SCALING
-)
+# # Full Minimal Set
+# combined_minimal_experiments = (
+#     lstm_16_mup_lr_tune_exper
+#     + lstm_16_mup_lr_tune_sgd_exper
+#     + LSTM_MUP_SCALING_EXPERIMENTS
+#     + LSTM_SGD_MUP_SCALING
+# )
 
-# Non essential expeiments
-# ====================================================================
-lstm_16 = subset_experiments(LSTM_OPTIMAL_SCALING, ["lstm_16d"])
-lstm_16_lr_tune = create_multi_lr_experiments(lstm_16, NARROW_LR_SWEEP)
-# ot
-lstm_16_sgd = subset_experiments(LSTM_SGD_OPTIMAL_SCALING, ["lstm_16d_sgd"])
-lstm_16_sgd_lr_tune = create_multi_lr_experiments(lstm_16_sgd, NARROW_LR_SWEEP)
-# LR tune at all scales
-lstm_lr_at_all_scales = create_multi_lr_experiments(
-    LSTM_OPTIMAL_SCALING, NARROW_LR_SWEEP
-)
-lstm_sgd_lr_at_all_scales = create_multi_lr_experiments(
-    LSTM_SGD_OPTIMAL_SCALING, NARROW_LR_SWEEP
-)
+# # Non essential expeiments
+# # ====================================================================
+# lstm_16 = subset_experiments(LSTM_OPTIMAL_SCALING, ["lstm_16d"])
+# lstm_16_lr_tune = create_multi_lr_experiments(lstm_16, NARROW_LR_SWEEP)
+# # ot
+# lstm_16_sgd = subset_experiments(LSTM_SGD_OPTIMAL_SCALING, ["lstm_16d_sgd"])
+# lstm_16_sgd_lr_tune = create_multi_lr_experiments(lstm_16_sgd, NARROW_LR_SWEEP)
+# # LR tune at all scales
+# lstm_lr_at_all_scales = create_multi_lr_experiments(
+#     LSTM_OPTIMAL_SCALING, NARROW_LR_SWEEP
+# )
+# lstm_sgd_lr_at_all_scales = create_multi_lr_experiments(
+#     LSTM_SGD_OPTIMAL_SCALING, NARROW_LR_SWEEP
+# )
 
 
 # scaling experiments optimal lstm  do these afterwards
@@ -341,7 +337,7 @@ lstm_sgd_lr_at_all_scales = create_multi_lr_experiments(
 # # scaling experiments optimal
 # LSTM_SGD_OPTIMAL_SCALING
 
-EXPERIMENTS = TEST_EXPERIMENTS
+EXPERIMENTS = TEST_EXPERIMENT
 
 
 def find_free_port():

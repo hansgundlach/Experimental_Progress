@@ -235,23 +235,25 @@ class AdvancedLSTMLanguageModel(nn.Module):
         """Apply standard LSTM initialization recipe"""
         # Embedding layer: Xavier uniform initialization
         nn.init.xavier_uniform_(self.embedding.weight)
-        
+
         # LSTM layers: follow standard LSTM initialization
         for lstm_layer in self.lstm_layers:
             for name, param in lstm_layer.named_parameters():
-                if 'weight_ih' in name:
+                if "weight_ih" in name:
                     # Input-to-hidden weights: Xavier uniform
                     nn.init.xavier_uniform_(param.data)
-                elif 'weight_hh' in name:
+                elif "weight_hh" in name:
                     # Hidden-to-hidden weights: Orthogonal
                     nn.init.orthogonal_(param.data)
-                elif 'bias' in name:
+                elif "bias" in name:
                     # Set all biases to 0, then forget gate bias to +1
-                    param.data.fill_(0.)
+                    param.data.fill_(0.0)
                     hidden_size = param.size(0) // 4
-                    param.data[hidden_size:2*hidden_size].fill_(1.)  # forget gate bias
+                    param.data[hidden_size : 2 * hidden_size].fill_(
+                        1.0
+                    )  # forget gate bias
 
-        # Output layer: Xavier uniform initialization  
+        # Output layer: Xavier uniform initialization
         nn.init.xavier_uniform_(self.linear.weight)
         nn.init.zeros_(self.linear.bias)
 
@@ -265,19 +267,21 @@ class AdvancedLSTMLanguageModel(nn.Module):
         # LSTM layers: combine muP scaling with standard LSTM practices
         for lstm_layer in self.lstm_layers:
             for name, param in lstm_layer.named_parameters():
-                if 'weight_ih' in name:
+                if "weight_ih" in name:
                     # Input-to-hidden: muP scaled Xavier uniform
                     std = 1 / math.sqrt(self.hidden_size)
                     bound = math.sqrt(3.0) * std
                     nn.init.uniform_(param.data, -bound, bound)
-                elif 'weight_hh' in name:
+                elif "weight_hh" in name:
                     # Hidden-to-hidden: Orthogonal (standard LSTM practice)
                     nn.init.orthogonal_(param.data)
-                elif 'bias' in name:
+                elif "bias" in name:
                     # Standard LSTM bias initialization
-                    param.data.fill_(0.)
+                    param.data.fill_(0.0)
                     hidden_size = param.size(0) // 4
-                    param.data[hidden_size:2*hidden_size].fill_(1.)  # forget gate bias
+                    param.data[hidden_size : 2 * hidden_size].fill_(
+                        1.0
+                    )  # forget gate bias
 
         # Output layer: muP scaled initialization
         # Only initialize if not tied to embedding
@@ -761,7 +765,14 @@ def train_model(
             csv_file = open(csv_log_path, "w", newline="")
             csv_writer = csv.writer(csv_file)
             csv_writer.writerow(
-                ["step", "training_loss", "validation_loss", "total_flops_profiler", "theoretical_flops", "tokens"]
+                [
+                    "step",
+                    "training_loss",
+                    "validation_loss",
+                    "total_flops_profiler",
+                    "theoretical_flops",
+                    "tokens",
+                ]
             )
             csv_file.flush()  # Immediately write header to disk
             print(f"Logging training progress to {csv_log_path}")
@@ -903,6 +914,23 @@ def train_model(
         f"Gradient Accumulation: {gradient_accumulation_steps} steps (Effective batch size: {effective_batch_size})"
     )
 
+    # Calculate total steps and warmup steps for step-based schedulers
+    steps_per_epoch = math.ceil(len(train_loader) / gradient_accumulation_steps)
+    total_steps = max(1, steps_per_epoch * config["num_epochs"])
+
+    warmup_frac = config.get("warmup_frac", 0.0)
+    if not (0.0 <= warmup_frac < 1.0):
+        warmup_frac = 0.0
+
+    warmup_steps = int(total_steps * warmup_frac)
+    if warmup_frac > 0.0:
+        warmup_steps = max(1, warmup_steps)
+        print(
+            f"Using {warmup_steps} warm-up step(s) ({warmup_steps/total_steps*100:.1f}% of total steps)"
+        )
+    else:
+        print("No warm-up will be used.")
+
     # Set up LR scheduler
     if config.get("lr_schedule") == "step":
         scheduler = optim.lr_scheduler.StepLR(
@@ -910,12 +938,47 @@ def train_model(
             step_size=config.get("step_size", 10),
             gamma=config.get("gamma", 0.1),
         )
+        scheduler_type = "epoch"
     elif config.get("lr_schedule") == "cosine":
+        # Determine effective min_lr
+        min_lr_multiplier = config.get("min_lr_multiplier", None)
+        if min_lr_multiplier is not None:
+            effective_min_lr = min_lr_multiplier * config["learning_rate"]
+        else:
+            effective_min_lr = config.get("min_lr", 0)
+
         scheduler = optim.lr_scheduler.CosineAnnealingLR(
-            optimizer, T_max=config["num_epochs"], eta_min=config.get("min_lr", 0)
+            optimizer, T_max=total_steps, eta_min=effective_min_lr
         )
+        scheduler_type = "step"
+    elif config.get("lr_schedule") == "cosine_warmup":
+        # Determine effective min_lr
+        min_lr_multiplier = config.get("min_lr_multiplier", None)
+        if min_lr_multiplier is not None:
+            effective_min_lr = min_lr_multiplier * config["learning_rate"]
+        else:
+            effective_min_lr = config.get("min_lr", 0)
+
+        # Calculate min_lr ratio for cosine decay
+        min_lr_ratio = effective_min_lr / config["learning_rate"]
+
+        def warmup_cosine_step(step):
+            step = max(1, step)
+            # Linear warmup
+            if step < warmup_steps:
+                return float(step) / float(max(1, warmup_steps))
+            # Cosine decay from 1.0 to min_lr_ratio
+            if total_steps == warmup_steps:
+                return 1.0
+            progress = (step - warmup_steps) / (total_steps - warmup_steps)
+            cosine_factor = 0.5 * (1.0 + math.cos(math.pi * progress))
+            return min_lr_ratio + (1.0 - min_lr_ratio) * cosine_factor
+
+        scheduler = optim.lr_scheduler.LambdaLR(optimizer, lr_lambda=warmup_cosine_step)
+        scheduler_type = "step"
     else:
         scheduler = None
+        scheduler_type = None
 
     print(f"Model parameters: {sum(p.numel() for p in model.parameters()):,}")
     print(f"Training on {len(train_loader)} batches per epoch")
@@ -930,6 +993,7 @@ def train_model(
             return model.vocab_size
 
     # Training loop
+    optimizer_step_counter = 0
     for epoch in range(config["num_epochs"]):
         # reshuffle for DDP
         if dist.is_initialized():
@@ -1043,6 +1107,11 @@ def train_model(
                 # Zero gradients after optimization step
                 optimizer.zero_grad()
 
+                # Update step counter and step-based scheduler
+                optimizer_step_counter += 1
+                if scheduler is not None and scheduler_type == "step":
+                    scheduler.step(optimizer_step_counter)
+
             # Log to CSV if enabled
             if csv_writer and (batch_idx + 1) % csv_log_interval == 0:
                 current_step = batch_idx + 1
@@ -1057,15 +1126,21 @@ def train_model(
                 model.train()
 
                 total_flops = flop_counter.total_flops
-                
+
                 # Calculate theoretical FLOPs using 6ND formula (Chinchilla) - including embedding params
-                effective_batch_size = config["batch_size"] * gradient_accumulation_steps
-                tokens_processed = current_step * effective_batch_size * config["sequence_length"]
-                
+                effective_batch_size = (
+                    config["batch_size"] * gradient_accumulation_steps
+                )
+                tokens_processed = (
+                    current_step * effective_batch_size * config["sequence_length"]
+                )
+
                 # Count total parameters for theoretical FLOP calculation
-                total_model_params = sum(p.numel() for p in model.parameters() if p.requires_grad)
+                total_model_params = sum(
+                    p.numel() for p in model.parameters() if p.requires_grad
+                )
                 theoretical_flops_chinchilla = 6 * total_model_params * tokens_processed
-                
+
                 csv_writer.writerow(
                     [
                         current_step,
@@ -1160,8 +1235,8 @@ def train_model(
 
         wandb.log(log_dict)
 
-        # Step scheduler once per epoch
-        if scheduler is not None:
+        # Step scheduler once per epoch (only for epoch-based schedulers)
+        if scheduler is not None and scheduler_type == "epoch":
             scheduler.step()
 
     # Final evaluation

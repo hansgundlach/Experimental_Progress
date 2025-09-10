@@ -1,20 +1,32 @@
 # lstm_experiment_definitions.py
 import math
 import copy
+from lstm_experiment_utils import (
+    gen_lstm_experim,
+    create_multi_seed_lstm_experiments,
+    create_multi_lr_lstm_experiments,
+    calculate_lstm_params,
+    get_lstm_base_config,
+)
+
+
+TEST_EXPERIMENT = gen_lstm_experim(
+    16, label="lstm_16d_test_experiment", learning_rate=0.01
+)
 
 
 # ========= Experiment definitions (customize labels & overrides below) =========
-TEST_EXPERIMENTS = [
-    {
-        "name": "lstm_september_testing",
-        "subexperiments": [
-            {
-                "label": "lstm_with_tokens_estimate",
-                "overrides": {"learning_rate": 0.001 * math.sqrt(4), "hidden_size": 16},
-            },
-        ],
-    },
-]
+# TEST_EXPERIMENTS = [
+#     {
+#         "name": "lstm_september_testing",
+#         "subexperiments": [
+#             {
+#                 "label": "lstm_with_tokens_estimate",
+#                 "overrides": {"learning_rate": 0.001 * math.sqrt(4), "hidden_size": 16},
+#             },
+#         ],
+#     },
+# ]
 
 
 # LSTM_OPTIMAL_SCALING = [

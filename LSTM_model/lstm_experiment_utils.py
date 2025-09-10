@@ -235,7 +235,10 @@ def get_lstm_base_config():
         "num_layers": 2,  # Base number of layers
         "dropout": 0.0,
         "learning_rate": 0.001 * math.sqrt(4),  # Scale by sqrt of accumulation steps
-        "lr_schedule": "cosine",
+        "lr_schedule": "cosine_warmup",
+        "warmup_frac": 0.01,  # 10% warmup steps
+        "min_lr_multiplier": 0.1,  # Min LR as 1% of base LR
+        "scheduler_type": "step",
         "step_size": 10,
         "gamma": 0.1,
         "num_epochs": 1,
