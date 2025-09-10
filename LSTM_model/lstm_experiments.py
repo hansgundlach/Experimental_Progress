@@ -16,62 +16,70 @@ import argparse
 import torch.multiprocessing as mp
 from socket import socket
 from typing import List, Union, Sequence
+from lstm_experiment_utils import (
+    get_lstm_base_config,
+    create_multi_lr_lstm_experiments,
+    create_multi_seed_lstm_experiments,
+    create_multi_lr_experiments,
+    create_multi_seed_experiments,
+)
 
 # Configuration
 # has 1.66 total params
-CONFIG = {
-    "data_path": "../Datasets/c4_subset.txt",
-    "tokenizer_path": "../gpt2_tokenizer",
-    "max_characters": 5 * 1e7,  # Maximum number of characters to use from dataset
-    "sequence_length": 128,
-    "batch_size": 32,  # Keep physical batch size small, has no effect on model
-    "hidden_size": 16,
-    "num_layers": 2,
-    "dropout": 0.0,  # dropout zer here to match transformer but may need to adjust for LSTM
-    "learning_rate": 0.001 * math.sqrt(4),  # Scale by sqrt of accumulation steps
-    "lr_schedule": "cosine",
-    "step_size": 10,
-    "gamma": 0.1,  # parameter usedf for stepLR step decay
-    "num_epochs": 1,
-    "train_split": 0.8,
-    "val_split": 0.1,
-    "test_split": 0.1,
-    "device": "cuda" if torch.cuda.is_available() else "cpu",
-    "wandb_project": "lstm-wikitext",
-    "wandb_offline": True,
-    "print_every": 100,  # Print loss every N batches
-    # Gradient clipping settings
-    "use_gradient_clipping": True,
-    "gradient_clip_val": 1.0,
-    # NEW: CSV logging settings
-    "results_folder": "Experiments_Folder",
-    "csv_log_interval": 20,
-    # NEW: Data loading optimization settings
-    "num_workers": "auto",  # Will be set automatically based on CPU cores
-    "pin_memory": True,  # Faster GPU memory transfer
-    "persistent_workers": True,  # Keep data loading workers alive between epochs
-    "prefetch_factor": 4,  # Number of batches to prefetch per worker
-    # NEW: Mixed precision settings
-    "use_amp": False,  # Enable Automatic Mixed Precision
-    "amp_opt_level": "O1",  # Not used with native AMP, but kept for reference
-    # NEW: Gradient accumulation settings
-    "gradient_accumulation_steps": 16,  # For tracking only
-    # NEW: whether to compile the model (PyTorch 2.0+)
-    "use_compile": False,
-    "seed": 123,
-    "optimizer": "adamw",  # NEW: choose from "adam", "adamw", or "sgd"
-    "weight_decay": 0.01,
-    "stride": 128,  # NEW: sliding-window stride to match transformer
-    # Add three separate variational dropout parameters
-    "input_dropout": 0.2,  # Applied to embeddings
-    "hidden_dropout": 0.1,  # Applied between LSTM layers
-    "output_dropout": 0.2,  # Applied before final linear layer
-    "use_layer_norm": True,  # Enable/disable LayerNorm
-    "layer_norm_position": "output",  # Options: "input", "output", "both", "gates"
-    "use_mup": True,
-    "mup_base_width": 16,
-    "tie_embeddings": True,  # Enable weight tying by default
-}
+# CONFIG = {
+#     "data_path": "../Datasets/c4_subset.txt",
+#     "tokenizer_path": "../gpt2_tokenizer",
+#     "max_characters": 5 * 1e7,  # Maximum number of characters to use from dataset
+#     "sequence_length": 128,
+#     "batch_size": 32,  # Keep physical batch size small, has no effect on model
+#     "hidden_size": 16,
+#     "num_layers": 2,
+#     "dropout": 0.0,  # dropout zer here to match transformer but may need to adjust for LSTM
+#     "learning_rate": 0.001 * math.sqrt(4),  # Scale by sqrt of accumulation steps
+#     "lr_schedule": "cosine",
+#     "step_size": 10,
+#     "gamma": 0.1,  # parameter usedf for stepLR step decay
+#     "num_epochs": 1,
+#     "train_split": 0.8,
+#     "val_split": 0.1,
+#     "test_split": 0.1,
+#     "device": "cuda" if torch.cuda.is_available() else "cpu",
+#     "wandb_project": "lstm-wikitext",
+#     "wandb_offline": True,
+#     "print_every": 100,  # Print loss every N batches
+#     # Gradient clipping settings
+#     "use_gradient_clipping": True,
+#     "gradient_clip_val": 1.0,
+#     # NEW: CSV logging settings
+#     "results_folder": "Experiments_Folder",
+#     "csv_log_interval": 20,
+#     # NEW: Data loading optimization settings
+#     "num_workers": "auto",  # Will be set automatically based on CPU cores
+#     "pin_memory": True,  # Faster GPU memory transfer
+#     "persistent_workers": True,  # Keep data loading workers alive between epochs
+#     "prefetch_factor": 4,  # Number of batches to prefetch per worker
+#     # NEW: Mixed precision settings
+#     "use_amp": False,  # Enable Automatic Mixed Precision
+#     "amp_opt_level": "O1",  # Not used with native AMP, but kept for reference
+#     # NEW: Gradient accumulation settings
+#     "gradient_accumulation_steps": 16,  # For tracking only
+#     # NEW: whether to compile the model (PyTorch 2.0+)
+#     "use_compile": False,
+#     "seed": 123,
+#     "optimizer": "adamw",  # NEW: choose from "adam", "adamw", or "sgd"
+#     "weight_decay": 0.01,
+#     "stride": 128,  # NEW: sliding-window stride to match transformer
+#     # Add three separate variational dropout parameters
+#     "input_dropout": 0.2,  # Applied to embeddings
+#     "hidden_dropout": 0.1,  # Applied between LSTM layers
+#     "output_dropout": 0.2,  # Applied before final linear layer
+#     "use_layer_norm": True,  # Enable/disable LayerNorm
+#     "layer_norm_position": "output",  # Options: "input", "output", "both", "gates"
+#     "use_mup": True,
+#     "mup_base_width": 16,
+#     "tie_embeddings": True,  # Enable weight tying by default
+# }
+CONFIG = get_lstm_base_config()
 
 
 # ====================================================================
@@ -146,112 +154,6 @@ def subset_experiments(experiment_list, wanted_labels):
 #         subexperiments.append({"label": label, "overrides": overrides})
 
 #     return {"name": f"{base_label}_lr_sweep", "subexperiments": subexperiments}
-
-
-def create_multi_lr_experiments(base_experiments, learning_rates):
-    """
-    Create multiple versions of experiments with different learning rates.
-    Similar to create_multi_seed_experiments but for learning rates.
-
-    Args:
-        base_experiments: List of experiment dictionaries (e.g., LSTM_HIDDEN_DIM_EXPERIMENTS)
-        learning_rates: List of learning rate values (e.g., [1e-4, 1e-3, 1e-2])
-
-    Returns:
-        List of experiment dictionaries with learning rate variations
-    """
-    multi_lr_experiments = []
-
-    for experiment in base_experiments:
-        # Create a new experiment group for each base experiment
-        new_experiment = {
-            "name": f"{experiment['name']}_lr_sweep",
-            "subexperiments": [],
-        }
-
-        # For each subexperiment in the base experiment
-        for sub_exp in experiment["subexperiments"]:
-            # Create a version for each learning rate
-            for lr in learning_rates:
-                # Create new subexperiment with lr suffix
-                new_sub_exp = copy.deepcopy(sub_exp)
-
-                # Add learning rate to the label
-                original_label = sub_exp["label"]
-                # Format learning rate for filename-safe label
-                if lr >= 1:
-                    lr_str = f"{lr:.0f}"
-                elif lr >= 0.01:
-                    lr_str = f"{lr:.3f}".rstrip("0").rstrip(".")
-                else:
-                    # For very small learning rates, use scientific notation
-                    lr_str = f"{lr:.1e}".replace("-", "m").replace("+", "p")
-
-                new_sub_exp["label"] = f"{original_label}_lr_{lr_str}"
-
-                # Add learning rate and max_characters to overrides
-                if "overrides" in new_sub_exp:
-                    new_sub_exp["overrides"]["learning_rate"] = lr
-                    new_sub_exp["overrides"]["max_characters"] = 129e6
-                elif "config" in new_sub_exp:
-                    new_sub_exp["config"]["learning_rate"] = lr
-                    new_sub_exp["config"]["max_characters"] = 129e6
-                else:
-                    # If neither exists, create overrides with learning rate and max_characters
-                    new_sub_exp["overrides"] = {
-                        "learning_rate": lr,
-                        "max_characters": 129e6,
-                    }
-
-                new_experiment["subexperiments"].append(new_sub_exp)
-
-        multi_lr_experiments.append(new_experiment)
-
-    return multi_lr_experiments
-
-
-def create_multi_seed_experiments(base_experiments, seeds):
-    """
-    Create multiple versions of experiments with different random seeds.
-
-    Args:
-        base_experiments: List of experiment dictionaries (e.g., LSTM_OPTIMAL_SCALING)
-        seeds: List of seed values (e.g., [123, 789])
-
-    Returns:
-        List of experiment dictionaries with seed variations
-    """
-    multi_seed_experiments = []
-
-    for experiment in base_experiments:
-        # Create a new experiment group for each base experiment
-        new_experiment = {"name": experiment["name"], "subexperiments": []}
-
-        # For each subexperiment in the base experiment
-        for sub_exp in experiment["subexperiments"]:
-            # Create a version for each seed
-            for seed in seeds:
-                # Create new subexperiment with seed suffix
-                new_sub_exp = copy.deepcopy(sub_exp)
-
-                # Add seed to the label
-                original_label = sub_exp["label"]
-                new_sub_exp["label"] = f"{original_label}_{seed}"
-
-                # Add seed to overrides (or config if using pre-generated configs)
-                if "overrides" in new_sub_exp:
-                    new_sub_exp["overrides"]["seed"] = seed
-                elif "config" in new_sub_exp:
-                    new_sub_exp["config"]["seed"] = seed
-                else:
-                    # If neither exists, create overrides with just the seed
-                    new_sub_exp["overrides"] = {"seed": seed}
-
-                new_experiment["subexperiments"].append(new_sub_exp)
-
-        multi_seed_experiments.append(new_experiment)
-
-    return multi_seed_experiments
 
 
 # ====================================================================

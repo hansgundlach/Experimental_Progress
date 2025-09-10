@@ -230,7 +230,7 @@ def get_lstm_base_config():
         "tokenizer_path": "../gpt2_tokenizer",
         "max_characters": 5 * 1e7,  # Base character limit
         "sequence_length": 128,
-        "batch_size": 32,  # Per-GPU batch size
+        "batch_size": 128,  # Per-GPU batch size
         "hidden_size": 16,  # Base hidden dimension
         "num_layers": 2,  # Base number of layers
         "dropout": 0.0,
@@ -379,3 +379,109 @@ def create_multi_lr_lstm_experiments(base_experiments, learning_rates):
         multi_lr_experiments.append(new_experiment)
 
     return multi_lr_experiments
+
+
+def create_multi_lr_experiments(base_experiments, learning_rates):
+    """
+    Create multiple versions of experiments with different learning rates.
+    Similar to create_multi_seed_experiments but for learning rates.
+
+    Args:
+        base_experiments: List of experiment dictionaries (e.g., LSTM_HIDDEN_DIM_EXPERIMENTS)
+        learning_rates: List of learning rate values (e.g., [1e-4, 1e-3, 1e-2])
+
+    Returns:
+        List of experiment dictionaries with learning rate variations
+    """
+    multi_lr_experiments = []
+
+    for experiment in base_experiments:
+        # Create a new experiment group for each base experiment
+        new_experiment = {
+            "name": f"{experiment['name']}_lr_sweep",
+            "subexperiments": [],
+        }
+
+        # For each subexperiment in the base experiment
+        for sub_exp in experiment["subexperiments"]:
+            # Create a version for each learning rate
+            for lr in learning_rates:
+                # Create new subexperiment with lr suffix
+                new_sub_exp = copy.deepcopy(sub_exp)
+
+                # Add learning rate to the label
+                original_label = sub_exp["label"]
+                # Format learning rate for filename-safe label
+                if lr >= 1:
+                    lr_str = f"{lr:.0f}"
+                elif lr >= 0.01:
+                    lr_str = f"{lr:.3f}".rstrip("0").rstrip(".")
+                else:
+                    # For very small learning rates, use scientific notation
+                    lr_str = f"{lr:.1e}".replace("-", "m").replace("+", "p")
+
+                new_sub_exp["label"] = f"{original_label}_lr_{lr_str}"
+
+                # Add learning rate and max_characters to overrides
+                if "overrides" in new_sub_exp:
+                    new_sub_exp["overrides"]["learning_rate"] = lr
+                    new_sub_exp["overrides"]["max_characters"] = 129e6
+                elif "config" in new_sub_exp:
+                    new_sub_exp["config"]["learning_rate"] = lr
+                    new_sub_exp["config"]["max_characters"] = 129e6
+                else:
+                    # If neither exists, create overrides with learning rate and max_characters
+                    new_sub_exp["overrides"] = {
+                        "learning_rate": lr,
+                        "max_characters": 129e6,
+                    }
+
+                new_experiment["subexperiments"].append(new_sub_exp)
+
+        multi_lr_experiments.append(new_experiment)
+
+    return multi_lr_experiments
+
+
+def create_multi_seed_experiments(base_experiments, seeds):
+    """
+    Create multiple versions of experiments with different random seeds.
+
+    Args:
+        base_experiments: List of experiment dictionaries (e.g., LSTM_OPTIMAL_SCALING)
+        seeds: List of seed values (e.g., [123, 789])
+
+    Returns:
+        List of experiment dictionaries with seed variations
+    """
+    multi_seed_experiments = []
+
+    for experiment in base_experiments:
+        # Create a new experiment group for each base experiment
+        new_experiment = {"name": experiment["name"], "subexperiments": []}
+
+        # For each subexperiment in the base experiment
+        for sub_exp in experiment["subexperiments"]:
+            # Create a version for each seed
+            for seed in seeds:
+                # Create new subexperiment with seed suffix
+                new_sub_exp = copy.deepcopy(sub_exp)
+
+                # Add seed to the label
+                original_label = sub_exp["label"]
+                new_sub_exp["label"] = f"{original_label}_{seed}"
+
+                # Add seed to overrides (or config if using pre-generated configs)
+                if "overrides" in new_sub_exp:
+                    new_sub_exp["overrides"]["seed"] = seed
+                elif "config" in new_sub_exp:
+                    new_sub_exp["config"]["seed"] = seed
+                else:
+                    # If neither exists, create overrides with just the seed
+                    new_sub_exp["overrides"] = {"seed": seed}
+
+                new_experiment["subexperiments"].append(new_sub_exp)
+
+        multi_seed_experiments.append(new_experiment)
+
+    return multi_seed_experiments

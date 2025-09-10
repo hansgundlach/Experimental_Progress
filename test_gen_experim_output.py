@@ -15,7 +15,7 @@ def main():
     print("=" * 60)
 
     # Generate the experiment
-    result = gen_experim(16, label="50d_test_experiment", learning_rate=0.001)
+    result = gen_experim(144, label="50d_test_experiment", learning_rate=0.001)
 
     # Extract the configuration
     exp_group = result[0]
