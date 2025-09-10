@@ -38,8 +38,20 @@ TRANSFORMER_SCALING_EXPERIMENTS_OPTIMAL_LR = EXPERIMENTS = (
 )
 
 
+TRANSFORMER_SGD_SCALING_EXPERIMENTS_OPTIMAL_LR = EXPERIMENTS = (
+    gen_experim(32, label="32d_test_experiment", learning_rate=0.01, optimizer="sgd")
+    + gen_experim(40, label="40d_test_experiment", learning_rate=0.01, optimizer="sgd")
+    + gen_experim(48, label="48d_test_experiment", learning_rate=0.01, optimizer="sgd")
+    + gen_experim(56, label="56d_test_experiment", learning_rate=0.01, optimizer="sgd")
+    + gen_experim(64, label="64d_test_experiment", learning_rate=0.01, optimizer="sgd")
+)
+
+
 TRANSFORMER_ALL_SCALE_LR_TUNE = create_multi_lr_experiments(
     TRANSFORMER_SCALING_EXPERIMENTS_OPTIMAL_LR, NARROW_LR_SWEEP
+)
+TRANSFORMER_SGD_ALL_SCALE_LR_TUNE = create_multi_lr_experiments(
+    TRANSFORMER_SGD_SCALING_EXPERIMENTS_OPTIMAL_LR, NARROW_LR_SWEEP
 )
 
 

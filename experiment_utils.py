@@ -169,62 +169,103 @@ def calculate_transformer_params(
 
 
 def estimate_gpu_memory_and_grad_accum(
-    hidden_dim, num_layers, batch_size, seq_length, gpu_type="V100"
+    hidden_dim, num_layers, target_effective_batch_size, seq_length, gpu_type="V100"
 ):
     """
-    Estimate GPU memory usage and suggest gradient accumulation steps.
+    Estimate optimal per-step batch size and gradient accumulation steps.
+
+    FIXED VERSION: Now properly calculates per-step batch size to avoid OOM, then uses 
+    gradient accumulation to reach target effective batch size.
 
     Args:
         hidden_dim: Hidden dimension
         num_layers: Number of layers
-        batch_size: Batch size
+        target_effective_batch_size: Target effective batch size (what you want for training)
         seq_length: Sequence length
-        gpu_type: "V100" (16GB) or "H100" (80GB)
+        gpu_type: "V100" (32GB) or "H100" (80GB)
 
     Returns:
-        Suggested gradient accumulation steps
+        Suggested gradient accumulation steps (effective = per_step * grad_accum)
     """
-    # GPU memory limits (conservative estimates accounting for CUDA overhead)
+    # GPU memory limits (based on actual OOM error showing 31.73 GiB total capacity)
     gpu_memory = {
-        "V100": 14 * 1024**3,  # ~14GB usable out of 16GB
+        "V100": 30 * 1024**3,  # ~30GB usable out of 32GB
         "H100": 76 * 1024**3,  # ~76GB usable out of 80GB
     }
 
-    # Rough memory estimation (very approximate)
-    # Model parameters (4 bytes per param for fp32, but we use mixed precision)
-    # Use actual memory footprint with weight tying for GPU memory estimation
+    vocab_size = 50257  # GPT-2 vocab size
+    available_memory = gpu_memory.get(gpu_type, gpu_memory["V100"])
+    
+    # Use 60% of available memory as threshold (very conservative due to memory spikes)
+    memory_threshold = 0.60 * available_memory
+
+    # Model parameters (constant regardless of batch size)
     params = calculate_transformer_params(hidden_dim, num_layers, tie_embeddings=True)
     model_memory = params * 4  # fp32 model weights
+    optimizer_memory = params * 4 * 4  # Adam: weights + gradients + 2 momentum terms
 
-    # Gradients and optimizer states (Adam stores gradients + 2 momentum terms)
-    # Note: With weight tying, tied parameters share gradients, so memory is correctly estimated
-    optimizer_memory = params * 3 * 4  # gradients + 2 adam states
+    # Calculate number of heads (same logic as gen_experim)
+    target_head_dim = 32
+    num_heads = max(1, int(round(hidden_dim / target_head_dim)))
+    while hidden_dim % num_heads != 0 and num_heads > 1:
+        num_heads -= 1
 
-    # Activation memory (depends on batch size and sequence length)
-    # Rough estimate: batch_size * seq_length * hidden_dim * num_layers * 4 bytes * some_factor
-    activation_memory = (
-        batch_size * seq_length * hidden_dim * num_layers * 4 * 6
-    )  # 6x factor for intermediate activations
-
-    total_estimated_memory = model_memory + optimizer_memory + activation_memory
-
-    available_memory = gpu_memory.get(gpu_type, gpu_memory["V100"])
-
-    # If we exceed 90% of available memory, increase gradient accumulation
-    if total_estimated_memory > 0.9 * available_memory:
-        # Calculate how much we need to reduce batch size
-        memory_ratio = total_estimated_memory / (0.9 * available_memory)
-        suggested_grad_accum = max(1, int(math.ceil(memory_ratio)))
-    else:
-        suggested_grad_accum = 1
-
-    # Cap gradient accumulation at reasonable limits
-    max_grad_accum = (
-        32 if gpu_type == "V100" else 8
-    )  # H100 has more memory, less need for high grad accum
-    suggested_grad_accum = min(suggested_grad_accum, max_grad_accum)
-
-    return suggested_grad_accum
+    # Fixed memory (independent of batch size)
+    fixed_memory = model_memory + optimizer_memory
+    
+    # Memory available for activations (batch-dependent)
+    available_for_activations = memory_threshold - fixed_memory
+    
+    if available_for_activations <= 0:
+        # Model itself is too big, use minimum settings
+        return 64  # Maximum gradient accumulation
+    
+    # Calculate memory per batch-size unit for different components
+    # All calculations are per single batch item [1, seq_length, ...]
+    
+    # 1. CRITICAL: Final layer (logits) tensor - usually the biggest!
+    # [batch_size, seq_length, vocab_size] + gradients
+    final_layer_per_batch = 2 * seq_length * vocab_size * 4  # output + gradients
+    
+    # 2. Forward pass activations
+    forward_activations_per_batch = seq_length * hidden_dim * num_layers * 4
+    
+    # 3. Attention matrices: [batch, heads, seq_len, seq_len] (scores + weights) 
+    attention_per_batch = 2 * num_heads * seq_length * seq_length * 4
+    
+    # 4. QKV and feed-forward
+    qkv_per_batch = 3 * seq_length * hidden_dim * 4
+    ff_per_batch = seq_length * (4 * hidden_dim) * num_layers * 4
+    
+    # 5. Gradient storage for all activations
+    gradient_storage_per_batch = (
+        forward_activations_per_batch + attention_per_batch + qkv_per_batch + ff_per_batch
+    )
+    
+    # Total memory per batch item
+    memory_per_batch_item = (
+        final_layer_per_batch + 
+        forward_activations_per_batch +
+        attention_per_batch +
+        qkv_per_batch + 
+        ff_per_batch +
+        gradient_storage_per_batch
+    )
+    
+    # Add 20% overhead for memory fragmentation and misc tensors
+    memory_per_batch_item *= 1.2
+    
+    # Calculate maximum batch size that fits in memory
+    max_per_step_batch = int(available_for_activations / memory_per_batch_item)
+    max_per_step_batch = max(1, max_per_step_batch)  # At least 1
+    
+    # Calculate gradient accumulation needed to reach target effective batch size
+    grad_accum = max(1, int(math.ceil(target_effective_batch_size / max_per_step_batch)))
+    
+    # Cap at reasonable limits
+    grad_accum = min(grad_accum, 128)  # Maximum accumulation steps
+    
+    return grad_accum
 
 
 def gen_experim(hidden_dim, gpu_type="V100", label=None, **overrides):
@@ -269,13 +310,18 @@ def gen_experim(hidden_dim, gpu_type="V100", label=None, **overrides):
     token_limit = int(20 * total_params)
 
     # 4. Estimate gradient accumulation based on GPU memory
+    # Use target_effective_batch_size for optimization goals
+    target_effective_batch_size = base_config["target_effective_batch_size"]  
     grad_accum_steps = estimate_gpu_memory_and_grad_accum(
         hidden_dim,
         num_layers,
-        base_config["batch_size"],
+        target_effective_batch_size,
         base_config["seq_length"],
         gpu_type,
     )
+    
+    # Calculate the actual per-step batch size to use
+    per_step_batch_size = max(1, target_effective_batch_size // grad_accum_steps)
 
     # 5. Generate label if not provided
     if label is None:
@@ -288,6 +334,7 @@ def gen_experim(hidden_dim, gpu_type="V100", label=None, **overrides):
         "num_heads": num_heads,
         "token_limit": token_limit,
         "gradient_accumulation_steps": grad_accum_steps,
+        "batch_size": per_step_batch_size,  # Override with safe per-step batch size
     }
 
     # Apply any user overrides
@@ -316,7 +363,8 @@ def get_base_config():
     """
     return {
         "dataset": "c4_subset",
-        "batch_size": 128,
+        "target_effective_batch_size": 512,  # Target effective batch size for optimization
+        "batch_size": 64,  # Default per-step batch size (will be overridden by gen_experim)
         "learning_rate": 0.001 * math.sqrt(4),
         "min_lr": 1e-5,
         "min_lr_multiplier": 0.1,

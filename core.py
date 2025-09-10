@@ -54,15 +54,35 @@ def get_mup_learning_rates_transformer(
         fc = model.fc
         pos_emb = getattr(model, "pos_emb", None)
 
+    # Check if embeddings are tied
+    tie_embeddings = getattr(model.module if hasattr(model, "module") else model, "tie_embeddings", False)
+    
     param_groups = []
-
-    # Embedding parameters: lr scaled by 1/scale
-    embedding_params = list(embedding.parameters())
-    if pos_emb is not None:
-        embedding_params.append(pos_emb)
-    param_groups.append(
-        {"params": embedding_params, "lr": base_lr / mup_scale, "name": "embedding"}
-    )
+    
+    # Handle embedding parameters based on weight tying
+    if tie_embeddings:
+        # When weight tying is enabled, tied weights serve both embedding and output functions
+        # Use geometric mean of embedding scaling (1/scale) and output scaling (1.0)
+        embedding_lr = base_lr / mup_scale  # What embedding would use
+        output_lr = base_lr  # What output would use  
+        tied_lr = (embedding_lr * output_lr) ** 0.5  # Geometric mean
+        
+        embedding_params = list(embedding.parameters())
+        if pos_emb is not None:
+            embedding_params.append(pos_emb)
+        param_groups.append(
+            {"params": embedding_params, "lr": tied_lr, "name": "embedding_tied"}
+        )
+    else:
+        # Separate embedding and output parameters when not tied
+        embedding_params = list(embedding.parameters())
+        if pos_emb is not None:
+            embedding_params.append(pos_emb)
+        param_groups.append(
+            {"params": embedding_params, "lr": base_lr / mup_scale, "name": "embedding"}
+        )
+        # Output layer parameters: no scaling (base lr)
+        param_groups.append({"params": fc.parameters(), "lr": base_lr, "name": "output"})
 
     # Transformer layer parameters: lr scaled by 1/scale
     layer_params = []
@@ -72,12 +92,15 @@ def get_mup_learning_rates_transformer(
         {"params": layer_params, "lr": base_lr / mup_scale, "name": "layers"}
     )
 
-    # Output layer parameters: no scaling (base lr)
-    param_groups.append({"params": fc.parameters(), "lr": base_lr, "name": "output"})
-
-    print(
-        f"muP learning rates: embedding/layers={base_lr/mup_scale:.6f}, output={base_lr:.6f}"
-    )
+    if tie_embeddings:
+        tied_lr = (base_lr / mup_scale * base_lr) ** 0.5  # Recalculate for printing
+        print(
+            f"muP learning rates (tied): embedding/output={tied_lr:.6f} (geometric mean), layers={base_lr/mup_scale:.6f}"
+        )
+    else:
+        print(
+            f"muP learning rates: embedding={base_lr/mup_scale:.6f}, layers={base_lr/mup_scale:.6f}, output={base_lr:.6f}"
+        )
 
     return param_groups
 

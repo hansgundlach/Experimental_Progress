@@ -46,12 +46,17 @@ def get_mup_learning_rates(model, base_lr, use_mup=False, mup_base_width=64):
 
     # Handle embedding parameters
     if tie_embeddings:
-        # When weight tying is enabled, use embedding parameters with output layer learning rate
-        # since they represent both embedding and output weights
+        # When weight tying is enabled, tied weights serve both embedding and output functions
+        # Use geometric mean of embedding scaling (1/scale) and output scaling (1.0)
+        # This preserves muP scaling laws better than choosing one or the other
+        embedding_lr = base_lr / mup_scale  # What embedding would use
+        output_lr = base_lr  # What output would use
+        tied_lr = (embedding_lr * output_lr) ** 0.5  # Geometric mean
+
         param_groups.append(
             {
                 "params": embedding.parameters(),
-                "lr": base_lr,  # Use output layer LR (no scaling) for tied weights
+                "lr": tied_lr,
                 "name": "embedding_tied",
             }
         )
@@ -79,8 +84,9 @@ def get_mup_learning_rates(model, base_lr, use_mup=False, mup_base_width=64):
     )
 
     if tie_embeddings:
+        tied_lr = (base_lr / mup_scale * base_lr) ** 0.5  # Recalculate for printing
         print(
-            f"muP learning rates (tied): embedding/output={base_lr:.6f}, lstm={base_lr/mup_scale:.6f}"
+            f"muP learning rates (tied): embedding/output={tied_lr:.6f} (geometric mean), lstm={base_lr/mup_scale:.6f}"
         )
     else:
         print(

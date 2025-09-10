@@ -67,7 +67,7 @@ def calculate_lstm_params(
 def estimate_lstm_gpu_memory_and_grad_accum(
     hidden_size,
     num_layers,
-    batch_size,
+    effective_batch_size,
     seq_length,
     gpu_type="V100",
     world_size=2,  # Default to 2 GPUs as typical for LSTM training
@@ -75,10 +75,12 @@ def estimate_lstm_gpu_memory_and_grad_accum(
     """
     Estimate GPU memory usage and suggest gradient accumulation steps for LSTM.
 
+    FIXED: Now maintains constant effective batch size by adjusting per-step batch size.
+
     Args:
         hidden_size: Hidden dimension
         num_layers: Number of LSTM layers
-        batch_size: Batch size per GPU
+        effective_batch_size: Target effective batch size (constant across experiments)
         seq_length: Sequence length
         gpu_type: "V100" (16GB) or "H100" (80GB)
         world_size: Number of GPUs (default 2 for LSTM training)
@@ -95,6 +97,7 @@ def estimate_lstm_gpu_memory_and_grad_accum(
     # Calculate LSTM parameters with weight tying
     param_info = calculate_lstm_params(hidden_size, num_layers, tie_embeddings=True)
     params = param_info["trainable_params"]
+    vocab_size = 50257  # GPT-2 vocab size
 
     # Model memory (4 bytes per param for fp32, but we use mixed precision in practice)
     model_memory = params * 4  # fp32 model weights
@@ -103,44 +106,81 @@ def estimate_lstm_gpu_memory_and_grad_accum(
     # With weight tying, tied parameters share gradients, so memory is correctly estimated
     optimizer_memory = params * 3 * 4  # gradients + 2 adam states
 
-    # LSTM activation memory is different from transformers
-    # LSTM needs to store hidden states and cell states for each layer
-    # Plus activations for backward pass
-    # Rough estimate: batch_size * seq_length * hidden_size * num_layers * 4 bytes * factor
-    # Factor accounts for hidden states, cell states, and gradient computation
-    lstm_activation_factor = 8  # Higher than transformer due to LSTM state complexity
-    activation_memory = (
-        batch_size * seq_length * hidden_size * num_layers * 4 * lstm_activation_factor
-    )
-
-    # DDP overhead: additional memory for gradient synchronization
-    ddp_overhead = model_memory * 0.1 if world_size > 1 else 0
-
-    total_estimated_memory = (
-        model_memory + optimizer_memory + activation_memory + ddp_overhead
-    )
-
     available_memory = gpu_memory.get(gpu_type, gpu_memory["V100"])
 
-    # If we exceed 85% of available memory, increase gradient accumulation
-    # Use 85% instead of 90% to be more conservative with LSTM's memory patterns
-    memory_threshold = 0.85
-    if total_estimated_memory > memory_threshold * available_memory:
-        # Calculate how much we need to reduce effective batch size
-        memory_ratio = total_estimated_memory / (memory_threshold * available_memory)
-        suggested_grad_accum = max(1, int(math.ceil(memory_ratio)))
-    else:
-        suggested_grad_accum = 1
+    # Use 70% of available memory as threshold (very conservative due to memory spikes)
+    memory_threshold = 0.70 * available_memory
 
-    # Cap gradient accumulation at reasonable limits
-    # LSTM training typically needs higher gradient accumulation than transformers
-    max_grad_accum = {
-        "V100": 64,  # Higher limit for V100 due to memory constraints
-        "H100": 16,  # Lower limit for H100 due to better memory
-    }
-    suggested_grad_accum = min(suggested_grad_accum, max_grad_accum.get(gpu_type, 64))
+    # FIXED APPROACH: Find the gradient accumulation needed to fit in memory
+    # Start with grad_accum = 1 and increase until memory fits
+    for grad_accum in range(1, 65):  # Cap at 64
+        # Calculate per-step batch size (what actually goes through the model)
+        per_step_batch_size = effective_batch_size // grad_accum
 
-    return suggested_grad_accum
+        if per_step_batch_size < 1:
+            # If effective batch size becomes too small, use the previous grad_accum
+            grad_accum = grad_accum - 1
+            break
+
+        # CRITICAL: Final layer (logits) tensor for LSTM
+        # Output tensor: [per_step_batch_size, seq_length, vocab_size]
+        # This is often the largest single tensor in LSTM models too
+        final_layer_output = (
+            per_step_batch_size * seq_length * vocab_size * 4
+        )  # 4 bytes per float32
+        final_layer_gradients = final_layer_output  # Gradients have same size
+        final_layer_memory = final_layer_output + final_layer_gradients
+
+        # LSTM activation memory is different from transformers
+        # LSTM needs to store hidden states and cell states for each layer
+        # Plus activations for backward pass
+        lstm_hidden_states = (
+            per_step_batch_size * seq_length * hidden_size * num_layers * 4
+        )  # hidden states
+        lstm_cell_states = (
+            per_step_batch_size * seq_length * hidden_size * num_layers * 4
+        )  # cell states
+        lstm_gate_activations = (
+            per_step_batch_size * seq_length * hidden_size * num_layers * 4 * 4
+        )  # 4 gates
+
+        # Gradient storage for LSTM activations
+        lstm_gradients = lstm_hidden_states + lstm_cell_states + lstm_gate_activations
+
+        total_lstm_activation_memory = (
+            lstm_hidden_states
+            + lstm_cell_states
+            + lstm_gate_activations
+            + lstm_gradients
+        )
+
+        # DDP overhead: additional memory for gradient synchronization
+        ddp_overhead = model_memory * 0.1 if world_size > 1 else 0
+
+        # 5% overhead for misc tensors and CUDA overhead
+        overhead = 0.05 * (
+            model_memory
+            + optimizer_memory
+            + total_lstm_activation_memory
+            + final_layer_memory
+            + ddp_overhead
+        )
+
+        total_estimated_memory = (
+            model_memory
+            + optimizer_memory
+            + total_lstm_activation_memory
+            + final_layer_memory
+            + ddp_overhead
+            + overhead
+        )
+
+        # Check if this gradient accumulation level fits in memory
+        if total_estimated_memory <= memory_threshold:
+            return grad_accum
+
+    # If we couldn't fit even with max gradient accumulation, return max
+    return 64
 
 
 def gen_lstm_experim(hidden_size, gpu_type="V100", label=None, **overrides):
@@ -179,15 +219,20 @@ def gen_lstm_experim(hidden_size, gpu_type="V100", label=None, **overrides):
     max_characters = int(20 * trainable_params * 4)  # 20x params in characters
 
     # 3. Estimate gradient accumulation based on GPU memory and typical 2-GPU setup
+    # Use target_effective_batch_size parameter (constant across experiments)
     world_size = 2  # Typical LSTM training setup
+    target_effective_batch_size = base_config["target_effective_batch_size"]
     grad_accum_steps = estimate_lstm_gpu_memory_and_grad_accum(
         hidden_size,
         num_layers,
-        base_config["batch_size"],
+        target_effective_batch_size,
         base_config["sequence_length"],
         gpu_type,
         world_size,
     )
+
+    # Calculate the actual per-step batch size to use
+    per_step_batch_size = max(1, target_effective_batch_size // grad_accum_steps)
 
     # 4. Generate label if not provided
     if label is None:
@@ -199,6 +244,7 @@ def gen_lstm_experim(hidden_size, gpu_type="V100", label=None, **overrides):
         "num_layers": num_layers,
         "max_characters": max_characters,
         "gradient_accumulation_steps": grad_accum_steps,
+        "batch_size": per_step_batch_size,  # Override with safe per-step batch size
     }
 
     # Apply any user overrides
@@ -230,7 +276,8 @@ def get_lstm_base_config():
         "tokenizer_path": "../gpt2_tokenizer",
         "max_characters": 5 * 1e7,  # Base character limit
         "sequence_length": 128,
-        "batch_size": 128,  # Per-GPU batch size
+        "target_effective_batch_size": 512,  # Target effective batch size for optimization
+        "batch_size": 32,  # Default per-step batch size (will be overridden by gen_lstm_experim)
         "hidden_size": 16,  # Base hidden dimension
         "num_layers": 2,  # Base number of layers
         "dropout": 0.0,

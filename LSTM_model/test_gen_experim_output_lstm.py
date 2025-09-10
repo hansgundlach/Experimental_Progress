@@ -16,12 +16,16 @@ def main():
 
     # Test different hidden sizes
     test_hidden_sizes = [16, 32, 48, 64]
-    
+
     for hidden_size in test_hidden_sizes:
         print(f"\n--- Testing hidden_size = {hidden_size} ---")
-        
+
         # Generate the experiment
-        result = gen_lstm_experim(hidden_size, label=f"lstm_{hidden_size}d_test_experiment", learning_rate=0.01)
+        result = gen_lstm_experim(
+            hidden_size,
+            label=f"lstm_{hidden_size}d_test_experiment",
+            learning_rate=0.01,
+        )
 
         # Extract the configuration
         exp_group = result[0]
@@ -58,9 +62,31 @@ def main():
         print(
             f"- Character limit: {int(config['max_characters']):,} chars (20x trainable params)"
         )
-        print(f"- Token estimate: {int(config['max_characters']) // 4:,} tokens (4:1 char:token ratio)")
+        print(
+            f"- Token estimate: {int(config['max_characters']) // 4:,} tokens (4:1 char:token ratio)"
+        )
         print(f"- Gradient accumulation: {config['gradient_accumulation_steps']} steps")
-        print(f"- Learning rate: {config.get('learning_rate', 'default')} (your override)")
+
+        # Calculate batch size breakdown
+        from lstm_experiment_utils import get_lstm_base_config
+
+        base_config = get_lstm_base_config()
+        target_effective_batch_size = base_config[
+            "batch_size"
+        ]  # This is our constant target
+        grad_accum = config["gradient_accumulation_steps"]
+        per_step_batch_size = target_effective_batch_size // grad_accum
+
+        print(
+            f"- Target effective batch size: {target_effective_batch_size} (constant)"
+        )
+        print(f"- Batch size per step: {per_step_batch_size} (effective ÷ grad_accum)")
+        print(
+            f"- Actual effective batch size: {per_step_batch_size * grad_accum} (should equal target)"
+        )
+        print(
+            f"- Learning rate: {config.get('learning_rate', 'default')} (your override)"
+        )
 
     print("\n" + "=" * 60)
     print("Complete Raw Output Example (JSON format for 32d):")
@@ -70,42 +96,59 @@ def main():
     print("\n" + "=" * 60)
     print("Parameter Calculation Verification:")
     print("-" * 40)
-    
+
     # Test parameter calculation directly
     for hidden_size in [16, 32, 64]:
-        param_info = calculate_lstm_params(hidden_size, num_layers=2, tie_embeddings=True)
+        param_info = calculate_lstm_params(
+            hidden_size, num_layers=2, tie_embeddings=True
+        )
         print(f"\nHidden size {hidden_size}:")
         print(f"  Formula verification:")
         print(f"  - Embedding: 50257 * {hidden_size} = {50257 * hidden_size:,}")
-        print(f"  - LSTM (per layer): 8 * {hidden_size}^2 + 4 * {hidden_size} = {8 * hidden_size**2 + 4 * hidden_size:,}")
+        print(
+            f"  - LSTM (per layer): 8 * {hidden_size}^2 + 4 * {hidden_size} = {8 * hidden_size**2 + 4 * hidden_size:,}"
+        )
         print(f"  - LSTM (2 layers): {2 * (8 * hidden_size**2 + 4 * hidden_size):,}")
         print(f"  - Final bias: 50257")
-        expected_trainable = 50257 * hidden_size + 2 * (8 * hidden_size**2 + 4 * hidden_size) + 50257
+        expected_trainable = (
+            50257 * hidden_size + 2 * (8 * hidden_size**2 + 4 * hidden_size) + 50257
+        )
         print(f"  - Expected trainable: {expected_trainable:,}")
         print(f"  - Calculated trainable: {param_info['trainable_params']:,}")
-        print(f"  - Match: {'✓' if expected_trainable == param_info['trainable_params'] else '✗'}")
+        print(
+            f"  - Match: {'✓' if expected_trainable == param_info['trainable_params'] else '✗'}"
+        )
 
     print("\n" + "=" * 60)
     print("Memory Estimation Test:")
     print("-" * 30)
-    
+
     from lstm_experiment_utils import estimate_lstm_gpu_memory_and_grad_accum
-    
+
     # Test memory estimation for different configurations
     test_configs = [
         (16, 2, "V100"),
-        (32, 2, "V100"), 
+        (32, 2, "V100"),
         (64, 4, "V100"),
         (32, 2, "H100"),
         (64, 4, "H100"),
     ]
-    
+
     for hidden_size, num_layers, gpu_type in test_configs:
         grad_accum = estimate_lstm_gpu_memory_and_grad_accum(
-            hidden_size, num_layers, batch_size=32, seq_length=128, gpu_type=gpu_type, world_size=2
+            hidden_size,
+            num_layers,
+            effective_batch_size=128,
+            seq_length=128,
+            gpu_type=gpu_type,
+            world_size=2,
         )
         param_info = calculate_lstm_params(hidden_size, num_layers, tie_embeddings=True)
-        print(f"{hidden_size}d, {num_layers} layers, {gpu_type}: {grad_accum} grad_accum steps ({param_info['trainable_params']:,} params)")
+        per_step_batch = 128 // grad_accum
+        print(
+            f"{hidden_size}d, {num_layers} layers, {gpu_type}: {grad_accum} grad_accum steps, "
+            f"per_step_batch={per_step_batch} ({param_info['trainable_params']:,} params)"
+        )
 
 
 if __name__ == "__main__":

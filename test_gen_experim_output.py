@@ -15,7 +15,7 @@ def main():
     print("=" * 60)
 
     # Generate the experiment
-    result = gen_experim(144, label="50d_test_experiment", learning_rate=0.001)
+    result = gen_experim(32, label="32d_test_experiment", learning_rate=0.001)
 
     # Extract the configuration
     exp_group = result[0]
@@ -55,6 +55,24 @@ def main():
         f"- Token limit: {config['token_limit']:,} tokens (20x parameters = {20 * num_params:,})"
     )
     print(f"- Gradient accumulation: {config['gradient_accumulation_steps']} steps")
+
+    # Calculate batch size breakdown
+    from experiment_utils import get_base_config
+
+    base_config = get_base_config()
+    target_effective_batch_size = base_config["target_effective_batch_size"]
+    per_step_batch_size = config["batch_size"]  # Calculated per-step batch size
+    grad_accum = config["gradient_accumulation_steps"]
+    effective_batch_size = per_step_batch_size * grad_accum
+
+    print(
+        f"- Target effective batch size: {target_effective_batch_size} (optimization goal)"
+    )
+    print(
+        f"- Per-step batch size: {per_step_batch_size} (calculated to fit in GPU memory)"
+    )
+    print(f"- Gradient accumulation steps: {grad_accum}")
+    print(f"- Effective batch size: {effective_batch_size} (per_step × grad_accum)")
     print(f"- Learning rate: {config['learning_rate']} (your override)")
 
 
