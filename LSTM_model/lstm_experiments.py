@@ -14,6 +14,9 @@ from lstm_experiment_definitions import (
     LSTM_LR_TUNE_MUP_STANDARD,
     LSTM_SCALING_EXPERIMENTS_OPTIMAL_LR,
     LSTM_ALL_SCALE_LR_TUNE,
+    LSTM_SGD_SCALING_EXPERIMENTS_OPTIMAL_LR,
+    LSTM_SGD_ALL_SCALE_LR_TUNE,
+    GRAND_EXPERIMENT,
 )
 import argparse
 import torch.multiprocessing as mp
@@ -242,7 +245,7 @@ NARROW_LR_SWEEP = [
 # # scaling experiments optimal
 # LSTM_SGD_OPTIMAL_SCALING
 
-EXPERIMENTS = TEST_EXPERIMENT
+EXPERIMENTS = GRAND_EXPERIMENT
 
 
 def find_free_port():

@@ -42,11 +42,38 @@ LSTM_SCALING_EXPERIMENTS_OPTIMAL_LR = EXPERIMENTS = (
     + gen_lstm_experim(64, label="64d_lstm_experiment", learning_rate=0.01)
 )
 
+LSTM_SGD_SCALING_EXPERIMENTS_OPTIMAL_LR = EXPERIMENTS = (
+    gen_lstm_experim(
+        32, label="32d_lstm_sgd_experiment", learning_rate=0.01, optimizer="sgd"
+    )
+    + gen_lstm_experim(
+        40, label="40d_lstm_sgd_experiment", learning_rate=0.01, optimizer="sgd"
+    )
+    + gen_lstm_experim(
+        48, label="48d_lstm_sgd_experiment", learning_rate=0.01, optimizer="sgd"
+    )
+    + gen_lstm_experim(
+        56, label="56d_lstm_sgd_experiment", learning_rate=0.01, optimizer="sgd"
+    )
+    + gen_lstm_experim(
+        64, label="64d_lstm_sgd_experiment", learning_rate=0.01, optimizer="sgd"
+    )
+)
+
 
 LSTM_ALL_SCALE_LR_TUNE = create_multi_lr_experiments(
     LSTM_SCALING_EXPERIMENTS_OPTIMAL_LR, NARROW_LR_SWEEP
 )
 
+
+LSTM_SGD_ALL_SCALE_LR_TUNE = create_multi_lr_experiments(
+    LSTM_SGD_SCALING_EXPERIMENTS_OPTIMAL_LR, NARROW_LR_SWEEP
+)
+
+
+GRAND_EXPERIMENT = (
+    LSTM_ALL_SCALE_LR_TUNE + LSTM_SGD_ALL_SCALE_LR_TUNE + LSTM_LR_TUNE_MUP_STANDARD
+)
 
 # lr_tune_experiments standard
 # LSTM_LR_TUNE_STANDARD = create_multi_lr_experiments(
