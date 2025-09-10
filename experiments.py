@@ -21,6 +21,8 @@ from experiment_definitions import (
     TRANSFORMER_SCALING_EXPERIMENTS_OPTIMAL_LR,
 )
 
+# "frog"
+
 
 def run_experiments_on_gpu(gpu_id, sub_experiments, project_name_base):
     print(f"\nGPU {gpu_id} STARTING:")
