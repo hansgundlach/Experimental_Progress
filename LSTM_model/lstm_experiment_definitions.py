@@ -2,13 +2,14 @@
 import math
 import copy
 
+
 # ========= Experiment definitions (customize labels & overrides below) =========
 TEST_EXPERIMENTS = [
     {
-        "name": "LSTM_benchmark",
+        "name": "lstm_september_testing",
         "subexperiments": [
             {
-                "label": "LSTM_1.6M_Benchmark",
+                "label": "lstm_with_tokens_estimate",
                 "overrides": {"learning_rate": 0.001 * math.sqrt(4), "hidden_size": 16},
             },
         ],

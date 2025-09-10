@@ -734,7 +734,7 @@ def train_model(
             csv_file = open(csv_log_path, "w", newline="")
             csv_writer = csv.writer(csv_file)
             csv_writer.writerow(
-                ["step", "training_loss", "validation_loss", "total_flops_profiler"]
+                ["step", "training_loss", "validation_loss", "total_flops_profiler", "theoretical_flops", "tokens"]
             )
             csv_file.flush()  # Immediately write header to disk
             print(f"Logging training progress to {csv_log_path}")
@@ -1029,12 +1029,23 @@ def train_model(
                 model.train()
 
                 total_flops = flop_counter.total_flops
+                
+                # Calculate theoretical FLOPs using 6ND formula (Chinchilla) - including embedding params
+                effective_batch_size = config["batch_size"] * gradient_accumulation_steps
+                tokens_processed = current_step * effective_batch_size * config["sequence_length"]
+                
+                # Count total parameters for theoretical FLOP calculation
+                total_model_params = sum(p.numel() for p in model.parameters() if p.requires_grad)
+                theoretical_flops_chinchilla = 6 * total_model_params * tokens_processed
+                
                 csv_writer.writerow(
                     [
                         current_step,
                         f"{current_train_loss:.4f}",
                         f"{current_val_loss:.4f}",
                         f"{total_flops:.2e}",
+                        f"{theoretical_flops_chinchilla:.2e}",
+                        f"{tokens_processed}",
                     ]
                 )
                 csv_file.flush()  # Immediately write row to disk

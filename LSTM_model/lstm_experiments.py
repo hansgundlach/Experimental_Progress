@@ -340,7 +340,7 @@ lstm_sgd_lr_at_all_scales = create_multi_lr_experiments(
 # # scaling experiments optimal
 # LSTM_SGD_OPTIMAL_SCALING
 
-EXPERIMENTS = lstm_lr_at_all_scales + lstm_sgd_lr_at_all_scales
+EXPERIMENTS = TEST_EXPERIMENTS
 
 
 def find_free_port():
@@ -469,6 +469,11 @@ if __name__ == "__main__":
         config = sub_exp_details["config"]
         csv_path = sub_exp_details["csv_log_path"]
 
+        print(
+            f"\nStarting LSTM training for: {run_name} at {time.strftime('%H:%M:%S')}"
+        )
+        training_start_time = time.time()
+
         # Find a free port for each DDP run to avoid conflicts
         master_port = find_free_port()
 
@@ -479,5 +484,10 @@ if __name__ == "__main__":
             nprocs=world_size,
             join=True,
         )
+
+        training_elapsed = time.time() - training_start_time
+        print(f"LSTM training completed for: {run_name}")
+        print(f"Training time: {training_elapsed:.1f}s ({training_elapsed/60:.1f}min)")
+        print(f"Completed LSTM experiment: {run_name}")
 
     print(f"\nNode {args.job_id} has completed all its assigned experiments.")

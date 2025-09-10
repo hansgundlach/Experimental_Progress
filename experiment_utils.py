@@ -192,10 +192,12 @@ def estimate_gpu_memory_and_grad_accum(
 
     # Rough memory estimation (very approximate)
     # Model parameters (4 bytes per param for fp32, but we use mixed precision)
-    params = calculate_transformer_params(hidden_dim, num_layers)
+    # Use actual memory footprint with weight tying for GPU memory estimation
+    params = calculate_transformer_params(hidden_dim, num_layers, tie_embeddings=True)
     model_memory = params * 4  # fp32 model weights
 
     # Gradients and optimizer states (Adam stores gradients + 2 momentum terms)
+    # Note: With weight tying, tied parameters share gradients, so memory is correctly estimated
     optimizer_memory = params * 3 * 4  # gradients + 2 adam states
 
     # Activation memory (depends on batch size and sequence length)

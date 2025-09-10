@@ -214,7 +214,7 @@ if __name__ == "__main__":
     # EXPERIMENTS = TRANSFORMER_VARIATION_EXPERIMENTS_HEAD
 
     #
-    EXPERIMENTS = TEST_EXPERIMENT
+    EXPERIMENTS = TRANSFORMER_LR_TUNE_MUP_STANDARD + TRANSFORMER_ALL_SCALE_LR_TUNE
 
     # Initialize the list to store all sub-experiments
     all_sub_experiments = []
