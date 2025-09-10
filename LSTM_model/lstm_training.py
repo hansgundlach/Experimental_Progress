@@ -33,23 +33,42 @@ def get_mup_learning_rates(model, base_lr, use_mup=False, mup_base_width=64):
         embedding = model.module.embedding
         lstm_layers = model.module.lstm_layers
         linear = model.module.linear
+        tie_embeddings = getattr(model.module, "tie_embeddings", False)
     else:
         hidden_size = model.hidden_size
         mup_scale = hidden_size / mup_base_width
         embedding = model.embedding
         lstm_layers = model.lstm_layers
         linear = model.linear
+        tie_embeddings = getattr(model, "tie_embeddings", False)
 
     param_groups = []
 
-    # Embedding parameters: lr scaled by 1/scale
-    param_groups.append(
-        {
-            "params": embedding.parameters(),
-            "lr": base_lr / mup_scale,
-            "name": "embedding",
-        }
-    )
+    # Handle embedding parameters
+    if tie_embeddings:
+        # When weight tying is enabled, use embedding parameters with output layer learning rate
+        # since they represent both embedding and output weights
+        param_groups.append(
+            {
+                "params": embedding.parameters(),
+                "lr": base_lr,  # Use output layer LR (no scaling) for tied weights
+                "name": "embedding_tied",
+            }
+        )
+    else:
+        # Separate embedding and output parameters when not tied
+        # Embedding parameters: lr scaled by 1/scale
+        param_groups.append(
+            {
+                "params": embedding.parameters(),
+                "lr": base_lr / mup_scale,
+                "name": "embedding",
+            }
+        )
+        # Output layer parameters: no scaling (base lr)
+        param_groups.append(
+            {"params": linear.parameters(), "lr": base_lr, "name": "output"}
+        )
 
     # LSTM parameters: lr scaled by 1/scale
     lstm_params = []
@@ -59,14 +78,14 @@ def get_mup_learning_rates(model, base_lr, use_mup=False, mup_base_width=64):
         {"params": lstm_params, "lr": base_lr / mup_scale, "name": "lstm"}
     )
 
-    # Output layer parameters: no scaling (base lr)
-    param_groups.append(
-        {"params": linear.parameters(), "lr": base_lr, "name": "output"}
-    )
-
-    print(
-        f"muP learning rates: embedding/lstm={base_lr/mup_scale:.6f}, output={base_lr:.6f}"
-    )
+    if tie_embeddings:
+        print(
+            f"muP learning rates (tied): embedding/output={base_lr:.6f}, lstm={base_lr/mup_scale:.6f}"
+        )
+    else:
+        print(
+            f"muP learning rates: embedding={base_lr/mup_scale:.6f}, lstm={base_lr/mup_scale:.6f}, output={base_lr:.6f}"
+        )
 
     return param_groups
 
@@ -159,6 +178,7 @@ class AdvancedLSTMLanguageModel(nn.Module):
         layer_norm_position: str = "output",
         use_mup: bool = False,
         mup_base_width: int = 64,
+        tie_embeddings: bool = True,
     ):
         super().__init__()
         self.hidden_size = hidden_size
@@ -166,6 +186,7 @@ class AdvancedLSTMLanguageModel(nn.Module):
         self.vocab_size = vocab_size
         self.use_mup = use_mup
         self.mup_base_width = mup_base_width
+        self.tie_embeddings = tie_embeddings
 
         # Calculate muP scaling factor
         self.mup_scale = hidden_size / mup_base_width if use_mup else 1.0
@@ -187,6 +208,10 @@ class AdvancedLSTMLanguageModel(nn.Module):
         self.output_dropout = VariationalDropout(output_dropout)
 
         self.linear = nn.Linear(hidden_size, vocab_size)
+
+        # Tie input and output embeddings if specified
+        if self.tie_embeddings:
+            self.linear.weight = self.embedding.weight
 
         self.use_layer_norm = use_layer_norm
         self.layer_norm_position = layer_norm_position
@@ -255,9 +280,11 @@ class AdvancedLSTMLanguageModel(nn.Module):
                     param.data[hidden_size:2*hidden_size].fill_(1.)  # forget gate bias
 
         # Output layer: muP scaled initialization
-        std = 1 / self.hidden_size
-        bound = math.sqrt(3.0) * std
-        nn.init.uniform_(self.linear.weight, -bound, bound)
+        # Only initialize if not tied to embedding
+        if not self.tie_embeddings:
+            std = 1 / self.hidden_size
+            bound = math.sqrt(3.0) * std
+            nn.init.uniform_(self.linear.weight, -bound, bound)
         nn.init.zeros_(self.linear.bias)
 
     def forward(self, x, hidden=None):
@@ -784,6 +811,7 @@ def train_model(
         layer_norm_position=config.get("layer_norm_position", "output"),
         use_mup=config.get("use_mup", False),
         mup_base_width=config.get("mup_base_width", 64),
+        tie_embeddings=config.get("tie_embeddings", True),  # Default to True
     ).to(device)
 
     # Use DataParallel or DDP if requested
@@ -1174,7 +1202,11 @@ def train_model(
 
     # Count non-embedding parameters
     num_params = sum(p.numel() for p in model.parameters() if p.requires_grad)
-    num_embedding_params = model.embedding.weight.numel()
+    # Handle DDP wrapping
+    if hasattr(model, "module"):
+        num_embedding_params = model.module.embedding.weight.numel()
+    else:
+        num_embedding_params = model.embedding.weight.numel()
     num_non_embedding_params = num_params - num_embedding_params
 
     total_flops_theoretical_standard = (

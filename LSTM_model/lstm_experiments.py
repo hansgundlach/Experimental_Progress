@@ -74,6 +74,7 @@ CONFIG = {
     "layer_norm_position": "output",  # Options: "input", "output", "both", "gates"
     "use_mup": True,
     "mup_base_width": 16,
+    "tie_embeddings": True,  # Enable weight tying by default
 }
 
 
