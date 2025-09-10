@@ -19,6 +19,8 @@ from experiment_utils import (
 from experiment_definitions import (
     TEST_EXPERIMENT,
     TRANSFORMER_SCALING_EXPERIMENTS_OPTIMAL_LR,
+    TRANSFORMER_ALL_SCALE_LR_TUNE,
+    TRANSFORMER_LR_TUNE_MUP_STANDARD,
 )
 
 # "frog"

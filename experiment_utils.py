@@ -88,25 +88,22 @@ def create_multi_lr_experiments(base_experiments, learning_rates):
 
                 new_sub_exp["label"] = f"{original_label}_lr_{lr_str}"
 
-                # Add learning rate and max_characters to overrides
+                # Add learning rate and token_limit to overrides
                 if "overrides" in new_sub_exp:
                     new_sub_exp["overrides"]["learning_rate"] = lr
-                    new_sub_exp["overrides"]["max_characters"] = 129e6
-                    new_sub_exp["overrides"][
-                        "wikitext_limit"
-                    ] = 129e6  # Same as max_characters
+                    new_sub_exp["overrides"]["token_limit"] = int(
+                        129e6 / 4
+                    )  # Convert from old char estimate
                 elif "config" in new_sub_exp:
                     new_sub_exp["config"]["learning_rate"] = lr
-                    new_sub_exp["config"]["max_characters"] = 129e6
-                    new_sub_exp["config"][
-                        "wikitext_limit"
-                    ] = 129e6  # Same as max_characters
+                    new_sub_exp["config"]["token_limit"] = int(
+                        129e6 / 4
+                    )  # Convert from old char estimate
                 else:
-                    # If neither exists, create overrides with learning rate and max_characters
+                    # If neither exists, create overrides with learning rate and token_limit
                     new_sub_exp["overrides"] = {
                         "learning_rate": lr,
-                        "max_characters": 129e6,
-                        "wikitext_limit": 129e6,  # Same as max_characters
+                        "token_limit": int(129e6 / 4),  # Convert from old char estimate
                     }
 
                 new_experiment["subexperiments"].append(new_sub_exp)
@@ -117,7 +114,12 @@ def create_multi_lr_experiments(base_experiments, learning_rates):
 
 
 def calculate_transformer_params(
-    hidden_dim, num_layers, vocab_size=50257, seq_length=128, pos_encoding="rotary"
+    hidden_dim,
+    num_layers,
+    vocab_size=50257,
+    seq_length=128,
+    pos_encoding="rotary",
+    tie_embeddings=True,
 ):
     """
     Calculate the total number of parameters for a transformer model.
@@ -128,6 +130,7 @@ def calculate_transformer_params(
         vocab_size: Vocabulary size (default GPT-2 vocab size)
         seq_length: Sequence length (for learned positional embeddings)
         pos_encoding: Type of positional encoding ("rotary", "learned", "sinusoidal")
+        tie_embeddings: Whether input and output embeddings are tied (default True)
 
     Returns:
         Total number of parameters
@@ -149,10 +152,19 @@ def calculate_transformer_params(
     params_per_layer = 4 * hidden_dim**2 + 8 * hidden_dim**2  # = 12 * hidden_dim^2
     layer_params = num_layers * params_per_layer
 
-    # Final linear layer: hidden_dim * vocab_size
-    final_layer_params = hidden_dim * vocab_size
+    # Final linear layer: hidden_dim * vocab_size (only if not tied to embedding)
+    final_layer_params = 0 if tie_embeddings else hidden_dim * vocab_size
 
-    total_params = embedding_params + pos_emb_params + layer_params + final_layer_params
+    # Final layer bias: vocab_size (always present even with weight tying)
+    final_bias_params = vocab_size
+
+    total_params = (
+        embedding_params
+        + pos_emb_params
+        + layer_params
+        + final_layer_params
+        + final_bias_params
+    )
     return total_params
 
 
@@ -245,11 +257,14 @@ def gen_experim(hidden_dim, gpu_type="V100", label=None, **overrides):
     while hidden_dim % num_heads != 0 and num_heads > 1:
         num_heads -= 1
 
-    # 3. Calculate total parameters and scale wikitext_limit to 20x parameters
+    # 3. Calculate total parameters and scale token_limit to 20x parameters
     total_params = calculate_transformer_params(
-        hidden_dim, num_layers, pos_encoding=base_config["pos_encoding"]
+        hidden_dim,
+        num_layers,
+        pos_encoding=base_config["pos_encoding"],
+        tie_embeddings=base_config["tie_embeddings"],
     )
-    wikitext_limit = int(20 * total_params)
+    token_limit = int(20 * total_params)
 
     # 4. Estimate gradient accumulation based on GPU memory
     grad_accum_steps = estimate_gpu_memory_and_grad_accum(
@@ -269,7 +284,7 @@ def gen_experim(hidden_dim, gpu_type="V100", label=None, **overrides):
         "hidden_dim": hidden_dim,
         "num_layers": num_layers,
         "num_heads": num_heads,
-        "wikitext_limit": wikitext_limit,
+        "token_limit": token_limit,
         "gradient_accumulation_steps": grad_accum_steps,
     }
 
@@ -311,7 +326,7 @@ def get_base_config():
         "num_heads": 4,
         "dropout": 0.0,
         "seq_length": 128,
-        "wikitext_limit": 5 * 10**7,
+        "token_limit": int(5 * 10**7 / 4),  # Convert from old char estimate to tokens
         "pos_encoding": "rotary",
         "init_scheme": "transformer_scaled",
         "stride": 128,
@@ -342,4 +357,5 @@ def get_base_config():
         "eps_base": 1e-16,
         "use_mup": False,
         "mup_base_width": 128,
+        "tie_embeddings": True,  # Default to True for weight tying
     }

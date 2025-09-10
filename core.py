@@ -113,6 +113,17 @@ def get_wikitext_data(limit=100000):
     return sampled_text
 
 
+def get_wikitext_data_by_tokens(token_limit, tokenizer):
+    """Load WikiText-2 dataset from local file, limiting by exact token count"""
+    # Always use character approximation for speed (same as the old system)
+    # Convert token limit to character limit using 4:1 ratio
+    char_limit = int(token_limit * 4)
+    print(f"Loading WikiText data for {token_limit:,} tokens (~{char_limit:,} characters)...")
+    
+    # Use the existing fast character-based loading
+    return get_wikitext_data(limit=char_limit)
+
+
 class TextDataset(Dataset):
     def __init__(self, text, seq_length, tokenizer, stride=1, random_offset=True):
         """
@@ -498,12 +509,14 @@ class SimpleTransformer(nn.Module):
         config=None,
         use_mup=False,
         mup_base_width=128,
+        tie_embeddings=True,
     ):
         super().__init__()
         self.vocab_size = vocab_size
         self.hidden_dim = hidden_dim
         self.use_mup = use_mup
         self.mup_base_width = mup_base_width
+        self.tie_embeddings = tie_embeddings
 
         # Calculate muP scaling factor
         self.mup_scale = hidden_dim / mup_base_width if use_mup else 1.0
@@ -541,6 +554,10 @@ class SimpleTransformer(nn.Module):
         self.norm = LayerNorm(hidden_dim)
         self.fc = Linear(hidden_dim, vocab_size)
 
+        # Tie input and output embeddings if specified
+        if self.tie_embeddings:
+            self.fc.weight = self.embedding.weight
+
         # Apply muP initialization if enabled
         if use_mup:
             self._apply_mup_init()
@@ -575,7 +592,7 @@ class SimpleTransformer(nn.Module):
             # Feedforward layers: scale by 1/sqrt(width)
             std = 1 / math.sqrt(self.hidden_dim)
             bound = math.sqrt(3.0) * std
-            
+
             if hasattr(layer.ff, "linear1"):
                 nn.init.uniform_(layer.ff.linear1.weight, -bound, bound)
                 nn.init.zeros_(layer.ff.linear1.bias)
@@ -590,9 +607,11 @@ class SimpleTransformer(nn.Module):
                 nn.init.zeros_(layer.ff.proj.bias)
 
         # Output layer: scale by 1/width (not sqrt) for muP
-        std = 1 / self.hidden_dim
-        bound = math.sqrt(3.0) * std
-        nn.init.uniform_(self.fc.weight, -bound, bound)
+        # Only initialize if not tied to embedding
+        if not self.tie_embeddings:
+            std = 1 / self.hidden_dim
+            bound = math.sqrt(3.0) * std
+            nn.init.uniform_(self.fc.weight, -bound, bound)
         nn.init.zeros_(self.fc.bias)
 
     def forward(self, x):
@@ -774,7 +793,14 @@ def train(gpu_id=None, csv_log_path=None):
             csv_file = open(csv_log_path, "w", newline="")
             csv_writer = csv.writer(csv_file)
             csv_writer.writerow(
-                ["step", "training_loss", "validation_loss", "total_flops_profiler", "theoretical_flops", "tokens"]
+                [
+                    "step",
+                    "training_loss",
+                    "validation_loss",
+                    "total_flops_profiler",
+                    "theoretical_flops",
+                    "tokens",
+                ]
             )
             csv_file.flush()  # Immediately write header to disk
             print(f"Logging training progress to {csv_log_path}")
@@ -860,14 +886,28 @@ def train(gpu_id=None, csv_log_path=None):
         config=config,
         use_mup=getattr(config, "use_mup", False),
         mup_base_width=getattr(config, "mup_base_width", 128),
+        tie_embeddings=getattr(config, "tie_embeddings", True),  # Default to True
     )
 
     # Count non-embedding parameters for theoretical FLOPs calculation
     num_params = sum(p.numel() for p in model.parameters() if p.requires_grad)
+
+    # Count embedding parameters (input embedding + positional embedding)
     num_embedding_params = model.embedding.weight.numel()
     if model.pos_encoding == "learned" and hasattr(model, "pos_emb"):
         num_embedding_params += model.pos_emb.numel()
-    num_non_embedding_params = num_params - num_embedding_params
+
+    # With weight tying, output layer weight shares parameters with embedding
+    # So we don't need to subtract the output layer weight from non-embedding params
+    if model.tie_embeddings:
+        # Only subtract embedding and positional embedding params
+        num_non_embedding_params = num_params - num_embedding_params
+    else:
+        # Subtract embedding, positional embedding, and output layer weight
+        output_layer_weight_params = model.fc.weight.numel()
+        num_non_embedding_params = (
+            num_params - num_embedding_params - output_layer_weight_params
+        )
 
     # Apply initialization based on config.init_scheme
     if config.init_scheme == "xavier_uniform":
@@ -1347,11 +1387,19 @@ def train(gpu_id=None, csv_log_path=None):
                         )
                         model.train()  # Switch back to train mode
 
-                        cumulative_flops_profiler = flops_per_step * optimizer_step_counter
-                        
+                        cumulative_flops_profiler = (
+                            flops_per_step * optimizer_step_counter
+                        )
+
                         # Calculate theoretical FLOPs using 6ND formula (Chinchilla) - including embedding params
-                        effective_batch_size = config.batch_size * config.gradient_accumulation_steps
-                        tokens_processed = optimizer_step_counter * effective_batch_size * config.seq_length
+                        effective_batch_size = (
+                            config.batch_size * config.gradient_accumulation_steps
+                        )
+                        tokens_processed = (
+                            optimizer_step_counter
+                            * effective_batch_size
+                            * config.seq_length
+                        )
                         theoretical_flops_chinchilla = 6 * num_params * tokens_processed
 
                         csv_writer.writerow(
@@ -1365,7 +1413,7 @@ def train(gpu_id=None, csv_log_path=None):
                             ]
                         )
                         csv_file.flush()
-                        
+
                         # Mark this step as logged
                         last_csv_logged_step = optimizer_step_counter
 
@@ -1381,7 +1429,6 @@ def train(gpu_id=None, csv_log_path=None):
                         "optimizer": config.optimizer,
                     }
                 )
-
 
         # Update metrics with loss after training loop
         avg_train_loss = total_loss / len(train_dataloader)
@@ -1521,10 +1568,7 @@ def get_dataset(config):
     np.random.seed(seed)
     random.seed(seed)
 
-    # Get the text data
-    text = get_wikitext_data(limit=config.wikitext_limit)
-
-    # Initialize GPT2 tokenizer from local files
+    # Initialize GPT2 tokenizer from local files first (needed for token-based loading)
     try:
         tokenizer = GPT2Tokenizer.from_pretrained("./gpt2_tokenizer")
     except:
@@ -1532,6 +1576,17 @@ def get_dataset(config):
             "GPT2 tokenizer files not found in ./gpt2_tokenizer. "
             "Please download the tokenizer files first."
         )
+
+    # Get the text data - use token_limit if available, otherwise fall back to wikitext_limit
+    if hasattr(config, "token_limit") and config.token_limit:
+        text = get_wikitext_data_by_tokens(
+            token_limit=config.token_limit, tokenizer=tokenizer
+        )
+    elif hasattr(config, "wikitext_limit") and config.wikitext_limit:
+        text = get_wikitext_data(limit=config.wikitext_limit)
+    else:
+        # Default fallback
+        text = get_wikitext_data(limit=50000000)
 
     # BETTER SPLIT: Random shuffle before splitting
 

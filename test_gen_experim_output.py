@@ -4,7 +4,7 @@ Test script to print gen_experim output
 """
 
 # Import the function
-from experiment_utils import gen_experim
+from experiment_utils import gen_experim, calculate_transformer_params
 import json
 
 
@@ -15,7 +15,7 @@ def main():
     print("=" * 60)
 
     # Generate the experiment
-    result = gen_experim(50, label="50d_test_experiment", learning_rate=0.001)
+    result = gen_experim(16, label="50d_test_experiment", learning_rate=0.001)
 
     # Extract the configuration
     exp_group = result[0]
@@ -40,11 +40,20 @@ def main():
 
     print("\n" + "=" * 60)
     print("Key Scaling Information:")
+
+    # Calculate the number of parameters (with weight tying by default)
+    num_params = calculate_transformer_params(
+        config["hidden_dim"], config["num_layers"], tie_embeddings=True
+    )
+
     print(f"- Hidden dimension: {config['hidden_dim']}")
     print(f"- Number of layers: {config['num_layers']} (scaled proportionally)")
     print(f"- Number of heads: {config['num_heads']}")
     print(f"- Head dimension: {config['hidden_dim'] // config['num_heads']}")
-    print(f"- Wikitext limit: {config['wikitext_limit']:,} tokens (20x parameters)")
+    print(f"- Total parameters: {num_params:,}")
+    print(
+        f"- Token limit: {config['token_limit']:,} tokens (20x parameters = {20 * num_params:,})"
+    )
     print(f"- Gradient accumulation: {config['gradient_accumulation_steps']} steps")
     print(f"- Learning rate: {config['learning_rate']} (your override)")
 
