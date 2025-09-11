@@ -23,6 +23,7 @@ from experiment_definitions import (
     TRANSFORMER_LR_TUNE_MUP_STANDARD,
     TRANSFORMER_SGD_SCALING_EXPERIMENTS_OPTIMAL_LR,
     TRANSFORMER_SGD_ALL_SCALE_LR_TUNE,
+    GRAND_EXPERIMENT,
 )
 
 # "frog"
@@ -217,11 +218,7 @@ if __name__ == "__main__":
 
     #
     # EXPERIMENTS = TRANSFORMER_LR_TUNE_MUP_STANDARD + TRANSFORMER_ALL_SCALE_LR_TUNE
-    EXPERIMENTS = (
-        TRANSFORMER_ALL_SCALE_LR_TUNE
-        + TRANSFORMER_SGD_ALL_SCALE_LR_TUNE
-        + TRANSFORMER_LR_TUNE_MUP_STANDARD
-    )
+    EXPERIMENTS = GRAND_EXPERIMENT
 
     # Initialize the list to store all sub-experiments
     all_sub_experiments = []

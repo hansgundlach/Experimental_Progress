@@ -183,7 +183,14 @@ def estimate_lstm_gpu_memory_and_grad_accum(
     return 64
 
 
-def gen_lstm_experim(hidden_size, gpu_type="V100", label=None, **overrides):
+def gen_lstm_experim(
+    hidden_size,
+    gpu_type="V100",
+    label=None,
+    results_folder=None,
+    folder_name=None,
+    **overrides,
+):
     """
     Generate a scaled LSTM experiment configuration.
 
@@ -191,6 +198,7 @@ def gen_lstm_experim(hidden_size, gpu_type="V100", label=None, **overrides):
         hidden_size: LSTM hidden dimension
         gpu_type: "V100" or "H100" (default: "V100")
         label: Custom label for the experiment (if None, auto-generated)
+        results_folder: Custom results folder (if None, uses default from base config)
         **overrides: Any additional config overrides
 
     Returns:
@@ -234,7 +242,11 @@ def gen_lstm_experim(hidden_size, gpu_type="V100", label=None, **overrides):
     # Calculate the actual per-step batch size to use
     per_step_batch_size = max(1, target_effective_batch_size // grad_accum_steps)
 
-    # 4. Generate label if not provided
+    # 4. Handle folder_name parameter (for backward compatibility)
+    if folder_name is not None and results_folder is None:
+        results_folder = folder_name
+
+    # 5. Generate label if not provided
     if label is None:
         label = f"lstm_{hidden_size}d_generated_{gpu_type.lower()}"
 
@@ -246,6 +258,10 @@ def gen_lstm_experim(hidden_size, gpu_type="V100", label=None, **overrides):
         "gradient_accumulation_steps": grad_accum_steps,
         "batch_size": per_step_batch_size,  # Override with safe per-step batch size
     }
+
+    # Add results_folder if specified
+    if results_folder is not None:
+        experiment_config["results_folder"] = results_folder
 
     # Apply any user overrides
     experiment_config.update(overrides)
@@ -298,7 +314,7 @@ def get_lstm_base_config():
         "print_every": 100,
         "use_gradient_clipping": True,
         "gradient_clip_val": 1.0,
-        "results_folder": "Experiments_Folder",
+        "results_folder": "../new_experiments_folder",
         "csv_log_interval": 20,
         "num_workers": "auto",
         "pin_memory": True,
@@ -443,9 +459,33 @@ def create_multi_lr_experiments(base_experiments, learning_rates):
     multi_lr_experiments = []
 
     for experiment in base_experiments:
-        # Create a new experiment group for each base experiment
+        # Check if any sub-experiment has a custom results folder
+        custom_folder = None
+        for sub_exp in experiment["subexperiments"]:
+            if "overrides" in sub_exp:
+                # Check for both folder_name and results_folder
+                custom_folder = sub_exp["overrides"].get("folder_name") or sub_exp[
+                    "overrides"
+                ].get("results_folder")
+                if custom_folder:
+                    break
+            elif "config" in sub_exp:
+                custom_folder = sub_exp["config"].get("folder_name") or sub_exp[
+                    "config"
+                ].get("results_folder")
+                if custom_folder:
+                    break
+
+        # Create a new experiment group name
+        if custom_folder:
+            # If there's a custom folder, create the name to put results in "custom_folder_lr_sweep/"
+            new_experiment_name = f"{custom_folder}_lr_sweep"
+        else:
+            # Otherwise use the original experiment name with lr_sweep suffix
+            new_experiment_name = f"{experiment['name']}_lr_sweep"
+
         new_experiment = {
-            "name": f"{experiment['name']}_lr_sweep",
+            "name": new_experiment_name,
             "subexperiments": [],
         }
 
@@ -469,15 +509,24 @@ def create_multi_lr_experiments(base_experiments, learning_rates):
 
                 new_sub_exp["label"] = f"{original_label}_lr_{lr_str}"
 
-                # Add learning rate and max_characters to overrides
+                # Add learning rate and max_characters to overrides, and remove folder settings
                 if "overrides" in new_sub_exp:
                     new_sub_exp["overrides"]["learning_rate"] = lr
                     new_sub_exp["overrides"]["max_characters"] = 129e6
+                    # Remove custom folder settings - let the experiment name handle the directory
+                    if custom_folder:
+                        new_sub_exp["overrides"].pop("folder_name", None)
+                        new_sub_exp["overrides"].pop("results_folder", None)
                 elif "config" in new_sub_exp:
                     new_sub_exp["config"]["learning_rate"] = lr
                     new_sub_exp["config"]["max_characters"] = 129e6
+                    # Remove custom folder settings - let the experiment name handle the directory
+                    if custom_folder:
+                        new_sub_exp["config"].pop("folder_name", None)
+                        new_sub_exp["config"].pop("results_folder", None)
                 else:
                     # If neither exists, create overrides with learning rate and max_characters
+                    # Don't add custom folder for new overrides - let experiment name handle it
                     new_sub_exp["overrides"] = {
                         "learning_rate": lr,
                         "max_characters": 129e6,

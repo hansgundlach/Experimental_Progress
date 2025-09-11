@@ -62,9 +62,33 @@ def create_multi_lr_experiments(base_experiments, learning_rates):
     multi_lr_experiments = []
 
     for experiment in base_experiments:
-        # Create a new experiment group for each base experiment
+        # Check if any sub-experiment has a custom results folder
+        custom_folder = None
+        for sub_exp in experiment["subexperiments"]:
+            if "overrides" in sub_exp:
+                # Check for both folder_name and results_folder
+                custom_folder = sub_exp["overrides"].get("folder_name") or sub_exp[
+                    "overrides"
+                ].get("results_folder")
+                if custom_folder:
+                    break
+            elif "config" in sub_exp:
+                custom_folder = sub_exp["config"].get("folder_name") or sub_exp[
+                    "config"
+                ].get("results_folder")
+                if custom_folder:
+                    break
+
+        # Create a new experiment group name
+        if custom_folder:
+            # If there's a custom folder, create the name to put results in "custom_folder_lr_sweep/"
+            new_experiment_name = f"{custom_folder}_lr_sweep"
+        else:
+            # Otherwise use the original experiment name with lr_sweep suffix
+            new_experiment_name = f"{experiment['name']}_lr_sweep"
+
         new_experiment = {
-            "name": f"{experiment['name']}_lr_sweep",
+            "name": new_experiment_name,
             "subexperiments": [],
         }
 
@@ -88,23 +112,33 @@ def create_multi_lr_experiments(base_experiments, learning_rates):
 
                 new_sub_exp["label"] = f"{original_label}_lr_{lr_str}"
 
-                # Add learning rate and token_limit to overrides
+                # Add learning rate and token_limit to overrides, and update folder settings
                 if "overrides" in new_sub_exp:
                     new_sub_exp["overrides"]["learning_rate"] = lr
                     new_sub_exp["overrides"]["token_limit"] = int(
                         129e6 / 4
                     )  # Convert from old char estimate
+                    # Remove custom folder settings - let the experiment name handle the directory
+                    if custom_folder:
+                        new_sub_exp["overrides"].pop("folder_name", None)
+                        new_sub_exp["overrides"].pop("results_folder", None)
                 elif "config" in new_sub_exp:
                     new_sub_exp["config"]["learning_rate"] = lr
                     new_sub_exp["config"]["token_limit"] = int(
                         129e6 / 4
                     )  # Convert from old char estimate
+                    # Remove custom folder settings - let the experiment name handle the directory
+                    if custom_folder:
+                        new_sub_exp["config"].pop("folder_name", None)
+                        new_sub_exp["config"].pop("results_folder", None)
                 else:
                     # If neither exists, create overrides with learning rate and token_limit
-                    new_sub_exp["overrides"] = {
+                    overrides_dict = {
                         "learning_rate": lr,
                         "token_limit": int(129e6 / 4),  # Convert from old char estimate
                     }
+                    # Don't add custom folder for new overrides - let experiment name handle it
+                    new_sub_exp["overrides"] = overrides_dict
 
                 new_experiment["subexperiments"].append(new_sub_exp)
 
@@ -174,7 +208,7 @@ def estimate_gpu_memory_and_grad_accum(
     """
     Estimate optimal per-step batch size and gradient accumulation steps.
 
-    FIXED VERSION: Now properly calculates per-step batch size to avoid OOM, then uses 
+    FIXED VERSION: Now properly calculates per-step batch size to avoid OOM, then uses
     gradient accumulation to reach target effective batch size.
 
     Args:
@@ -195,7 +229,7 @@ def estimate_gpu_memory_and_grad_accum(
 
     vocab_size = 50257  # GPT-2 vocab size
     available_memory = gpu_memory.get(gpu_type, gpu_memory["V100"])
-    
+
     # Use 60% of available memory as threshold (very conservative due to memory spikes)
     memory_threshold = 0.60 * available_memory
 
@@ -212,63 +246,75 @@ def estimate_gpu_memory_and_grad_accum(
 
     # Fixed memory (independent of batch size)
     fixed_memory = model_memory + optimizer_memory
-    
+
     # Memory available for activations (batch-dependent)
     available_for_activations = memory_threshold - fixed_memory
-    
+
     if available_for_activations <= 0:
         # Model itself is too big, use minimum settings
         return 64  # Maximum gradient accumulation
-    
+
     # Calculate memory per batch-size unit for different components
     # All calculations are per single batch item [1, seq_length, ...]
-    
+
     # 1. CRITICAL: Final layer (logits) tensor - usually the biggest!
     # [batch_size, seq_length, vocab_size] + gradients
     final_layer_per_batch = 2 * seq_length * vocab_size * 4  # output + gradients
-    
+
     # 2. Forward pass activations
     forward_activations_per_batch = seq_length * hidden_dim * num_layers * 4
-    
-    # 3. Attention matrices: [batch, heads, seq_len, seq_len] (scores + weights) 
+
+    # 3. Attention matrices: [batch, heads, seq_len, seq_len] (scores + weights)
     attention_per_batch = 2 * num_heads * seq_length * seq_length * 4
-    
+
     # 4. QKV and feed-forward
     qkv_per_batch = 3 * seq_length * hidden_dim * 4
     ff_per_batch = seq_length * (4 * hidden_dim) * num_layers * 4
-    
+
     # 5. Gradient storage for all activations
     gradient_storage_per_batch = (
-        forward_activations_per_batch + attention_per_batch + qkv_per_batch + ff_per_batch
+        forward_activations_per_batch
+        + attention_per_batch
+        + qkv_per_batch
+        + ff_per_batch
     )
-    
+
     # Total memory per batch item
     memory_per_batch_item = (
-        final_layer_per_batch + 
-        forward_activations_per_batch +
-        attention_per_batch +
-        qkv_per_batch + 
-        ff_per_batch +
-        gradient_storage_per_batch
+        final_layer_per_batch
+        + forward_activations_per_batch
+        + attention_per_batch
+        + qkv_per_batch
+        + ff_per_batch
+        + gradient_storage_per_batch
     )
-    
+
     # Add 20% overhead for memory fragmentation and misc tensors
     memory_per_batch_item *= 1.2
-    
+
     # Calculate maximum batch size that fits in memory
     max_per_step_batch = int(available_for_activations / memory_per_batch_item)
     max_per_step_batch = max(1, max_per_step_batch)  # At least 1
-    
+
     # Calculate gradient accumulation needed to reach target effective batch size
-    grad_accum = max(1, int(math.ceil(target_effective_batch_size / max_per_step_batch)))
-    
+    grad_accum = max(
+        1, int(math.ceil(target_effective_batch_size / max_per_step_batch))
+    )
+
     # Cap at reasonable limits
     grad_accum = min(grad_accum, 128)  # Maximum accumulation steps
-    
+
     return grad_accum
 
 
-def gen_experim(hidden_dim, gpu_type="V100", label=None, **overrides):
+def gen_experim(
+    hidden_dim,
+    gpu_type="V100",
+    label=None,
+    results_folder=None,
+    folder_name=None,
+    **overrides,
+):
     """
     Generate a scaled transformer experiment configuration.
 
@@ -276,6 +322,7 @@ def gen_experim(hidden_dim, gpu_type="V100", label=None, **overrides):
         hidden_dim: Base hidden dimension
         gpu_type: "V100" or "H100" (default: "V100")
         label: Custom label for the experiment (if None, auto-generated)
+        results_folder: Custom results folder (if None, uses default from base config)
         **overrides: Any additional config overrides
 
     Returns:
@@ -311,7 +358,7 @@ def gen_experim(hidden_dim, gpu_type="V100", label=None, **overrides):
 
     # 4. Estimate gradient accumulation based on GPU memory
     # Use target_effective_batch_size for optimization goals
-    target_effective_batch_size = base_config["target_effective_batch_size"]  
+    target_effective_batch_size = base_config["target_effective_batch_size"]
     grad_accum_steps = estimate_gpu_memory_and_grad_accum(
         hidden_dim,
         num_layers,
@@ -319,11 +366,15 @@ def gen_experim(hidden_dim, gpu_type="V100", label=None, **overrides):
         base_config["seq_length"],
         gpu_type,
     )
-    
+
     # Calculate the actual per-step batch size to use
     per_step_batch_size = max(1, target_effective_batch_size // grad_accum_steps)
 
-    # 5. Generate label if not provided
+    # 5. Handle folder_name parameter (for backward compatibility)
+    if folder_name is not None and results_folder is None:
+        results_folder = folder_name
+
+    # 6. Generate label if not provided
     if label is None:
         label = f"{hidden_dim}d_generated_{gpu_type.lower()}"
 
@@ -336,6 +387,10 @@ def gen_experim(hidden_dim, gpu_type="V100", label=None, **overrides):
         "gradient_accumulation_steps": grad_accum_steps,
         "batch_size": per_step_batch_size,  # Override with safe per-step batch size
     }
+
+    # Add results_folder if specified
+    if results_folder is not None:
+        experiment_config["results_folder"] = results_folder
 
     # Apply any user overrides
     experiment_config.update(overrides)
@@ -393,7 +448,7 @@ def get_base_config():
         "activation": "gelu",
         "norm_type": "layer",
         "norm_placement": "pre",
-        "results_folder": "Former_Experiments_Folder",
+        "results_folder": "new_experiments_folder",
         "csv_log_interval": 20,
         "seed": 789,
         # Complete-P (default OFF; non-breaking)

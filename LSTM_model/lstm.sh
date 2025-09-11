@@ -7,7 +7,7 @@
 #SBATCH --ntasks-per-node=2
 #SBATCH --gres=gpu:volta:2
 #SBATCH --mem=32G
-#SBATCH --array=0-64%4
+# Array specification is now handled by submit_lstm_job.sh wrapper
 
 # Create logs directory name with timestamp
 LOG_DIR="logs/lstm_runs/$(date +%d-%H)"

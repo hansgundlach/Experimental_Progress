@@ -23,27 +23,143 @@ TEST_EXPERIMENT = gen_experim(
 
 TRANSFORMER_LR_TUNE_MUP_STANDARD = create_multi_lr_experiments(
     gen_experim(
-        32, label="32d_mup", learning_rate=0.01, use_mup=True, mup_base_width=32
+        32,
+        label="32d_mup",
+        folder_name="zeta_mup_base_tune",
+        learning_rate=0.01,
+        use_mup=True,
+        mup_base_width=32,
     ),
     NARROW_LR_SWEEP,
 )
 
+TRANSFORMER_LR_TUNE_MUP_SGD = create_multi_lr_experiments(
+    gen_experim(
+        32,
+        label="32d_mup_sgd",
+        folder_name="zeta_mup_base_tune",
+        learning_rate=0.01,
+        use_mup=True,
+        mup_base_width=32,
+        optimizer="sgd",
+    ),
+    NARROW_LR_SWEEP,
+)
 
-TRANSFORMER_SCALING_EXPERIMENTS_OPTIMAL_LR = EXPERIMENTS = (
-    gen_experim(32, label="32d_test_experiment", learning_rate=0.01)
-    + gen_experim(40, label="40d_test_experiment", learning_rate=0.01)
-    + gen_experim(48, label="48d_test_experiment", learning_rate=0.01)
-    + gen_experim(56, label="56d_test_experiment", learning_rate=0.01)
-    + gen_experim(64, label="64d_test_experiment", learning_rate=0.01)
+TRANSFORMER_SCALING_EXPERIMENTS_OPTIMAL_LR = (
+    gen_experim(
+        32,
+        label="32d_test_experiment",
+        folder_name="zeta_vanilla_transformer_scaling",
+        learning_rate=10**(-2),
+    )
+    + gen_experim(
+        40,
+        label="40d_test_experiment",
+        folder_name="zeta_vanilla_transformer_scaling",
+        learning_rate=10**(-2),
+    )
+    + gen_experim(
+        48,
+        label="48d_test_experiment",
+        folder_name="zeta_vanilla_transformer_scaling",
+        learning_rate=10**(-2.5),
+    )
+    + gen_experim(
+        56,
+        label="56d_test_experiment",
+        folder_name="zeta_vanilla_transformer_scaling",
+        learning_rate=10**(-2.5),
+    )
+    + gen_experim(
+        64,
+        label="64d_test_experiment",
+        folder_name="zeta_vanilla_transformer_scaling",
+        learning_rate=10**(-2.5),
+    )
 )
 
 
-TRANSFORMER_SGD_SCALING_EXPERIMENTS_OPTIMAL_LR = EXPERIMENTS = (
-    gen_experim(32, label="32d_sgd_experiment", learning_rate=0.01, optimizer="sgd")
-    + gen_experim(40, label="40d_sgd_experiment", learning_rate=0.01, optimizer="sgd")
-    + gen_experim(48, label="48d_sgd_experiment", learning_rate=0.01, optimizer="sgd")
-    + gen_experim(56, label="56d_sgd_experiment", learning_rate=0.01, optimizer="sgd")
-    + gen_experim(64, label="64d_sgd_experiment", learning_rate=0.01, optimizer="sgd")
+TRANSFORMER_SGD_SCALING_EXPERIMENTS_OPTIMAL_LR = (
+    gen_experim(
+        32,
+        label="32d_sgd_experiment",
+        folder_name="sgd_experiments",
+        learning_rate=0.1,
+        optimizer="sgd",
+    )
+    + gen_experim(
+        40,
+        label="40d_sgd_experiment",
+        folder_name="sgd_experiments",
+        learning_rate=0.1,
+        optimizer="sgd",
+    )
+    + gen_experim(
+        48,
+        label="48d_sgd_experiment",
+        folder_name="sgd_experiments",
+        learning_rate=0.1,
+        optimizer="sgd",
+    )
+    + gen_experim(
+        56,
+        label="56d_sgd_experiment",
+        folder_name="sgd_experiments",
+        learning_rate=0.1,
+        optimizer="sgd",
+    )
+    + gen_experim(
+        64,
+        label="64d_sgd_experiment",
+        folder_name="sgd_experiments",
+        learning_rate=0.1,
+        optimizer="sgd",
+    )
+)
+
+
+TRANSFORMER_SCALING_EXPERIMENTS_MUP = (
+    gen_experim(
+        32,
+        label="32d_mup_experiment",
+        folder_name="zebra_mup_experiments",
+        learning_rate=10 ** (-1),
+        use_mup=True,
+        mup_base_width=32,
+    )
+    + gen_experim(
+        40,
+        label="40d_mup_experiment",
+        folder_name="zebra_mup_experiments",
+        learning_rate=10 ** (-1),
+        use_mup=True,
+        mup_base_width=32,
+    )
+    + gen_experim(
+        48,
+        label="48d_mup_experiment",
+        folder_name="zebra_mup_experiments",
+        learning_rate=10 ** (-1),
+        use_mup=True,
+        mup_base_width=32,
+    )
+    + gen_experim(
+        56,
+        label="56d_mup_experiment",
+        folder_name="zebra_mup_experiments",
+        learning_rate=10 ** (-1),
+        use_mup=True,
+        mup_base_width=32,
+    )
+    + gen_experim(
+        64,
+        label="64d_mup_experiment",
+        folder_name="zebra_mup_experiments",
+        learning_rate=10 ** (-1),
+        use_mup=True,
+        mup_base_width=32,
+    )
 )
 
 
@@ -103,3 +219,26 @@ TRANSFORMER_LR_TUNE_STANDARD = create_multi_lr_experiments(
     ),
     NARROW_LR_SWEEP,
 )
+
+
+# TRANSFORMER_LR_TUNE_MUP_STANDARD = create_multi_lr_experiments(
+#     gen_experim(
+#         32, label="32d_mup", learning_rate=0.01, use_mup=True, mup_base_width=32
+#     ),
+#     NARROW_LR_SWEEP,
+# )
+scaling_experiments = (
+    TRANSFORMER_SCALING_EXPERIMENTS_MUP
+    + TRANSFORMER_SGD_SCALING_EXPERIMENTS_OPTIMAL_LR
+    + TRANSFORMER_SCALING_EXPERIMENTS_OPTIMAL_LR
+)
+
+
+# GRAND_EXPERIMENT = (
+#     TRANSFORMER_LR_TUNE_MUP_STANDARD
+#     + TRANSFORMER_LR_TUNE_MUP_SGD
+#     + TRANSFORMER_SGD_ALL_SCALE_LR_TUNE
+# )
+
+
+GRAND_EXPERIMENT = TRANSFORMER_SCALING_EXPERIMENTS_MUP+TRANSFORMER_SGD_SCALING_EXPERIMENTS_OPTIMAL_LR+TRANSFORMER_SCALING_EXPERIMENTS_OPTIMAL_LR
