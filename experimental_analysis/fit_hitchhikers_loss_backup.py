@@ -381,58 +381,92 @@ def fit_validation_loss_from_pairs(
 # --------------------------------------------------------------------------------------
 
 
+def get_parameter_counts() -> dict:
+    """
+    Return parameter counts for different model sizes based on GPT-style architecture.
+    These are rough estimates using the formula: 12 * d_model^2 * n_layers + vocab_size * d_model
+    where n_layers ≈ 0.06 * d_model and vocab_size = 50257
+    """
+    return {
+        16: int(810e3),  # ~810k parameters
+        24: int(1220e3),  # ~1.22M parameters
+        32: int(1666e3),  # ~1.67M parameters
+        40: int(2546e3),  # ~2.55M parameters
+        48: int(3600e3),  # ~3.6M parameters
+        56: int(4800e3),  # ~4.8M parameters
+        64: int(6100e3),  # ~6.1M parameters
+        80: int(9500e3),  # ~9.5M parameters
+        96: int(13700e3),  # ~13.7M parameters
+        128: int(24400e3),  # ~24.4M parameters
+    }
+
+
 def get_dataset_configurations() -> dict:
     """
     Return different dataset configurations for various experiment types.
     Each configuration contains a list of (csv_path, num_parameters) pairs.
-    Directly specify parameter counts - no dictionary lookups needed!
     """
     repo_root = Path(__file__).resolve().parents[1]
     data_folder = repo_root / "experimental_data_folder"
+    param_counts = get_parameter_counts()
+
     configurations = {}
 
-    # 1. Optimal LR SGD scaling
+    # 1. Generated experiments (current default)
+    # generated_dir = data_folder / "generated_experiments_v100"
+    # if generated_dir.exists():
+    #     generated_pairs = [
+    #         (generated_dir / "32d_test_experiment.csv", param_counts[32]),
+    #         (generated_dir / "40d_test_experiment.csv", param_counts[40]),
+    #         (generated_dir / "64d_test_experiment.csv", param_counts[64]),
+    #     ]
+    #     configurations["generated_experiments"] = [
+    #         (str(p), n) for p, n in generated_pairs if p.exists()
+    #     ]
+
+    # 2. Optimal LR SGD scaling
     optimal_lr_sgd_dir = data_folder / "optimal_lr_sgd_scaling"
     if optimal_lr_sgd_dir.exists():
         optimal_lr_sgd_pairs = [
-            (optimal_lr_sgd_dir / "optimal_lr_sgd_32d.csv", 1683000),
-            (optimal_lr_sgd_dir / "optimal_lr_sgd_40d.csv", 2098000),
-            (optimal_lr_sgd_dir / "optimal_lr_sgd_48d.csv", 2545000),
-            (optimal_lr_sgd_dir / "optimal_lr_sgd_56d.csv", 3015000),
-            (optimal_lr_sgd_dir / "optimal_lr_sgd_64d.csv", 3463000),
+            (optimal_lr_sgd_dir / "optimal_lr_sgd_32d.csv", param_counts[int(1.683e6)]),
+            (optimal_lr_sgd_dir / "optimal_lr_sgd_40d.csv", param_counts[int(2.098e6)]),
+            (optimal_lr_sgd_dir / "optimal_lr_sgd_48d.csv", param_counts[int(2.545e6)]),
+            (optimal_lr_sgd_dir / "optimal_lr_sgd_56d.csv", param_counts[int(3.015e6)]),
+            (optimal_lr_sgd_dir / "optimal_lr_sgd_64d.csv", param_counts[int(3.463e6)]),
         ]
         configurations["optimal_lr_sgd_scaling"] = [
             (str(p), n) for p, n in optimal_lr_sgd_pairs if p.exists()
         ]
 
-    # 2. Vanilla scaling with optimal LR
+    # 3. Vanilla scaling with optimal LR
     vanilla_optimal_dir = data_folder / "vanilla_scaling_optimal_lr"
     if vanilla_optimal_dir.exists():
         vanilla_optimal_pairs = [
-            (vanilla_optimal_dir / "vanilla_32d.csv", 1683000),
-            (vanilla_optimal_dir / "vanilla_40d.csv", 2098000),
-            (vanilla_optimal_dir / "vanilla_48d.csv", 2545000),
-            (vanilla_optimal_dir / "vanilla_56d.csv", 3015000),
-            (vanilla_optimal_dir / "vanilla_64d.csv", 3463000),
+            (vanilla_optimal_dir / "vanilla_32d.csv", param_counts[int(1.683e6)]),
+            (vanilla_optimal_dir / "vanilla_40d.csv", param_counts[int(2.098e6)]),
+            (vanilla_optimal_dir / "vanilla_48d.csv", param_counts[int(2.545e6)]),
+            (vanilla_optimal_dir / "vanilla_56d.csv", param_counts[int(3.015e6)]),
+            (vanilla_optimal_dir / "vanilla_64d.csv", param_counts[int(3.463e6)]),
         ]
         configurations["vanilla_scaling_optimal_lr"] = [
             (str(p), n) for p, n in vanilla_optimal_pairs if p.exists()
         ]
 
-    # 3. MuP scaling experiments
+    # 4. MuP scaling experiments
     mup_dir = data_folder / "mup_scaling_experiments"
     if mup_dir.exists():
         mup_pairs = [
-            (mup_dir / "mup_32d.csv", 1683000),
-            (mup_dir / "mup_40d.csv", 2098000),
-            (mup_dir / "mup_48d.csv", 2545000),
-            (mup_dir / "mup_56d.csv", 3015000),
-            (mup_dir / "mup_64d.csv", 3463000),
+            (mup_dir / "mup_32d.csv", param_counts[int(1.683e6)]),
+            (mup_dir / "mup_40d.csv", param_counts[int(2.098e6)]),
+            (mup_dir / "mup_48d.csv", param_counts[int(2.545e6)]),
+            (mup_dir / "mup_56d.csv", param_counts[int(3.015e6)]),
+            (mup_dir / "mup_64d.csv", param_counts[int(3.463e6)]),
         ]
         configurations["mup_scaling_experiments"] = [
             (str(p), n) for p, n in mup_pairs if p.exists()
         ]
 
+    # 5. Vanilla scaling (basic)
     return configurations
 
 
