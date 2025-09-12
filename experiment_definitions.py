@@ -80,6 +80,46 @@ TRANSFORMER_SCALING_EXPERIMENTS_OPTIMAL_LR = (
 )
 
 
+TRANSFORMER_SCALING_EXPERIMENTS_OTHER_SCALES = (
+    gen_experim(
+        16,
+        label="vanilla_16d",
+        folder_name="vanilla_scaling_optimal_lr",
+        learning_rate=10 ** (-2.5),
+    )
+    + gen_experim(
+        24,
+        label="vanilla_24d",
+        folder_name="vanilla_scaling_optimal_lr",
+        learning_rate=10 ** (-2),
+    )
+    + gen_experim(
+        72,
+        label="vanilla_72d",
+        folder_name="vanilla_scaling_optimal_lr",
+        learning_rate=10 ** (-2.5),
+    )
+    + gen_experim(
+        80,
+        label="vanilla_80d",
+        folder_name="vanilla_scaling_optimal_lr",
+        learning_rate=10 ** (-2.5),
+    )
+    + gen_experim(
+        96,
+        label="vanilla_96d",
+        folder_name="vanilla_scaling_optimal_lr",
+        learning_rate=10 ** (-3),
+    )
+    + gen_experim(
+        128,
+        label="vanilla_128d",
+        folder_name="vanilla_scaling_optimal_lr",
+        learning_rate=10 ** (-3),
+    )
+)
+
+
 TRANSFORMER_SGD_SCALING_EXPERIMENTS_OPTIMAL_LR = (
     gen_experim(
         32,
@@ -243,6 +283,8 @@ scaling_experiments = (
 
 # GRAND_EXPERIMENT = TRANSFORMER_SCALING_EXPERIMENTS_MUP+TRANSFORMER_SGD_SCALING_EXPERIMENTS_OPTIMAL_LR+TRANSFORMER_SCALING_EXPERIMENTS_OPTIMAL_LR
 
-GRAND_EXPERIMENT = (
-    TRANSFORMER_SGD_SCALING_EXPERIMENTS_OPTIMAL_LR + TRANSFORMER_SCALING_EXPERIMENTS_MUP
-)
+# GRAND_EXPERIMENT = create_multi_lr_experiments(
+#     TRANSFORMER_SCALING_EXPERIMENTS_OTHER_SCALES, NARROW_LR_SWEEP
+# )
+
+GRAND_EXPERIMENT = TRANSFORMER_SCALING_EXPERIMENTS_OTHER_SCALES

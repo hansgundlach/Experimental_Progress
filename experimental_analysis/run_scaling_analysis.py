@@ -27,7 +27,7 @@ def list_available_datasets():
     return configurations
 
 
-def run_specific_dataset(dataset_name: str):
+def run_specific_dataset(dataset_name: str, ignore_first_percent: float = 0.0):
     """Run analysis on a specific dataset."""
     configurations = get_dataset_configurations()
 
@@ -50,6 +50,7 @@ def run_specific_dataset(dataset_name: str):
             pairs,
             loss_column="validation_loss",
             use_tokens_column=True,
+            ignore_first_percent=ignore_first_percent,
         )
         print_fit_results(dataset_name, fit)
         return True
@@ -59,7 +60,7 @@ def run_specific_dataset(dataset_name: str):
         return False
 
 
-def run_multiple_datasets(dataset_names: list):
+def run_multiple_datasets(dataset_names: list, ignore_first_percent: float = 0.0):
     """Run analysis on multiple specific datasets."""
     configurations = get_dataset_configurations()
     results = {}
@@ -81,6 +82,7 @@ def run_multiple_datasets(dataset_names: list):
                 pairs,
                 loss_column="validation_loss",
                 use_tokens_column=True,
+                ignore_first_percent=ignore_first_percent,
             )
             results[dataset_name] = fit
             print_fit_results(dataset_name, fit)
@@ -112,19 +114,33 @@ def main():
             "  python run_scaling_analysis.py list                    # List available datasets"
         )
         print(
-            "  python run_scaling_analysis.py all                     # Run all datasets"
+            "  python run_scaling_analysis.py all [ignore_percent]    # Run all datasets"
         )
         print(
-            "  python run_scaling_analysis.py <dataset_name>          # Run specific dataset"
+            "  python run_scaling_analysis.py <dataset_name> [ignore_percent]  # Run specific dataset"
         )
         print(
-            "  python run_scaling_analysis.py <name1> <name2> ...     # Run multiple datasets"
+            "  python run_scaling_analysis.py <name1> <name2> ... [ignore_percent]  # Run multiple datasets"
         )
+        print()
+        print("ignore_percent: Percentage of data to ignore from the beginning (0.0-99.9)")
         print()
         list_available_datasets()
         return
 
     command = sys.argv[1].lower()
+    
+    # Parse ignore_first_percent if provided
+    ignore_first_percent = 0.0
+    if len(sys.argv) > 2:
+        try:
+            ignore_first_percent = float(sys.argv[-1])  # Last argument
+            if ignore_first_percent < 0.0 or ignore_first_percent >= 100.0:
+                print(f"Error: ignore_first_percent must be between 0.0 and 99.9, got {ignore_first_percent}")
+                return
+        except ValueError:
+            # If last argument is not a number, it's probably a dataset name
+            ignore_first_percent = 0.0
 
     if command == "list":
         list_available_datasets()
@@ -133,16 +149,24 @@ def main():
         # Import and run the all datasets function
         from fit_hitchhikers_loss import run_all_dataset_analyses
 
-        run_all_dataset_analyses()
+        run_all_dataset_analyses(ignore_first_percent=ignore_first_percent)
 
     else:
         # Treat as dataset name(s)
         dataset_names = sys.argv[1:]
+        
+        # Remove ignore_first_percent from dataset names if it was parsed
+        if len(dataset_names) > 0:
+            try:
+                float(dataset_names[-1])
+                dataset_names = dataset_names[:-1]  # Remove the last element if it's a number
+            except ValueError:
+                pass  # Last element is not a number, keep it
 
         if len(dataset_names) == 1:
-            run_specific_dataset(dataset_names[0])
+            run_specific_dataset(dataset_names[0], ignore_first_percent=ignore_first_percent)
         else:
-            run_multiple_datasets(dataset_names)
+            run_multiple_datasets(dataset_names, ignore_first_percent=ignore_first_percent)
 
 
 if __name__ == "__main__":

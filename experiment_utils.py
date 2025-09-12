@@ -230,8 +230,16 @@ def estimate_gpu_memory_and_grad_accum(
     vocab_size = 50257  # GPT-2 vocab size
     available_memory = gpu_memory.get(gpu_type, gpu_memory["V100"])
 
-    # Use 60% of available memory as threshold (very conservative due to memory spikes)
-    memory_threshold = 0.60 * available_memory
+    # Use more conservative memory thresholds for larger models
+    # Larger models have much more complex memory patterns and spikes
+    if hidden_dim >= 128:
+        memory_threshold = 0.35 * available_memory  # Very conservative for large models
+    elif hidden_dim >= 64:
+        memory_threshold = 0.45 * available_memory  # Conservative for medium models
+    else:
+        memory_threshold = (
+            0.60 * available_memory
+        )  # Original threshold for small models
 
     # Model parameters (constant regardless of batch size)
     params = calculate_transformer_params(hidden_dim, num_layers, tie_embeddings=True)
@@ -289,8 +297,15 @@ def estimate_gpu_memory_and_grad_accum(
         + gradient_storage_per_batch
     )
 
-    # Add 20% overhead for memory fragmentation and misc tensors
-    memory_per_batch_item *= 1.2
+    # Add overhead for memory fragmentation and misc tensors (more for larger models)
+    if hidden_dim >= 128:
+        memory_per_batch_item *= (
+            1.5  # 50% overhead for large models (complex activation patterns)
+        )
+    elif hidden_dim >= 64:
+        memory_per_batch_item *= 1.3  # 30% overhead for medium models
+    else:
+        memory_per_batch_item *= 1.2  # 20% overhead for small models
 
     # Calculate maximum batch size that fits in memory
     max_per_step_batch = int(available_for_activations / memory_per_batch_item)
@@ -403,7 +418,7 @@ def gen_experim(
         experiment_config.pop("results_folder", None)
     else:
         experiment_name = f"generated_experiments_{gpu_type.lower()}"
-        
+
     experiment = {
         "name": experiment_name,
         "subexperiments": [
@@ -466,8 +481,8 @@ def get_base_config():
         "n_base": 256,
         "l_base": 2,
         "eta_base": 3.9e-3,
-        "wd_base": 0.10,
-        "eps_base": 1e-16,
+        "wd_base": 0.01,
+        "eps_base": 1e-8,
         "use_mup": False,
         "mup_base_width": 128,
         "tie_embeddings": True,  # Default to True for weight tying

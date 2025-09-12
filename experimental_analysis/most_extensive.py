@@ -11,13 +11,16 @@ from typing import List, Dict, Tuple, Optional
 import warnings
 
 
+IRREDUCIBLE_LOSS = 0
+
+
 class TrainingCurveAnalyzer:
     """
     A class to analyze and plot training curves from multiple CSV files,
     identifying frontier points and fitting power laws.
     """
 
-    def __init__(self, irreducible_loss: float = 1.76):
+    def __init__(self, irreducible_loss: float = IRREDUCIBLE_LOSS):
         """
         Initialize the analyzer.
 
@@ -865,50 +868,50 @@ class TrainingCurveAnalyzer:
 # Example usage and demonstration
 if __name__ == "__main__":
     # Initialize analyzer
-    analyzer = TrainingCurveAnalyzer(irreducible_loss=1.76)
+    analyzer = TrainingCurveAnalyzer(irreducible_loss=IRREDUCIBLE_LOSS)
 
     # Add experiments - you can modify these paths and names as needed
     experiments_config = [
-        {
-            "name": "transformer 32d mup",
-            "csv_path": "../experimental_data_folder/mup_scaling_experiments/mup_32d.csv",
-            "marker": "o",
-            "include_in_frontier": True,  # Include in frontier analysis
-            "class": "mup_transformer",
-            "hidden_dim": 32,
-        },
-        {
-            "name": "transformer 40d mup",
-            "csv_path": "../experimental_data_folder/mup_scaling_experiments/mup_40d.csv",
-            "marker": "o",
-            "include_in_frontier": True,  # Include in frontier analysis
-            "class": "mup_transformer",
-            "hidden_dim": 40,
-        },
-        {
-            "name": "transformer 48d mup",
-            "csv_path": "../experimental_data_folder/mup_scaling_experiments/mup_48d.csv",
-            "marker": "o",
-            "include_in_frontier": True,  # Include in frontier analysis
-            "class": "mup_transformer",
-            "hidden_dim": 48,
-        },
-        {
-            "name": "transformer 56d mup",
-            "csv_path": "../experimental_data_folder/mup_scaling_experiments/mup_56d.csv",
-            "marker": "o",
-            "include_in_frontier": True,  # Include in frontier analysis
-            "class": "mup_transformer",
-            "hidden_dim": 56,
-        },
-        {
-            "name": "transformer 64d mup",
-            "csv_path": "../experimental_data_folder/mup_scaling_experiments/mup_64d.csv",
-            "marker": "o",
-            "include_in_frontier": True,  # Include in frontier analysis
-            "class": "mup_transformer",
-            "hidden_dim": 64,
-        },
+        # {
+        #     "name": "transformer 32d mup",
+        #     "csv_path": "../experimental_data_folder/mup_scaling_experiments/mup_32d.csv",
+        #     "marker": "o",
+        #     "include_in_frontier": True,  # Include in frontier analysis
+        #     "class": "mup_transformer",
+        #     "hidden_dim": 32,
+        # },
+        # {
+        #     "name": "transformer 40d mup",
+        #     "csv_path": "../experimental_data_folder/mup_scaling_experiments/mup_40d.csv",
+        #     "marker": "o",
+        #     "include_in_frontier": True,  # Include in frontier analysis
+        #     "class": "mup_transformer",
+        #     "hidden_dim": 40,
+        # },
+        # {
+        #     "name": "transformer 48d mup",
+        #     "csv_path": "../experimental_data_folder/mup_scaling_experiments/mup_48d.csv",
+        #     "marker": "o",
+        #     "include_in_frontier": True,  # Include in frontier analysis
+        #     "class": "mup_transformer",
+        #     "hidden_dim": 48,
+        # },
+        # {
+        #     "name": "transformer 56d mup",
+        #     "csv_path": "../experimental_data_folder/mup_scaling_experiments/mup_56d.csv",
+        #     "marker": "o",
+        #     "include_in_frontier": True,  # Include in frontier analysis
+        #     "class": "mup_transformer",
+        #     "hidden_dim": 56,
+        # },
+        # {
+        #     "name": "transformer 64d mup",
+        #     "csv_path": "../experimental_data_folder/mup_scaling_experiments/mup_64d.csv",
+        #     "marker": "o",
+        #     "include_in_frontier": True,  # Include in frontier analysis
+        #     "class": "mup_transformer",
+        #     "hidden_dim": 64,
+        # },
         {
             "name": "optimal lr sgd 32d",
             "csv_path": "../experimental_data_folder/optimal_lr_sgd_scaling/optimal_lr_sgd_32d.csv",
@@ -957,18 +960,24 @@ if __name__ == "__main__":
             "class": "optimal_lr_sgd_transformer",
             "hidden_dim": 64,
         },
-
-
+        # {
+        #     "name": "16 vanilla optimal lr",
+        #     "csv_path": "../experimental_data_folder/vanilla_scaling_optimal_lr/vanilla_16d.csv",
+        #     "marker": "o",
+        #     "include_in_frontier": True,  # Include in frontier analysis
+        #     "class": "vanilla_transformer",
+        #     "hidden_dim": 16,
+        # },
+        # {
+        #     "name": "32 vanilla optimal lr",
+        #     "csv_path": "../experimental_data_folder/vanilla_scaling_optimal_lr/vanilla_32d.csv",
+        #     "marker": "o",
+        #     "include_in_frontier": True,  # Include in frontier analysis
+        #     "class": "vanilla_transformer",
+        #     "hidden_dim": 32,
+        # },
         {
-            "name": "vanilla optimal lr",
-            "csv_path": "../experimental_data_folder/vanilla_scaling_optimal_lr/vanilla_32d.csv",
-            "marker": "o",
-            "include_in_frontier": True,  # Include in frontier analysis
-            "class": "vanilla_transformer",
-            "hidden_dim": 32,
-        },
-        {
-            "name": "vanilla optimal lr",
+            "name": "40 vanilla optimal lr",
             "csv_path": "../experimental_data_folder/vanilla_scaling_optimal_lr/vanilla_40d.csv",
             "marker": "o",
             "include_in_frontier": True,  # Include in frontier analysis
@@ -976,7 +985,7 @@ if __name__ == "__main__":
             "hidden_dim": 40,
         },
         {
-            "name": "vanilla optimal lr",
+            "name": "48 vanilla optimal lr",
             "csv_path": "../experimental_data_folder/vanilla_scaling_optimal_lr/vanilla_48d.csv",
             "marker": "o",
             "include_in_frontier": True,  # Include in frontier analysis
@@ -984,7 +993,7 @@ if __name__ == "__main__":
             "hidden_dim": 48,
         },
         {
-            "name": "vanilla optimal lr",
+            "name": "56 vanilla optimal lr",
             "csv_path": "../experimental_data_folder/vanilla_scaling_optimal_lr/vanilla_56d.csv",
             "marker": "o",
             "include_in_frontier": True,  # Include in frontier analysis
@@ -992,19 +1001,45 @@ if __name__ == "__main__":
             "hidden_dim": 56,
         },
         {
-            "name": "vanilla optimal lr",
+            "name": "64 vanilla optimal lr",
             "csv_path": "../experimental_data_folder/vanilla_scaling_optimal_lr/vanilla_64d.csv",
             "marker": "o",
             "include_in_frontier": True,  # Include in frontier analysis
             "class": "vanilla_transformer",
             "hidden_dim": 64,
         },
-
-
-
-
-
-
+        {
+            "name": "72 vanilla optimal lr",
+            "csv_path": "../experimental_data_folder/vanilla_scaling_optimal_lr/vanilla_72d.csv",
+            "marker": "o",
+            "include_in_frontier": True,  # Include in frontier analysis
+            "class": "vanilla_transformer",
+            "hidden_dim": 72,
+        },
+        {
+            "name": "80 vanilla optimal lr",
+            "csv_path": "../experimental_data_folder/vanilla_scaling_optimal_lr/vanilla_80d.csv",
+            "marker": "o",
+            "include_in_frontier": True,  # Include in frontier analysis
+            "class": "vanilla_transformer",
+            "hidden_dim": 80,
+        },
+        {
+            "name": "96 vanilla optimal lr",
+            "csv_path": "../experimental_data_folder/vanilla_scaling_optimal_lr/vanilla_96d.csv",
+            "marker": "o",
+            "include_in_frontier": True,  # Include in frontier analysis
+            "class": "vanilla_transformer",
+            "hidden_dim": 96,
+        },
+        {
+            "name": "128 vanilla optimal lr",
+            "csv_path": "../experimental_data_folder/vanilla_scaling_optimal_lr/vanilla_128d.csv",
+            "marker": "o",
+            "include_in_frontier": True,  # Include in frontier analysis
+            "class": "vanilla_transformer",
+            "hidden_dim": 128,
+        },
     ]
 
     #   {
@@ -1063,7 +1098,11 @@ if __name__ == "__main__":
     # Identify per-class frontiers
     analyzer.identify_frontier_by_class(
         method="pareto",
-        classes=["mup_transformer", "optimal_lr_sgd_transformer", "vanilla_transformer"],
+        classes=[
+            "mup_transformer",
+            "optimal_lr_sgd_transformer",
+            "vanilla_transformer",
+        ],
         flop_range_by_class={
             "mup_transformer": (4 * 1e14, 1e15),
             "optimal_lr_sgd_transformer": (1e14, 1e15),
@@ -1076,11 +1115,15 @@ if __name__ == "__main__":
         show_all_curves=True,
         show_power_law_fit=True,
         save_path="Figures/universal_scaling_law_study_by_class.png",
-        classes_to_plot=["mup_transformer", "optimal_lr_sgd_transformer", "vanilla_transformer"],
+        classes_to_plot=[
+            "mup_transformer",
+            "optimal_lr_sgd_transformer",
+            "vanilla_transformer",
+        ],
         flop_range_by_class={
             "mup_transformer": (1e14, 1e15),
             "optimal_lr_sgd_transformer": (1e14, 1e15),
-            "vanilla_transformer": (1e14, 1e15),
+            "vanilla_transformer": (1e15, 1e16),
         },
         colormap="viridis",  # Color experiments by hidden dimension
     )
