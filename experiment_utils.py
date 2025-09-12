@@ -396,8 +396,16 @@ def gen_experim(
     experiment_config.update(overrides)
 
     # Create experiment in the expected format
+    # Use results_folder as experiment name if provided to avoid double nesting
+    if results_folder:
+        experiment_name = results_folder
+        # Remove results_folder from config since it's now the experiment name
+        experiment_config.pop("results_folder", None)
+    else:
+        experiment_name = f"generated_experiments_{gpu_type.lower()}"
+        
     experiment = {
-        "name": f"generated_experiments_{gpu_type.lower()}",
+        "name": experiment_name,
         "subexperiments": [
             {
                 "label": label,
