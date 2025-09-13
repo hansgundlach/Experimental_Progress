@@ -101,14 +101,26 @@ def create_multi_lr_experiments(base_experiments, learning_rates):
 
                 # Add learning rate to the label
                 original_label = sub_exp["label"]
-                # Format learning rate for filename-safe label
+                # Format learning rate for filename-safe label with clear scientific notation
+                import math
                 if lr >= 1:
                     lr_str = f"{lr:.0f}"
-                elif lr >= 0.01:
-                    lr_str = f"{lr:.3f}".rstrip("0").rstrip(".")
                 else:
-                    # For very small learning rates, use scientific notation
-                    lr_str = f"{lr:.1e}".replace("-", "m").replace("+", "p")
+                    # Use clear scientific notation: 10e-1, 10e-2, 10e-3, etc.
+                    log_lr = math.log10(lr)
+                    
+                    # Check if it's close to a nice power of 10
+                    if abs(log_lr - round(log_lr)) < 0.01:  # Very close to integer power
+                        exponent = int(round(log_lr))
+                        lr_str = f"10e{exponent:+d}"  # +d ensures +/- sign
+                    else:
+                        # For non-integer powers, use coefficient notation
+                        exponent = math.floor(log_lr)
+                        coefficient = lr / (10 ** exponent)
+                        if abs(coefficient - round(coefficient)) < 0.01:
+                            lr_str = f"{round(coefficient):.0f}e{exponent:+d}"
+                        else:
+                            lr_str = f"{coefficient:.1f}e{exponent:+d}"
 
                 new_sub_exp["label"] = f"{original_label}_lr_{lr_str}"
 
@@ -200,6 +212,51 @@ def calculate_transformer_params(
         + final_bias_params
     )
     return total_params
+
+
+def calculate_non_embedding_params(
+    hidden_dim,
+    num_layers,
+    vocab_size=50257,
+    seq_length=128,
+    pos_encoding="rotary",
+    tie_embeddings=True,
+):
+    """
+    Calculate the number of non-embedding parameters for a transformer model.
+    This follows Kaplan et al. (2020) definition where non-embedding parameters
+    exclude input embeddings, output embeddings (if tied), and positional embeddings.
+
+    Args:
+        hidden_dim: Hidden dimension size
+        num_layers: Number of transformer layers
+        vocab_size: Vocabulary size (default GPT-2 vocab size)
+        seq_length: Sequence length (for learned positional embeddings)
+        pos_encoding: Type of positional encoding ("rotary", "learned", "sinusoidal")
+        tie_embeddings: Whether input and output embeddings are tied (default True)
+
+    Returns:
+        Number of non-embedding parameters
+    """
+    # Per-layer parameters (based on standard transformer architecture)
+    # Each layer has:
+    # - Multi-head attention: 4 * hidden_dim^2 (Q, K, V, O projections)
+    # - Feed-forward: 2 * hidden_dim * (4 * hidden_dim) = 8 * hidden_dim^2
+    # - Layer norms: 2 * hidden_dim (small, can be ignored for scaling)
+    params_per_layer = 4 * hidden_dim**2 + 8 * hidden_dim**2  # = 12 * hidden_dim^2
+    layer_params = num_layers * params_per_layer
+
+    # Final linear layer: hidden_dim * vocab_size (only if not tied to embedding)
+    final_layer_params = 0 if tie_embeddings else hidden_dim * vocab_size
+
+    # Final layer bias: vocab_size (always present even with weight tying)
+    final_bias_params = vocab_size
+
+    # Non-embedding parameters = layer params + final layer + final bias
+    # Note: We exclude input embeddings, output embeddings (if tied), and positional embeddings
+    non_embedding_params = layer_params + final_layer_params + final_bias_params
+
+    return non_embedding_params
 
 
 def estimate_gpu_memory_and_grad_accum(
@@ -441,14 +498,14 @@ def get_base_config():
     """
     return {
         "dataset": "c4_subset",
-        "target_effective_batch_size": 512,  # Target effective batch size for optimization
+        "target_effective_batch_size": 256,  # Target effective batch size for optimization
         "batch_size": 64,  # Default per-step batch size (will be overridden by gen_experim)
         "learning_rate": 0.001 * math.sqrt(4),
         "min_lr": 1e-5,
         "min_lr_multiplier": 0.1,
         "lr_schedule": "cosine_warmup",
-        "warmup_frac": 0.01,
-        "weight_decay": 0.01,
+        "warmup_frac": 0.02,
+        "weight_decay": 0.1,
         "hidden_dim": 64,  # Base hidden dimension
         "num_layers": 4,  # Base number of layers
         "num_heads": 4,
@@ -473,7 +530,7 @@ def get_base_config():
         "norm_placement": "pre",
         "results_folder": "new_experiments_folder",
         "csv_log_interval": 20,
-        "seed": 789,
+        "seed": 123,
         # Complete-P (default OFF; non-breaking)
         "enable_completep": False,
         "completep_alpha": 1.0,

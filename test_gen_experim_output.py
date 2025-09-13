@@ -4,18 +4,24 @@ Test script to print gen_experim output
 """
 
 # Import the function
-from experiment_utils import gen_experim, calculate_transformer_params
+from experiment_utils import (
+    gen_experim,
+    calculate_transformer_params,
+    calculate_non_embedding_params,
+)
 import json
 
 
-def main():
-    """Print the generated experiment configuration"""
-
-    print("Testing gen_experim function output...")
+def analyze_experiment(hidden_dim, label_suffix=""):
+    """Analyze a single experiment configuration"""
+    print(f"\n{'='*60}")
+    print(f"EXPERIMENT ANALYSIS: {hidden_dim}d Model{label_suffix}")
     print("=" * 60)
 
     # Generate the experiment
-    result = gen_experim(128, label="64d_test_experiment", learning_rate=0.001)
+    result = gen_experim(
+        hidden_dim, label=f"{hidden_dim}d_test_experiment", learning_rate=0.001
+    )
 
     # Extract the configuration
     exp_group = result[0]
@@ -34,15 +40,16 @@ def main():
         else:
             print(f"{key:25}: {value}")
 
-    print("\n" + "=" * 60)
-    print("Complete Raw Output (JSON format):")
-    print(json.dumps(result, indent=2))
-
-    print("\n" + "=" * 60)
+    print("\n" + "-" * 40)
     print("Key Scaling Information:")
 
     # Calculate the number of parameters (with weight tying by default)
     num_params = calculate_transformer_params(
+        config["hidden_dim"], config["num_layers"], tie_embeddings=True
+    )
+
+    # Calculate non-embedding parameters (Kaplan et al. definition)
+    non_embedding_params = calculate_non_embedding_params(
         config["hidden_dim"], config["num_layers"], tie_embeddings=True
     )
 
@@ -51,6 +58,9 @@ def main():
     print(f"- Number of heads: {config['num_heads']}")
     print(f"- Head dimension: {config['hidden_dim'] // config['num_heads']}")
     print(f"- Total parameters: {num_params:,}")
+    print(
+        f"- Non-embedding parameters: {non_embedding_params:,} (Kaplan et al. definition)"
+    )
     print(
         f"- Token limit: {config['token_limit']:,} tokens (20x parameters = {20 * num_params:,})"
     )
@@ -74,6 +84,22 @@ def main():
     print(f"- Gradient accumulation steps: {grad_accum}")
     print(f"- Effective batch size: {effective_batch_size} (per_step × grad_accum)")
     print(f"- Learning rate: {config['learning_rate']} (your override)")
+
+
+def main():
+    """Print the generated experiment configurations for multiple hidden dimensions"""
+
+    print("Testing gen_experim function output for multiple model sizes...")
+
+    # Test different hidden dimensions
+    hidden_dims = [24, 32, 64, 128]
+
+    for i, hidden_dim in enumerate(hidden_dims):
+        analyze_experiment(hidden_dim, f" ({i+1}/4)")
+
+    print(f"\n{'='*60}")
+    print("SUMMARY: All experiments analyzed successfully!")
+    print("=" * 60)
 
 
 if __name__ == "__main__":

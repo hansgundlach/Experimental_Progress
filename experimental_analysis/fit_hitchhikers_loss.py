@@ -1,15 +1,13 @@
-
-
-
 import math
 import os
 from dataclasses import dataclass
-from typing import List, Sequence, Tuple
+from typing import List, Sequence, Tuple, Optional
 from pathlib import Path
 
 import numpy as np
 import pandas as pd
 from scipy.optimize import curve_fit
+from scipy import stats
 
 
 # --------------------------------------------------------------------------------------
@@ -37,6 +35,18 @@ class FitResult:
     exp_E: float  # exp(E) - irreducible loss
     exp_A: float  # exp(A) - parameter scaling coefficient
     exp_B: float  # exp(B) - data scaling coefficient
+    # Derived scaling parameters
+    gamma: float  # alpha*beta/(alpha+beta)
+    a: float  # beta/(alpha+beta)
+    b: float  # alpha/(alpha+beta)
+    # Confidence intervals (95% by default)
+    gamma_ci: Tuple[float, float]  # (lower, upper) for gamma
+    a_ci: Tuple[float, float]  # (lower, upper) for a
+    b_ci: Tuple[float, float]  # (lower, upper) for b
+    # Parameter covariance matrix (if available)
+    param_cov: Optional[np.ndarray] = (
+        None  # 5x5 covariance matrix for [E, A, alpha, B, beta]
+    )
 
 
 # --------------------------------------------------------------------------------------
@@ -170,6 +180,191 @@ def build_dataset(
 
 
 # --------------------------------------------------------------------------------------
+# Confidence interval utilities
+# --------------------------------------------------------------------------------------
+
+
+def calculate_derived_parameters(
+    alpha: float, beta: float
+) -> Tuple[float, float, float]:
+    """Calculate gamma, a, b from alpha and beta."""
+    if abs(alpha + beta) < 1e-12:  # Avoid division by zero
+        return 0.0, 0.5, 0.5  # Default values when alpha + beta ≈ 0
+
+    gamma = alpha * beta / (alpha + beta)
+    a = beta / (alpha + beta)
+    b = alpha / (alpha + beta)
+    return gamma, a, b
+
+
+def bootstrap_confidence_intervals(
+    N_all: np.ndarray,
+    D_all: np.ndarray,
+    y_all: np.ndarray,
+    n_bootstrap: int = 200,
+    confidence_level: float = 0.95,
+    seed: int = 42,
+) -> Tuple[Tuple[float, float], Tuple[float, float], Tuple[float, float]]:
+    """
+    Calculate bootstrap confidence intervals for gamma, a, b.
+
+    Args:
+        N_all: Parameter counts
+        D_all: Token counts
+        y_all: Loss values
+        n_bootstrap: Number of bootstrap samples
+        confidence_level: Confidence level (e.g., 0.95 for 95%)
+        seed: Random seed
+
+    Returns:
+        Tuple of (gamma_ci, a_ci, b_ci) where each ci is (lower, upper)
+    """
+    np.random.seed(seed)
+    n_points = len(y_all)
+
+    gamma_samples = []
+    a_samples = []
+    b_samples = []
+
+    alpha_percentile = (1 - confidence_level) / 2 * 100
+    upper_percentile = (1 - alpha_percentile / 100) * 100
+
+    for _ in range(n_bootstrap):
+        # Resample with replacement
+        indices = np.random.choice(n_points, size=n_points, replace=True)
+        N_boot = N_all[indices]
+        D_boot = D_all[indices]
+        y_boot = y_all[indices]
+
+        try:
+            # Fit on bootstrap sample - IMPORTANT: don't compute confidence intervals to avoid recursion
+            result = fit_parameters(
+                N_boot,
+                D_boot,
+                y_boot,
+                seed=np.random.randint(10000),
+                compute_confidence_intervals=False,
+            )
+            gamma, a, b = calculate_derived_parameters(result.alpha, result.beta)
+
+            # Only include valid results
+            if np.isfinite(gamma) and np.isfinite(a) and np.isfinite(b):
+                gamma_samples.append(gamma)
+                a_samples.append(a)
+                b_samples.append(b)
+
+        except Exception:
+            # Skip failed fits
+            continue
+
+    if len(gamma_samples) < 10:  # Need minimum number of successful fits
+        print(
+            f"Warning: Only {len(gamma_samples)} successful bootstrap fits out of {n_bootstrap}"
+        )
+        return (np.nan, np.nan), (np.nan, np.nan), (np.nan, np.nan)
+
+    # Calculate confidence intervals
+    gamma_ci = (
+        np.percentile(gamma_samples, alpha_percentile),
+        np.percentile(gamma_samples, upper_percentile),
+    )
+    a_ci = (
+        np.percentile(a_samples, alpha_percentile),
+        np.percentile(a_samples, upper_percentile),
+    )
+    b_ci = (
+        np.percentile(b_samples, alpha_percentile),
+        np.percentile(b_samples, upper_percentile),
+    )
+
+    return (
+        (float(gamma_ci[0]), float(gamma_ci[1])),
+        (float(a_ci[0]), float(a_ci[1])),
+        (float(b_ci[0]), float(b_ci[1])),
+    )
+
+
+def delta_method_confidence_intervals(
+    alpha: float, beta: float, param_cov: np.ndarray, confidence_level: float = 0.95
+) -> Tuple[Tuple[float, float], Tuple[float, float], Tuple[float, float]]:
+    """
+    Calculate confidence intervals using the delta method.
+
+    Args:
+        alpha: Fitted alpha parameter
+        beta: Fitted beta parameter
+        param_cov: 5x5 covariance matrix for [E, A, alpha, B, beta]
+        confidence_level: Confidence level
+
+    Returns:
+        Tuple of (gamma_ci, a_ci, b_ci) where each ci is (lower, upper)
+    """
+    if param_cov is None or param_cov.shape != (5, 5):
+        return (np.nan, np.nan), (np.nan, np.nan), (np.nan, np.nan)
+
+    # Extract covariance matrix for alpha (index 2) and beta (index 4)
+    cov_alpha_alpha = param_cov[2, 2]
+    cov_beta_beta = param_cov[4, 4]
+    cov_alpha_beta = param_cov[2, 4]
+
+    if abs(alpha + beta) < 1e-12:  # Avoid division by zero
+        return (np.nan, np.nan), (np.nan, np.nan), (np.nan, np.nan)
+
+    # Calculate gradients for delta method
+    sum_ab = alpha + beta
+    sum_ab_sq = sum_ab**2
+
+    # For gamma = alpha * beta / (alpha + beta)
+    d_gamma_d_alpha = beta**2 / sum_ab_sq
+    d_gamma_d_beta = alpha**2 / sum_ab_sq
+
+    # For a = beta / (alpha + beta)
+    d_a_d_alpha = -beta / sum_ab_sq
+    d_a_d_beta = alpha / sum_ab_sq
+
+    # For b = alpha / (alpha + beta)
+    d_b_d_alpha = beta / sum_ab_sq
+    d_b_d_beta = -alpha / sum_ab_sq
+
+    # Calculate variances using delta method
+    var_gamma = (
+        d_gamma_d_alpha**2 * cov_alpha_alpha
+        + d_gamma_d_beta**2 * cov_beta_beta
+        + 2 * d_gamma_d_alpha * d_gamma_d_beta * cov_alpha_beta
+    )
+
+    var_a = (
+        d_a_d_alpha**2 * cov_alpha_alpha
+        + d_a_d_beta**2 * cov_beta_beta
+        + 2 * d_a_d_alpha * d_a_d_beta * cov_alpha_beta
+    )
+
+    var_b = (
+        d_b_d_alpha**2 * cov_alpha_alpha
+        + d_b_d_beta**2 * cov_beta_beta
+        + 2 * d_b_d_alpha * d_b_d_beta * cov_alpha_beta
+    )
+
+    # Calculate confidence intervals
+    z_score = stats.norm.ppf(1 - (1 - confidence_level) / 2)
+
+    gamma, a, b = calculate_derived_parameters(alpha, beta)
+
+    gamma_ci = (
+        gamma - z_score * np.sqrt(max(0, var_gamma)),
+        gamma + z_score * np.sqrt(max(0, var_gamma)),
+    )
+    a_ci = (a - z_score * np.sqrt(max(0, var_a)), a + z_score * np.sqrt(max(0, var_a)))
+    b_ci = (b - z_score * np.sqrt(max(0, var_b)), b + z_score * np.sqrt(max(0, var_b)))
+
+    return (
+        (float(gamma_ci[0]), float(gamma_ci[1])),
+        (float(a_ci[0]), float(a_ci[1])),
+        (float(b_ci[0]), float(b_ci[1])),
+    )
+
+
+# --------------------------------------------------------------------------------------
 # Model and fitting (scipy curve_fit)
 # --------------------------------------------------------------------------------------
 
@@ -220,6 +415,10 @@ def fit_parameters(
     adam_steps: int = 4000,
     lbfgs_steps: int = 200,
     seed: int = 42,
+    confidence_level: float = 0.95,
+    use_bootstrap: bool = False,
+    n_bootstrap: int = 200,
+    compute_confidence_intervals: bool = False,
 ) -> FitResult:
     """
     Fit the validation loss model using scipy's curve_fit.
@@ -233,9 +432,13 @@ def fit_parameters(
         adam_steps: Not used in curve_fit (kept for compatibility)
         lbfgs_steps: Not used in curve_fit (kept for compatibility)
         seed: Random seed for reproducibility
+        confidence_level: Confidence level for intervals (default: 0.95)
+        use_bootstrap: Whether to use bootstrap for confidence intervals (default: False)
+        n_bootstrap: Number of bootstrap samples (default: 200)
+        compute_confidence_intervals: Whether to compute confidence intervals at all (default: False)
 
     Returns:
-        FitResult with fitted parameters and diagnostics
+        FitResult with fitted parameters, confidence intervals, and diagnostics
     """
     np.random.seed(seed)
 
@@ -286,6 +489,25 @@ def fit_parameters(
         )
         final_loss = float(np.mean((y_all - y_pred) ** 2))
 
+        # Calculate derived parameters
+        gamma, a, b = calculate_derived_parameters(alpha_val, beta_val)
+
+        # Calculate confidence intervals only if requested
+        if compute_confidence_intervals:
+            if use_bootstrap:
+                # Use bootstrap method (more robust but slower)
+                gamma_ci, a_ci, b_ci = bootstrap_confidence_intervals(
+                    N_all, D_all, y_all, n_bootstrap, confidence_level, seed
+                )
+            else:
+                # Use delta method (faster but assumes normality)
+                gamma_ci, a_ci, b_ci = delta_method_confidence_intervals(
+                    alpha_val, beta_val, pcov, confidence_level
+                )
+        else:
+            # No confidence intervals requested
+            gamma_ci, a_ci, b_ci = (np.nan, np.nan), (np.nan, np.nan), (np.nan, np.nan)
+
         result = FitResult(
             E=float(E_val),
             A=float(A_val),
@@ -298,6 +520,13 @@ def fit_parameters(
             exp_E=float(np.exp(E_val)),
             exp_A=float(np.exp(A_val)),
             exp_B=float(np.exp(B_val)),
+            gamma=float(gamma),
+            a=float(a),
+            b=float(b),
+            gamma_ci=gamma_ci,
+            a_ci=a_ci,
+            b_ci=b_ci,
+            param_cov=pcov,
         )
 
     except Exception as e:
@@ -305,6 +534,8 @@ def fit_parameters(
         print("Falling back to initial guess values")
 
         # Fallback to initial guess
+        gamma_init, a_init, b_init = calculate_derived_parameters(alpha_init, beta_init)
+
         result = FitResult(
             E=float(E_init),
             A=float(A_init),
@@ -317,6 +548,13 @@ def fit_parameters(
             exp_E=float(np.exp(E_init)),
             exp_A=float(np.exp(A_init)),
             exp_B=float(np.exp(B_init)),
+            gamma=float(gamma_init),
+            a=float(a_init),
+            b=float(b_init),
+            gamma_ci=(np.nan, np.nan),
+            a_ci=(np.nan, np.nan),
+            b_ci=(np.nan, np.nan),
+            param_cov=None,
         )
 
     return result
@@ -339,6 +577,10 @@ def fit_validation_loss_from_pairs(
     adam_steps: int = 4000,
     lbfgs_steps: int = 200,
     seed: int = 42,
+    confidence_level: float = 0.95,
+    use_bootstrap: bool = False,
+    n_bootstrap: int = 200,
+    compute_confidence_intervals: bool = False,
 ) -> FitResult:
     """
     Programmatic entry point to fit the validation loss model across multiple runs.
@@ -356,9 +598,13 @@ def fit_validation_loss_from_pairs(
         adam_steps: Number of Adam steps.
         lbfgs_steps: Number of LBFGS refinement steps.
         seed: Random seed.
+        confidence_level: Confidence level for intervals (default: 0.95).
+        use_bootstrap: Whether to use bootstrap for confidence intervals (default: False).
+        n_bootstrap: Number of bootstrap samples (default: 200).
+        compute_confidence_intervals: Whether to compute confidence intervals at all (default: False).
 
     Returns:
-        FitResult with fitted parameters and diagnostics.
+        FitResult with fitted parameters, confidence intervals, and diagnostics.
     """
     if not files_and_N:
         raise ValueError("files_and_N must contain at least one (csv_path, N) pair.")
@@ -390,6 +636,10 @@ def fit_validation_loss_from_pairs(
         adam_steps=adam_steps,
         lbfgs_steps=lbfgs_steps,
         seed=seed,
+        confidence_level=confidence_level,
+        use_bootstrap=use_bootstrap,
+        n_bootstrap=n_bootstrap,
+        compute_confidence_intervals=compute_confidence_intervals,
     )
     return fit
 
@@ -434,7 +684,9 @@ def get_dataset_configurations() -> dict:
     vanilla_optimal_dir = data_folder / "vanilla_scaling_optimal_lr"
     if vanilla_optimal_dir.exists():
         vanilla_optimal_pairs = [
-            (vanilla_optimal_dir / "vanilla_32d.csv", 1683000),
+            # (vanilla_optimal_dir / "vanilla_16d.csv", int(0.857e6)),
+            # (vanilla_optimal_dir / "vanilla_24d.csv", int(1.270e6)),
+            (vanilla_optimal_dir / "vanilla_32d.csv", int(1.672e6)),
             (vanilla_optimal_dir / "vanilla_40d.csv", 2098000),
             (vanilla_optimal_dir / "vanilla_48d.csv", 2545000),
             (vanilla_optimal_dir / "vanilla_56d.csv", 3015000),
@@ -499,17 +751,26 @@ def print_fit_results(dataset_name: str, fit: FitResult):
     print(f"  exp(A) = {fit.exp_A:.6f}  (parameter scaling coefficient)")
     print(f"  exp(B) = {fit.exp_B:.6f}  (data scaling coefficient)")
     if (fit.alpha + fit.beta) != 0:
-        gamma = fit.alpha * fit.beta / (fit.alpha + fit.beta)
-        a = fit.beta / (fit.alpha + fit.beta)
-        b = fit.alpha / (fit.alpha + fit.beta)
-        print(f"  gamma = alpha*beta/(alpha+beta) = {gamma:.6f}")
-        print(f"  a = beta/(alpha+beta) = {a:.6f}")
-        print(f"  b = alpha/(alpha+beta) = {b:.6f}")
+        print(f"  gamma = alpha*beta/(alpha+beta) = {fit.gamma:.6f}")
+        print(f"  a = beta/(alpha+beta) = {fit.a:.6f}")
+        print(f"  b = alpha/(alpha+beta) = {fit.b:.6f}")
+
+        # Display confidence intervals if available
+        if not (np.isnan(fit.gamma_ci[0]) or np.isnan(fit.gamma_ci[1])):
+            print("95% Confidence intervals:")
+            print(f"  gamma: [{fit.gamma_ci[0]:.6f}, {fit.gamma_ci[1]:.6f}]")
+            print(f"  a:     [{fit.a_ci[0]:.6f}, {fit.a_ci[1]:.6f}]")
+            print(f"  b:     [{fit.b_ci[0]:.6f}, {fit.b_ci[1]:.6f}]")
     print(f"  num_points = {fit.num_points}")
     print(f"  final Huber loss = {fit.final_loss:.6f}")
 
 
-def run_all_dataset_analyses(ignore_first_percent: float = 0.0):
+def run_all_dataset_analyses(
+    ignore_first_percent: float = 0.0,
+    compute_confidence_intervals: bool = True,
+    use_bootstrap: bool = True,
+    n_bootstrap: int = 200,
+):
     """Run the fitting analysis on all available datasets."""
     configurations = get_dataset_configurations()
 
@@ -538,6 +799,9 @@ def run_all_dataset_analyses(ignore_first_percent: float = 0.0):
                 loss_column="validation_loss",
                 use_tokens_column=True,
                 ignore_first_percent=ignore_first_percent,
+                compute_confidence_intervals=compute_confidence_intervals,
+                use_bootstrap=use_bootstrap,
+                n_bootstrap=n_bootstrap,
             )
             results[dataset_name] = fit
             print_fit_results(dataset_name, fit)
@@ -599,6 +863,9 @@ if __name__ == "__main__":
             loss_column="validation_loss",
             use_tokens_column=True,
             ignore_first_percent=ignore_first_percent,
+            compute_confidence_intervals=True,
+            use_bootstrap=True,
+            n_bootstrap=200,
         )
         print_fit_results("default", fit)
 

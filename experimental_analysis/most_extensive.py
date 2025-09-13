@@ -1,6 +1,29 @@
 # %%
-print("hello world")
-# %%
+"""
+Training Curve Analysis with Compute Column Toggle and Multiple Fit Options
+
+This script provides a TrainingCurveAnalyzer class that can analyze training curves
+and fit multiple types of scaling laws. You can easily toggle between using
+'theoretical_flops' and 'total_flops_profiler' as the compute column by setting the
+use_theoretical_flops parameter when initializing the analyzer.
+
+The analyzer supports two types of fits:
+1. Power law fit: y = a * x^b
+2. Sklearn-style fit: L = E + A * C^alpha
+
+Usage:
+    # To use theoretical_flops:
+    analyzer = TrainingCurveAnalyzer(use_theoretical_flops=True)
+
+    # To use total_flops_profiler (default):
+    analyzer = TrainingCurveAnalyzer(use_theoretical_flops=False)
+
+    # Or simply:
+    analyzer = TrainingCurveAnalyzer()  # defaults to total_flops_profiler
+
+    # To enable sklearn-style fitting:
+    analyzer.plot_training_curves_by_class(show_sklearn_fit=True)
+"""
 import pandas as pd
 import numpy as np
 from scipy.optimize import curve_fit
@@ -9,9 +32,12 @@ from pathlib import Path
 import matplotlib.colors as mcolors
 from typing import List, Dict, Tuple, Optional
 import warnings
+from sklearn.linear_model import LinearRegression
+from sklearn.preprocessing import PolynomialFeatures
+from sklearn.pipeline import Pipeline
 
 
-IRREDUCIBLE_LOSS = 0
+IRREDUCIBLE_LOSS = 1.9
 
 
 class TrainingCurveAnalyzer:
@@ -20,14 +46,23 @@ class TrainingCurveAnalyzer:
     identifying frontier points and fitting power laws.
     """
 
-    def __init__(self, irreducible_loss: float = IRREDUCIBLE_LOSS):
+    def __init__(
+        self,
+        irreducible_loss: float = IRREDUCIBLE_LOSS,
+        use_theoretical_flops: bool = False,
+    ):
         """
         Initialize the analyzer.
 
         Args:
             irreducible_loss: The irreducible loss to subtract from validation losses
+            use_theoretical_flops: If True, use 'theoretical_flops' column; if False, use 'total_flops_profiler'
         """
         self.irreducible_loss = irreducible_loss
+        self.use_theoretical_flops = use_theoretical_flops
+        self.default_compute_col = (
+            "theoretical_flops" if use_theoretical_flops else "total_flops_profiler"
+        )
         self.experiments = {}
         self.frontier_points = []
         self.color_palette = list(mcolors.TABLEAU_COLORS.values())
@@ -41,7 +76,7 @@ class TrainingCurveAnalyzer:
         self,
         name: str,
         csv_path: str,
-        compute_col: str = "total_flops_profiler",
+        compute_col: Optional[str] = None,
         loss_col: str = "validation_loss",
         color: Optional[str] = None,
         marker: str = "o",
@@ -57,7 +92,7 @@ class TrainingCurveAnalyzer:
         Args:
             name: Name for the experiment
             csv_path: Path to the CSV file
-            compute_col: Column name for compute values
+            compute_col: Column name for compute values (uses default if None)
             loss_col: Column name for loss values
             color: Color for plotting (auto-assigned if None)
             marker: Marker style for plotting
@@ -69,6 +104,11 @@ class TrainingCurveAnalyzer:
         """
         try:
             df = pd.read_csv(csv_path)
+
+            # Use default compute column if not specified
+            if compute_col is None:
+                compute_col = self.default_compute_col
+
             if compute_col not in df.columns:
                 raise ValueError(f"Column '{compute_col}' not found in {csv_path}")
             if loss_col not in df.columns:
@@ -399,7 +439,23 @@ class TrainingCurveAnalyzer:
                 continue
 
             try:
-                params, _ = curve_fit(power_law, x_data, y_data)
+                # Use better initial guesses and bounds for power law fitting
+                # Initial guess: a = mean(y) / mean(x)^(-0.1), b = -0.1 (typical scaling exponent)
+                initial_guess = [
+                    np.mean(y_data) / np.power(np.mean(x_data), -0.1),
+                    -0.1,
+                ]
+                # Bounds: a in [1e-10, 1e10], b in [-1, 0.5]
+                bounds = ([1e-10, -1], [1e10, 0.5])
+
+                params, _ = curve_fit(
+                    power_law,
+                    x_data,
+                    y_data,
+                    p0=initial_guess,
+                    bounds=bounds,
+                    maxfev=10000,
+                )
                 a, b = params
                 y_pred = power_law(x_data, a, b)
                 ss_res = np.sum((y_data - y_pred) ** 2)
@@ -415,10 +471,167 @@ class TrainingCurveAnalyzer:
 
         return results
 
+    def fit_sklearn_curve_by_class(
+        self,
+        class_names: Optional[List[str]] = None,
+        use_all_points: bool = True,
+    ) -> Dict[str, Optional[Tuple[float, float, float, float]]]:
+        """
+        Fit L = E + AC^(alpha) separately for each class using sklearn.
+
+        Args:
+            class_names: Which classes to fit. Defaults to all present in stored frontiers.
+            use_all_points: Whether to fit using all-point frontier or final-point frontier.
+
+        Returns:
+            Mapping from class name to (E, A, alpha, r_squared), or None if fit fails/insufficient points.
+        """
+        # Determine classes present
+        if class_names is None:
+            if use_all_points:
+                class_names = list(self.frontier_points_all_by_class.keys())
+            else:
+                class_names = list(self.frontier_points_by_class.keys())
+
+        results: Dict[str, Optional[Tuple[float, float, float, float]]] = {}
+
+        def sklearn_curve(x, E, A, alpha):
+            """L = E + A * C^(alpha)"""
+            return E + A * np.power(x, alpha)
+
+        for cls in class_names:
+            if use_all_points:
+                pts = self.frontier_points_all_by_class.get(cls, [])
+                x_data = np.array([float(c) for (_, c, _) in pts])
+                y_data = np.array([float(l) for (_, _, l) in pts])
+            else:
+                names = self.frontier_points_by_class.get(cls, [])
+                x_data = np.array(
+                    [float(self.experiments[n]["final_compute"]) for n in names]
+                )
+                y_data = np.array(
+                    [float(self.experiments[n]["final_loss"]) for n in names]
+                )
+
+            if x_data.size < 3:  # Need at least 3 points for 3 parameters
+                print(f"Need at least 3 points to fit sklearn curve for class '{cls}'")
+                results[cls] = None
+                continue
+
+            try:
+                # Use scipy curve_fit for the sklearn-style formula with better initial guesses
+                # Initial guess: E = min(y), A = 1, alpha = -0.1 (typical scaling exponent)
+                initial_guess = [np.min(y_data), 1.0, -0.1]
+                # Bounds: E in [0, max(y)], A in [1e-10, 1e10], alpha in [-1, 0.5]
+                bounds = ([0, 1e-10, -1], [np.max(y_data), 1e10, 0.5])
+
+                params, _ = curve_fit(
+                    sklearn_curve,
+                    x_data,
+                    y_data,
+                    p0=initial_guess,
+                    bounds=bounds,
+                    maxfev=10000,
+                )
+                E, A, alpha = params
+                y_pred = sklearn_curve(x_data, E, A, alpha)
+                ss_res = np.sum((y_data - y_pred) ** 2)
+                ss_tot = np.sum((y_data - np.mean(y_data)) ** 2)
+                r_squared = 1 - (ss_res / ss_tot)
+                print(
+                    f"Class '{cls}' sklearn curve fit: L = {E:.4f} + {A:.4e} * C^({alpha:.4f}), R² = {r_squared:.4f}"
+                )
+                results[cls] = (E, A, alpha, r_squared)
+            except Exception as e:
+                print(f"Error fitting sklearn curve for class '{cls}': {e}")
+                results[cls] = None
+
+        return results
+
+    def fit_sklearn_curve(
+        self,
+        experiment_names: Optional[List[str]] = None,
+        use_all_points: bool = True,
+    ) -> Optional[Tuple[float, float, float, float]]:
+        """
+        Fit L = E + AC^(alpha) to the specified experiments using sklearn-style fitting.
+
+        Args:
+            experiment_names: List of experiment names to fit (uses frontier if None)
+            use_all_points: Whether to fit using all-point frontier or final-point frontier
+
+        Returns:
+            Tuple of (E, A, alpha, r_squared) parameters for L = E + AC^(alpha), or None if fitting fails
+        """
+        # Collect data points from either the all-point frontier or final-point frontier
+        x_data: List[float] = []
+        y_data: List[float] = []
+        if use_all_points:
+            frontier_pts = getattr(self, "frontier_points_all", [])
+            for _, comp, loss in frontier_pts:
+                x_data.append(float(comp))
+                y_data.append(float(loss))
+        else:
+            if experiment_names is None:
+                experiment_names = self.frontier_points
+            if not experiment_names:
+                print("No experiments to fit sklearn curve to")
+                return None
+            for name in experiment_names:
+                if name in self.experiments:
+                    exp = self.experiments[name]
+                    if exp["include_in_frontier"]:
+                        x_data.append(exp["final_compute"])
+                        y_data.append(exp["final_loss"])
+
+        if len(x_data) < 3:
+            print("Need at least 3 points to fit sklearn curve")
+            return None
+
+        # Convert to numpy arrays
+        x_data = np.array(x_data)
+        y_data = np.array(y_data)
+
+        # Define the sklearn-style curve: L = E + A * C^(alpha)
+        def sklearn_curve(x, E, A, alpha):
+            return E + A * np.power(x, alpha)
+
+        try:
+            # Use better initial guesses and bounds for convergence
+            # Initial guess: E = min(y), A = 1, alpha = -0.1 (typical scaling exponent)
+            initial_guess = [np.min(y_data), 1.0, -0.1]
+            # Bounds: E in [0, max(y)], A in [1e-10, 1e10], alpha in [-1, 0.5]
+            bounds = ([0, 1e-10, -1], [np.max(y_data), 1e10, 0.5])
+
+            params, _ = curve_fit(
+                sklearn_curve,
+                x_data,
+                y_data,
+                p0=initial_guess,
+                bounds=bounds,
+                maxfev=10000,
+            )
+            E, A, alpha = params
+
+            # Calculate R-squared
+            y_pred = sklearn_curve(x_data, E, A, alpha)
+            ss_res = np.sum((y_data - y_pred) ** 2)
+            ss_tot = np.sum((y_data - np.mean(y_data)) ** 2)
+            r_squared = 1 - (ss_res / ss_tot)
+
+            print(
+                f"Sklearn curve fit: L = {E:.4f} + {A:.4e} * C^({alpha:.4f}), R² = {r_squared:.4f}"
+            )
+            return E, A, alpha, r_squared
+        except Exception as e:
+            print(f"Error fitting sklearn curve: {e}")
+            return None
+
     def plot_training_curves_by_class(
         self,
         show_all_curves: bool = True,
         show_power_law_fit: bool = True,
+        show_sklearn_fit: bool = False,
         flop_range: Optional[Tuple[float, float]] = None,
         figsize: Tuple[int, int] = (16, 10),
         save_path: Optional[str] = None,
@@ -430,6 +643,18 @@ class TrainingCurveAnalyzer:
         """
         Plot training curves and per-class frontiers and fits.
         Colors experiments by hidden dimension and shows experiment classes in legend.
+
+        Args:
+            show_all_curves: Whether to show all training curves
+            show_power_law_fit: Whether to show power law fit (y = a * x^b)
+            show_sklearn_fit: Whether to show sklearn-style fit (L = E + A * C^alpha)
+            flop_range: Optional tuple of (min_flops, max_flops) to recalculate frontier for this plot
+            figsize: Figure size
+            save_path: Path to save the plot
+            use_all_points: Whether to use all training points or just final points
+            classes_to_plot: Which classes to plot
+            flop_range_by_class: Per-class FLOP ranges
+            colormap: Colormap for hidden dimension coloring
         """
         # Optionally recompute per-class frontier for this plot only if a range is provided
         original_frontier_by_class = self.frontier_points_by_class.copy()
@@ -460,7 +685,7 @@ class TrainingCurveAnalyzer:
             max_dim = max(hidden_dims)
             # Create colormap normalizer
             norm = plt.Normalize(vmin=min_dim, vmax=max_dim)
-            cmap = plt.cm.get_cmap(colormap)
+            cmap = plt.colormaps[colormap]
 
         # Filter classes to plot
         if classes_to_plot is None:
@@ -590,8 +815,47 @@ class TrainingCurveAnalyzer:
                     linestyle,
                     linewidth=3,
                     alpha=0.9,
-                    label=f"{cls} fit: \n y = {a:.2e} * x^({b:.3f})",
+                    label=f"{cls} power law: \n y = {a:.2e} * x^({b:.3f})",
                     color="black",
+                )
+
+        # Plot per-class sklearn-style fits
+        if show_sklearn_fit:
+            sklearn_fit_results = self.fit_sklearn_curve_by_class(
+                class_names=classes_to_plot, use_all_points=use_all_points
+            )
+            for cls, params in sklearn_fit_results.items():
+                if params is None:
+                    continue
+                E, A, alpha, r2 = params
+                if use_all_points:
+                    xs = [
+                        comp
+                        for (_, comp, _) in self.frontier_points_all_by_class.get(
+                            cls, []
+                        )
+                    ]
+                else:
+                    xs = [
+                        self.experiments[n]["final_compute"]
+                        for n in self.frontier_points_by_class.get(cls, [])
+                    ]
+                if len(xs) < 2:
+                    continue
+                min_compute = min(xs)
+                max_compute = max(xs)
+                x_fit = np.logspace(np.log10(min_compute), np.log10(max_compute), 100)
+                y_fit = E + A * np.power(x_fit, alpha)
+                # Use a different linestyle for sklearn fit
+                linestyle = "-."
+                ax.plot(
+                    x_fit,
+                    y_fit,
+                    linestyle,
+                    linewidth=3,
+                    alpha=0.9,
+                    label=f"{cls} sklearn: \n L = {E:.3f} + {A:.2e} * C^({alpha:.3f})",
+                    color="red",
                 )
 
         # Add colorbar for hidden dimension scale
@@ -693,7 +957,15 @@ class TrainingCurveAnalyzer:
             return a * np.power(x, b)
 
         try:
-            params, covariance = curve_fit(power_law, x_data, y_data)
+            # Use better initial guesses and bounds for power law fitting
+            # Initial guess: a = mean(y) / mean(x)^(-0.1), b = -0.1 (typical scaling exponent)
+            initial_guess = [np.mean(y_data) / np.power(np.mean(x_data), -0.1), -0.1]
+            # Bounds: a in [1e-10, 1e10], b in [-1, 0.5]
+            bounds = ([1e-10, -1], [1e10, 0.5])
+
+            params, covariance = curve_fit(
+                power_law, x_data, y_data, p0=initial_guess, bounds=bounds, maxfev=10000
+            )
             a, b = params
 
             # Calculate R-squared
@@ -713,6 +985,7 @@ class TrainingCurveAnalyzer:
         show_all_curves: bool = True,
         show_frontier_only: bool = False,
         show_power_law_fit: bool = True,
+        show_sklearn_fit: bool = False,
         flop_range: Optional[Tuple[float, float]] = None,
         figsize: Tuple[int, int] = (12, 8),
         save_path: Optional[str] = None,
@@ -724,10 +997,12 @@ class TrainingCurveAnalyzer:
         Args:
             show_all_curves: Whether to show all training curves
             show_frontier_only: Whether to only show frontier experiments
-            show_power_law_fit: Whether to show power law fit
+            show_power_law_fit: Whether to show power law fit (y = a * x^b)
+            show_sklearn_fit: Whether to show sklearn-style fit (L = E + A * C^alpha)
             flop_range: Optional tuple of (min_flops, max_flops) to recalculate frontier for this plot
             figsize: Figure size
             save_path: Path to save the plot
+            use_all_points: Whether to use all training points or just final points
         """
         plt.figure(figsize=figsize)
 
@@ -838,6 +1113,33 @@ class TrainingCurveAnalyzer:
                     label=f"Power law fit: y = {a:.2e} * x^({b:.3f}) (R² = {r_squared:.3f})",
                 )
 
+        # Plot sklearn-style fit if requested
+        if show_sklearn_fit and has_frontier:
+            sklearn_result = self.fit_sklearn_curve(use_all_points=use_all_points)
+            if sklearn_result is not None:
+                E, A, alpha, r_squared = sklearn_result
+                # Generate fit curve
+                if use_all_points:
+                    xs = [
+                        comp
+                        for (_, comp, _) in getattr(self, "frontier_points_all", [])
+                    ]
+                else:
+                    xs = [exp["final_compute"] for exp in experiments_to_plot.values()]
+                min_compute = min(xs)
+                max_compute = max(xs)
+                x_fit = np.logspace(np.log10(min_compute), np.log10(max_compute), 100)
+                y_fit = E + A * np.power(x_fit, alpha)
+
+                plt.plot(
+                    x_fit,
+                    y_fit,
+                    "r-.",
+                    linewidth=2,
+                    alpha=0.8,
+                    label=f"Sklearn fit: L = {E:.3f} + {A:.2e} * C^({alpha:.3f}) (R² = {r_squared:.3f})",
+                )
+
         # Customize plot
         plt.xlabel("Compute (FLOPS)", fontsize=12)
         plt.ylabel("Validation Loss (Irreducible)", fontsize=12)
@@ -868,7 +1170,13 @@ class TrainingCurveAnalyzer:
 # Example usage and demonstration
 if __name__ == "__main__":
     # Initialize analyzer
-    analyzer = TrainingCurveAnalyzer(irreducible_loss=IRREDUCIBLE_LOSS)
+    # Toggle between theoretical_flops and total_flops_profiler by setting use_theoretical_flops
+    USE_THEORETICAL_FLOPS = (
+        False  # Set to True to use theoretical_flops, False for total_flops_profiler
+    )
+    analyzer = TrainingCurveAnalyzer(
+        irreducible_loss=IRREDUCIBLE_LOSS, use_theoretical_flops=USE_THEORETICAL_FLOPS
+    )
 
     # Add experiments - you can modify these paths and names as needed
     experiments_config = [
@@ -1040,6 +1348,54 @@ if __name__ == "__main__":
             "class": "vanilla_transformer",
             "hidden_dim": 128,
         },
+        {
+            "name": "40d no rotary",
+            "csv_path": "../experimental_data_folder/vanilla_scaling_no_rotary/vanilla_40d.csv",
+            "marker": "o",
+            "include_in_frontier": True,  # Include in frontier analysis
+            "class": "vanilla_transformer_no_rotary",
+            "hidden_dim": 40,
+        },
+        {
+            "name": "48d no rotary",
+            "csv_path": "../experimental_data_folder/vanilla_scaling_no_rotary/vanilla_48d.csv",
+            "marker": "o",
+            "include_in_frontier": True,  # Include in frontier analysis
+            "class": "vanilla_transformer_no_rotary",
+            "hidden_dim": 48,
+        },
+        {
+            "name": "56d no rotary",
+            "csv_path": "../experimental_data_folder/vanilla_scaling_no_rotary/vanilla_56d.csv",
+            "marker": "o",
+            "include_in_frontier": True,  # Include in frontier analysis
+            "class": "vanilla_transformer_no_rotary",
+            "hidden_dim": 56,
+        },
+        {
+            "name": "64d no rotary",
+            "csv_path": "../experimental_data_folder/vanilla_scaling_no_rotary/vanilla_64d.csv",
+            "marker": "o",
+            "include_in_frontier": True,  # Include in frontier analysis
+            "class": "vanilla_transformer_no_rotary",
+            "hidden_dim": 64,
+        },
+        {
+            "name": "72 vanilla optimal lr",
+            "csv_path": "../experimental_data_folder/vanilla_scaling_no_rotary/vanilla_72d.csv",
+            "marker": "o",
+            "include_in_frontier": True,  # Include in frontier analysis
+            "class": "vanilla_transformer_no_rotary",
+            "hidden_dim": 72,
+        },
+        {
+            "name": "80 vanilla optimal lr",
+            "csv_path": "../experimental_data_folder/vanilla_scaling_no_rotary/vanilla_80d.csv",
+            "marker": "o",
+            "include_in_frontier": True,  # Include in frontier analysis
+            "class": "vanilla_transformer_no_rotary",
+            "hidden_dim": 80,
+        },
     ]
 
     #   {
@@ -1088,6 +1444,7 @@ if __name__ == "__main__":
         analyzer.add_experiment(
             name=config["name"],
             csv_path=config["csv_path"],
+            compute_col=config.get("compute_col"),  # Will use default if not specified
             color=config.get("color"),
             marker=config.get("marker", "o"),
             include_in_frontier=config.get("include_in_frontier", True),
@@ -1099,14 +1456,14 @@ if __name__ == "__main__":
     analyzer.identify_frontier_by_class(
         method="pareto",
         classes=[
-            "mup_transformer",
             "optimal_lr_sgd_transformer",
             "vanilla_transformer",
+            "vanilla_transformer_no_rotary",
         ],
         flop_range_by_class={
-            "mup_transformer": (4 * 1e14, 1e15),
             "optimal_lr_sgd_transformer": (1e14, 1e15),
-            "vanilla_transformer": (1e14, 1e15),
+            "vanilla_transformer": (3 * 1e14, 1e15),
+            "vanilla_transformer_no_rotary": (1e14, 1e15),
         },
     )
 
@@ -1114,16 +1471,15 @@ if __name__ == "__main__":
     analyzer.plot_training_curves_by_class(
         show_all_curves=True,
         show_power_law_fit=True,
+        show_sklearn_fit=False,  # Enable sklearn-style fit: L = E + A * C^alpha
         save_path="Figures/universal_scaling_law_study_by_class.png",
         classes_to_plot=[
-            "mup_transformer",
             "optimal_lr_sgd_transformer",
-            "vanilla_transformer",
+            "vanilla_transformer_no_rotary",
         ],
         flop_range_by_class={
-            "mup_transformer": (1e14, 1e15),
             "optimal_lr_sgd_transformer": (1e14, 1e15),
-            "vanilla_transformer": (1e15, 1e16),
+            "vanilla_transformer_no_rotary": (3 * 1e14, 1e15),
         },
         colormap="viridis",  # Color experiments by hidden dimension
     )

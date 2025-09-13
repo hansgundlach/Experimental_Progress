@@ -412,14 +412,26 @@ def create_multi_lr_lstm_experiments(base_experiments, learning_rates):
 
                 # Add learning rate to the label
                 original_label = sub_exp["label"]
-                # Format learning rate for filename-safe label
+                # Format learning rate for filename-safe label with clear scientific notation
+                import math
                 if lr >= 1:
                     lr_str = f"{lr:.0f}"
-                elif lr >= 0.01:
-                    lr_str = f"{lr:.3f}".rstrip("0").rstrip(".")
                 else:
-                    # For very small learning rates, use scientific notation
-                    lr_str = f"{lr:.1e}".replace("-", "m").replace("+", "p")
+                    # Use clear scientific notation: 10e-1, 10e-2, 10e-3, etc.
+                    log_lr = math.log10(lr)
+                    
+                    # Check if it's close to a nice power of 10
+                    if abs(log_lr - round(log_lr)) < 0.01:  # Very close to integer power
+                        exponent = int(round(log_lr))
+                        lr_str = f"10e{exponent:+d}"  # +d ensures +/- sign
+                    else:
+                        # For non-integer powers, use coefficient notation
+                        exponent = math.floor(log_lr)
+                        coefficient = lr / (10 ** exponent)
+                        if abs(coefficient - round(coefficient)) < 0.01:
+                            lr_str = f"{round(coefficient):.0f}e{exponent:+d}"
+                        else:
+                            lr_str = f"{coefficient:.1f}e{exponent:+d}"
 
                 new_sub_exp["label"] = f"{original_label}_lr_{lr_str}"
 
@@ -498,14 +510,26 @@ def create_multi_lr_experiments(base_experiments, learning_rates):
 
                 # Add learning rate to the label
                 original_label = sub_exp["label"]
-                # Format learning rate for filename-safe label
+                # Format learning rate for filename-safe label with clear scientific notation
+                import math
                 if lr >= 1:
                     lr_str = f"{lr:.0f}"
-                elif lr >= 0.01:
-                    lr_str = f"{lr:.3f}".rstrip("0").rstrip(".")
                 else:
-                    # For very small learning rates, use scientific notation
-                    lr_str = f"{lr:.1e}".replace("-", "m").replace("+", "p")
+                    # Use clear scientific notation: 10e-1, 10e-2, 10e-3, etc.
+                    log_lr = math.log10(lr)
+                    
+                    # Check if it's close to a nice power of 10
+                    if abs(log_lr - round(log_lr)) < 0.01:  # Very close to integer power
+                        exponent = int(round(log_lr))
+                        lr_str = f"10e{exponent:+d}"  # +d ensures +/- sign
+                    else:
+                        # For non-integer powers, use coefficient notation
+                        exponent = math.floor(log_lr)
+                        coefficient = lr / (10 ** exponent)
+                        if abs(coefficient - round(coefficient)) < 0.01:
+                            lr_str = f"{round(coefficient):.0f}e{exponent:+d}"
+                        else:
+                            lr_str = f"{coefficient:.1f}e{exponent:+d}"
 
                 new_sub_exp["label"] = f"{original_label}_lr_{lr_str}"
 

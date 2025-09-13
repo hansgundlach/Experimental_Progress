@@ -576,6 +576,9 @@ if __name__ == "__main__":
             "marker": "o",
             "include_in_frontier": True,  # Include in frontier analysis
         },
+
+
+        
         {
             "name": "adam 16d mup",
             "csv_path": "../experimental_data_folder/transformer_standard_scaling_mup/16d_standard_mup.csv",
