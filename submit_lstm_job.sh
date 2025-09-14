@@ -89,6 +89,8 @@ if [ $TOTAL_GPU_USAGE -gt 16 ]; then
 fi
 
 # Submit the job with the array specification
+echo "Submitting with command: sbatch --array=\"${ARRAY_SPEC}\" \"${SCRIPT_PATH}\""
+echo "Checking if script exists: $(ls -la "${SCRIPT_PATH}" 2>/dev/null || echo "SCRIPT NOT FOUND")"
 sbatch --array="${ARRAY_SPEC}" "${SCRIPT_PATH}"
 
 if [ $? -eq 0 ]; then

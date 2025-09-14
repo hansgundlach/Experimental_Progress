@@ -1053,8 +1053,8 @@ def train(gpu_id=None, csv_log_path=None):
         elif opt_name == "sgd":
             optimizer = optim.SGD(
                 groups,
-                momentum=getattr(config, "momentum", 0.9),
-                nesterov=False,
+                momentum=getattr(config, "sgd_momentum", 0.9),
+                nesterov=getattr(config, "sgd_nesterov", False),
             )
         elif opt_name == "rmsprop":
             optimizer = optim.RMSprop(
@@ -1095,7 +1095,8 @@ def train(gpu_id=None, csv_log_path=None):
         elif opt_name == "sgd":
             optimizer = optim.SGD(
                 param_groups,
-                momentum=getattr(config, "momentum", 0.9),
+                momentum=getattr(config, "sgd_momentum", 0.9),
+                nesterov=getattr(config, "sgd_nesterov", False),
                 weight_decay=config.weight_decay,
             )
         elif opt_name == "rmsprop":
@@ -1130,7 +1131,8 @@ def train(gpu_id=None, csv_log_path=None):
             optimizer = optim.SGD(
                 model.parameters(),
                 lr=config.learning_rate,
-                momentum=getattr(config, "momentum", 0.9),  # Standard momentum value
+                momentum=getattr(config, "sgd_momentum", 0.9),
+                nesterov=getattr(config, "sgd_nesterov", False),
                 weight_decay=config.weight_decay,
             )
         elif config.optimizer == "rmsprop":

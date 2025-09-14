@@ -11,7 +11,7 @@ NARROW_LR_SWEEP = [
     10 ** (-2.5),
     10 ** (-2),
     10 ** (-1.5),
-    1e-1,
+    10 ** (-1),
 ]
 
 TEST_EXPERIMENT = gen_experim(
@@ -200,30 +200,59 @@ TRANSFORMER_SCALING_EXPERIMENTS_OTHER_SCALES = (
 
 
 TRANSFORMER_SGD_SCALING_EXPERIMENTS_OPTIMAL_LR = (
+    # gen_experim(
+    #     32,
+    #     label="optimal_lr_sgd_32d",
+    #     folder_name="optimal_lr_sgd_scaling",
+    #     learning_rate=10 ** (-1),
+    #     optimizer="sgd",
+    # )
+    # + gen_experim(
+    #     48,
+    #     label="optimal_lr_sgd_48d",
+    #     folder_name="optimal_lr_sgd_scaling",
+    #     learning_rate=0.1,
+    #     optimizer="sgd",
+    # )
+    # + gen_experim(
+    #     56,
+    #     label="optimal_lr_sgd_56d",
+    #     folder_name="optimal_lr_sgd_scaling",
+    #     learning_rate=10 ** (-1),
+    #     optimizer="sgd",
+    # )
+    # + gen_experim(
+    #     64,
+    #     label="optimal_lr_sgd_64d",
+    #     folder_name="optimal_lr_sgd_scaling",
+    #     learning_rate=10 ** (-1),
+    #     optimizer="sgd",
+    # )
+    # scale the experiments from 72 to 128d
     gen_experim(
-        32,
-        label="optimal_lr_sgd_32d",
+        72,
+        label="optimal_lr_sgd_72d",
+        folder_name="optimal_lr_sgd_scaling",
+        learning_rate=10 ** (-1.5),
+        optimizer="sgd",
+    )
+    + gen_experim(
+        80,
+        label="optimal_lr_sgd_80d",
         folder_name="optimal_lr_sgd_scaling",
         learning_rate=10 ** (-1),
         optimizer="sgd",
     )
     + gen_experim(
-        48,
-        label="optimal_lr_sgd_48d",
+        96,
+        label="optimal_lr_sgd_96d",
         folder_name="optimal_lr_sgd_scaling",
-        learning_rate=0.1,
+        learning_rate=10 ** (-1.5),
         optimizer="sgd",
     )
     + gen_experim(
-        56,
-        label="optimal_lr_sgd_56d",
-        folder_name="optimal_lr_sgd_scaling",
-        learning_rate=10 ** (-1),
-        optimizer="sgd",
-    )
-    + gen_experim(
-        64,
-        label="optimal_lr_sgd_64d",
+        128,
+        label="optimal_lr_sgd_128d",
         folder_name="optimal_lr_sgd_scaling",
         learning_rate=10 ** (-1),
         optimizer="sgd",
@@ -444,49 +473,124 @@ VARIATION_EXPERIMENTS = (
     #     pos_encoding="sinusoidal",
     #     )
     #
+    # gen_experim(
+    #     32,
+    #     label="sgd smaller",
+    #     folder_name="variation_experiments",
+    #     learning_rate=1e-2,
+    #     num_heads=2,
+    #     optimizer="sgd",
+    # )
+    # + gen_experim(
+    #     32,
+    #     label="sgd 4 head",
+    #     folder_name="variation_experiments",
+    #     learning_rate=1e-1,
+    #     num_heads=4,
+    #     optimizer="sgd",
+    # )
+    # + gen_experim(
+    #     32,
+    #     label="sgd_cosine_annealing",
+    #     folder_name="variation_experiments",
+    #     learning_rate=1e-1,
+    #     num_heads=2,
+    #     optimizer="sgd",
+    #     lr_schedule="cosine",
+    # )
+    # + gen_experim(
+    #     32,
+    #     label="sgd_cosine_annealing_small_lr",
+    #     folder_name="variation_experiments",
+    #     learning_rate=1e-2,
+    #     num_heads=2,
+    #     optimizer="sgd",
+    #     lr_schedule="cosine",
+    # )
+    # + gen_experim(
+    #     32,
+    #     label="long warmup",
+    #     folder_name="variation_experiments",
+    #     learning_rate=1e-1,
+    #     num_heads=2,
+    #     optimizer="sgd",
+    #     warmup_frac=0.1,
+    # )
     gen_experim(
         32,
-        label="sgd smaller",
+        label="sgd smaller 0.99 momentum",
         folder_name="variation_experiments",
         learning_rate=1e-2,
         num_heads=2,
         optimizer="sgd",
+        sgd_momentum=0.99,
     )
     + gen_experim(
         32,
-        label="sgd 4 head",
-        folder_name="variation_experiments",
-        learning_rate=1e-1,
-        num_heads=4,
-        optimizer="sgd",
-    )
-    + gen_experim(
-        32,
-        label="sgd_cosine_annealing",
+        label="sgd 0.99 momentum",
         folder_name="variation_experiments",
         learning_rate=1e-1,
         num_heads=2,
         optimizer="sgd",
-        lr_schedule="cosine",
+        sgd_momentum=0.99,
     )
     + gen_experim(
         32,
-        label="sgd_cosine_annealing_small_lr",
+        label="sgd nesterov ",
+        folder_name="variation_experiments",
+        learning_rate=1e-1,
+        num_heads=2,
+        optimizer="sgd",
+        sgd_nesterov=True,
+    )
+    + gen_experim(
+        32,
+        label="sgd nesterov 0.95 momentum",
+        folder_name="variation_experiments",
+        learning_rate=1e-1,
+        num_heads=2,
+        optimizer="sgd",
+        sgd_nesterov=True,
+        momentum=0.95,
+    )
+    + gen_experim(
+        32,
+        label="sgd no momentum",
+        folder_name="variation_experiments",
+        learning_rate=1e-1,
+        num_heads=2,
+        optimizer="sgd",
+        sgd_nesterov=True,
+        momentum=0,
+    )
+    + gen_experim(
+        32,
+        label="sgd no momentum lr 1e-2",
         folder_name="variation_experiments",
         learning_rate=1e-2,
         num_heads=2,
         optimizer="sgd",
-        lr_schedule="cosine",
+        sgd_nesterov=True,
+        momentum=0,
     )
-    + gen_experim(
-        32,
-        label="long warmup",
-        folder_name="variation_experiments",
-        learning_rate=1e-1,
-        num_heads=2,
-        optimizer="sgd",
-        warmup_frac=0.1,
-    )
+    # + gen_experim(
+    #     32,
+    #     label="sgd_cosine_annealing_small_lr",
+    #     folder_name="variation_experiments",
+    #     learning_rate=1e-2,
+    #     num_heads=2,
+    #     optimizer="sgd",
+    #     lr_schedule="cosine",
+    # )
+    # + gen_experim(
+    #     32,
+    #     label="long warmup",
+    #     folder_name="variation_experiments",
+    #     learning_rate=1e-1,
+    #     num_heads=2,
+    #     optimizer="sgd",
+    #     warmup_frac=0.1,
+    # )
 )
 
 
@@ -511,39 +615,86 @@ VARIATION_EXPERIMENTS = (
 #     + TRANSFORMER_SCALING_EXPERIMENTS_RMSPROP
 # )
 
-GRAND_EXPERIMENT = (
+# GRAND_EXPERIMENT = (
+#     gen_experim(
+#         64,
+#         label="64d_sgd_cosine_annealing",
+#         folder_name="variation_experiments",
+#         learning_rate=1e-1,
+#         num_heads=2,
+#         optimizer="sgd",
+#         lr_schedule="cosine",
+#     )
+#     + gen_experim(
+#         64,
+#         label="64d_sgd_cosine_annealing_small_lr",
+#         folder_name="variation_experiments",
+#         learning_rate=1e-2,
+#         num_heads=2,
+#         optimizer="sgd",
+#         lr_schedule="cosine",
+#     )
+#     + gen_experim(
+#         64,
+#         label="64d_low_lr",
+#         folder_name="variation_experiments",
+#         learning_rate=1e-2,
+#         num_heads=2,
+#         optimizer="sgd",
+#     )
+#     + gen_experim(
+#         64,
+#         label="64d_10_1.5_lr",
+#         folder_name="variation_experiments",
+#         learning_rate=10 ** (-1.5),
+#         num_heads=2,
+#         optimizer="sgd",
+#     )
+# )
+
+
+# GRAND_EXPERIMENT = create_multi_lr_experiments(
+#     TRANSFORMER_SGD_SCALING_EXPERIMENTS_OPTIMAL_LR, NARROW_LR_SWEEP
+# )
+
+
+BEST_POSSIBLE_SGD_SCALING = (
     gen_experim(
-        64,
-        label="64d_sgd_cosine_annealing",
-        folder_name="variation_experiments",
+        32,
+        label="32d_best_sgd",
+        folder_name="best_possible_sgd",
         learning_rate=1e-1,
-        num_heads=2,
         optimizer="sgd",
-        lr_schedule="cosine",
+        sgd_momentum=0.98,
+        weight_decay=0.0,
+        effective_batch_size=64,
+    )
+    + gen_experim(
+        48,
+        label="48d_best_sgd",
+        folder_name="best_possible_sgd",
+        learning_rate=1e-1,
+        optimizer="sgd",
+        sgd_momentum=0.98,
+        weight_decay=0.0,
+        effective_batch_size=64,
     )
     + gen_experim(
         64,
-        label="64d_sgd_cosine_annealing_small_lr",
-        folder_name="variation_experiments",
-        learning_rate=1e-2,
-        num_heads=2,
+        label="64d_best_sgd",
+        folder_name="best_possible_sgd",
+        learning_rate=1e-1,
         optimizer="sgd",
-        lr_schedule="cosine",
-    )
-    + gen_experim(
-        64,
-        label="64d_low_lr",
-        folder_name="variation_experiments",
-        learning_rate=1e-2,
-        num_heads=2,
-        optimizer="sgd",
-    )
-    + gen_experim(  
-        64,
-        label="64d_10_1.5_lr",
-        folder_name="variation_experiments",
-        learning_rate=10 ** (-1.5),
-        num_heads=2,
-        optimizer="sgd",
+        sgd_momentum=0.98,
+        weight_decay=0.0,
+        effective_batch_size=64,
     )
 )
+
+
+# GRAND_EXPERIMENT = (
+#     TRANSFORMER_SGD_SCALING_EXPERIMENTS_OPTIMAL_LR
+#     + create_multi_lr_experiments(best_sgd, NARROW_LR_SWEEP)
+# )
+
+GRAND_EXPERIMENT = BEST_POSSIBLE_SGD_SCALING

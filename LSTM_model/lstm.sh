@@ -38,6 +38,12 @@ else
 TOTAL_JOBS=1
 fi
 echo "Running experiment slice ${SLURM_ARRAY_TASK_ID} of ${TOTAL_JOBS}..."
-python lstm_experiments.py --job_id ${SLURM_ARRAY_TASK_ID} --total_jobs ${TOTAL_JOBS} 2>&1 | tee "$LOG_DIR/job_${SLURM_ARRAY_JOB_ID}_task_${SLURM_ARRAY_TASK_ID}.log"
+# The job starts in the main project directory, so we need to go into LSTM_model
+echo "Current directory: $PWD"
+echo "Contents: $(ls -la)"
+cd LSTM_model || { echo "Failed to cd into LSTM_model"; exit 1; }
+echo "Changed to LSTM_model directory: $PWD"
+echo "LSTM_model contents: $(ls -la)"
+python lstm_experiments.py --job_id ${SLURM_ARRAY_TASK_ID} --total_jobs ${TOTAL_JOBS} 2>&1 | tee "../$LOG_DIR/job_${SLURM_ARRAY_JOB_ID}_task_${SLURM_ARRAY_TASK_ID}.log"
 
 echo "Job task ${SLURM_ARRAY_TASK_ID} ended at $(date)" 

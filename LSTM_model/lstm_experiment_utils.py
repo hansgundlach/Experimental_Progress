@@ -244,7 +244,9 @@ def gen_lstm_experim(
 
     # 4. Handle folder_name parameter (for backward compatibility)
     if folder_name is not None and results_folder is None:
-        results_folder = folder_name
+        # Folder_name should create a subdirectory within the base results folder
+        base_results_folder = base_config["results_folder"]
+        results_folder = f"{base_results_folder}/{folder_name}"
 
     # 5. Generate label if not provided
     if label is None:
@@ -267,8 +269,16 @@ def gen_lstm_experim(
     experiment_config.update(overrides)
 
     # Create experiment in the expected format
+    # Use folder_name as the experiment name if provided to avoid double nesting
+    if folder_name:
+        experiment_name = folder_name
+        # Remove results_folder from config since it's now the experiment name
+        experiment_config.pop("results_folder", None)
+    else:
+        experiment_name = f"lstm_generated_experiments_{gpu_type.lower()}"
+
     experiment = {
-        "name": f"lstm_generated_experiments_{gpu_type.lower()}",
+        "name": experiment_name,
         "subexperiments": [
             {
                 "label": label,
@@ -292,7 +302,7 @@ def get_lstm_base_config():
         "tokenizer_path": "../gpt2_tokenizer",
         "max_characters": 5 * 1e7,  # Base character limit
         "sequence_length": 128,
-        "target_effective_batch_size": 512,  # Target effective batch size for optimization
+        "target_effective_batch_size": 256,  # Target effective batch size for optimization
         "batch_size": 32,  # Default per-step batch size (will be overridden by gen_lstm_experim)
         "hidden_size": 16,  # Base hidden dimension
         "num_layers": 2,  # Base number of layers
@@ -314,7 +324,7 @@ def get_lstm_base_config():
         "print_every": 100,
         "use_gradient_clipping": True,
         "gradient_clip_val": 1.0,
-        "results_folder": "../new_experiments_folder",
+        "results_folder": "../new_experiments_folder_1",
         "csv_log_interval": 20,
         "num_workers": "auto",
         "pin_memory": True,
@@ -333,7 +343,7 @@ def get_lstm_base_config():
         "output_dropout": 0.2,
         "use_layer_norm": True,
         "layer_norm_position": "output",
-        "use_mup": True,
+        "use_mup": False,
         "mup_base_width": 16,
         "tie_embeddings": True,  # Enable weight tying by default
     }
@@ -414,20 +424,23 @@ def create_multi_lr_lstm_experiments(base_experiments, learning_rates):
                 original_label = sub_exp["label"]
                 # Format learning rate for filename-safe label with clear scientific notation
                 import math
+
                 if lr >= 1:
                     lr_str = f"{lr:.0f}"
                 else:
                     # Use clear scientific notation: 10e-1, 10e-2, 10e-3, etc.
                     log_lr = math.log10(lr)
-                    
+
                     # Check if it's close to a nice power of 10
-                    if abs(log_lr - round(log_lr)) < 0.01:  # Very close to integer power
+                    if (
+                        abs(log_lr - round(log_lr)) < 0.01
+                    ):  # Very close to integer power
                         exponent = int(round(log_lr))
                         lr_str = f"10e{exponent:+d}"  # +d ensures +/- sign
                     else:
                         # For non-integer powers, use coefficient notation
                         exponent = math.floor(log_lr)
-                        coefficient = lr / (10 ** exponent)
+                        coefficient = lr / (10**exponent)
                         if abs(coefficient - round(coefficient)) < 0.01:
                             lr_str = f"{round(coefficient):.0f}e{exponent:+d}"
                         else:
@@ -512,20 +525,23 @@ def create_multi_lr_experiments(base_experiments, learning_rates):
                 original_label = sub_exp["label"]
                 # Format learning rate for filename-safe label with clear scientific notation
                 import math
+
                 if lr >= 1:
                     lr_str = f"{lr:.0f}"
                 else:
                     # Use clear scientific notation: 10e-1, 10e-2, 10e-3, etc.
                     log_lr = math.log10(lr)
-                    
+
                     # Check if it's close to a nice power of 10
-                    if abs(log_lr - round(log_lr)) < 0.01:  # Very close to integer power
+                    if (
+                        abs(log_lr - round(log_lr)) < 0.01
+                    ):  # Very close to integer power
                         exponent = int(round(log_lr))
                         lr_str = f"10e{exponent:+d}"  # +d ensures +/- sign
                     else:
                         # For non-integer powers, use coefficient notation
                         exponent = math.floor(log_lr)
-                        coefficient = lr / (10 ** exponent)
+                        coefficient = lr / (10**exponent)
                         if abs(coefficient - round(coefficient)) < 0.01:
                             lr_str = f"{round(coefficient):.0f}e{exponent:+d}"
                         else:

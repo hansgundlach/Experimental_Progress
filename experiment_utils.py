@@ -501,7 +501,7 @@ def get_base_config():
     """
     return {
         "dataset": "c4_subset",
-        "target_effective_batch_size": 256,  # Target effective batch size for optimization
+        "target_effective_batch_size": 128,  # Target effective batch size for optimization
         "batch_size": 64,  # Default per-step batch size (will be overridden by gen_experim)
         "learning_rate": 0.001 * math.sqrt(4),
         "min_lr": 1e-5,
@@ -546,4 +546,6 @@ def get_base_config():
         "use_mup": False,
         "mup_base_width": 128,
         "tie_embeddings": True,  # Default to True for weight tying
+        "sgd_momentum": 0.9,  # SGD momentum parameter
+        "sgd_nesterov": False,  # SGD Nesterov momentum
     }
