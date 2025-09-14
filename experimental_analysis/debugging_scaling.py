@@ -649,25 +649,51 @@ if __name__ == "__main__":
             "marker": "o",
             "include_in_in_frontier": True,  # Include in frontier analysis
         },
-        # {
-        #     "name": "48d sgd optimal lr",
-        #     "csv_path": "../experimental_data_folder/optimal_lr_sgd_scaling/optimal_lr_sgd_48d.csv",
-        #     "marker": "o",
-        #     "include_in_in_frontier": True,  # Include in frontier analysis
-        # },
-        # {
-        #     "name": "56d sgd optimal lr",
-        #     "csv_path": "../experimental_data_folder/optimal_lr_sgd_scaling/optimal_lr_sgd_56d.csv",
-        #     "marker": "o",
-        #     "include_in_in_frontier": True,  # Include in frontier analysis
-        # },
-        # {
-        #     "name": "64d sgd optimal lr",
-        #     "csv_path": "../experimental_data_folder/optimal_lr_sgd_scaling/optimal_lr_sgd_64d.csv",
-        #     "marker": "o",
-        #     "include_in_in_frontier": True,  # Include in frontier analysis
-        # },
-        #plotting sgd variations 
+        {
+            "name": "48d sgd optimal lr",
+            "csv_path": "../experimental_data_folder/optimal_lr_sgd_scaling/optimal_lr_sgd_48d.csv",
+            "marker": "o",
+            "include_in_in_frontier": True,  # Include in frontier analysis
+        },
+        {
+            "name": "56d sgd optimal lr",
+            "csv_path": "../experimental_data_folder/optimal_lr_sgd_scaling/optimal_lr_sgd_56d.csv",
+            "marker": "o",
+            "include_in_in_frontier": True,  # Include in frontier analysis
+        },
+        {
+            "name": "64d sgd optimal lr",
+            "csv_path": "../experimental_data_folder/optimal_lr_sgd_scaling/optimal_lr_sgd_64d.csv",
+            "marker": "o",
+            "include_in_in_frontier": True,  # Include in frontier analysis
+        },
+        {
+            "name": "72d sgd optimal lr",
+            "csv_path": "../experimental_data_folder/optimal_lr_sgd_scaling/optimal_lr_sgd_72d.csv",
+            "marker": "o",
+            "include_in_in_frontier": True,  # Include in frontier analysis
+        },
+        {
+            "name": "80d sgd optimal lr",
+            "csv_path": "../experimental_data_folder/optimal_lr_sgd_scaling/optimal_lr_sgd_80d.csv",
+            "marker": "o",
+            "include_in_in_frontier": True,  # Include in frontier analysis
+        },
+        # 96
+        {
+            "name": "96d sgd optimal lr",
+            "csv_path": "../experimental_data_folder/optimal_lr_sgd_scaling/optimal_lr_sgd_96d.csv",
+            "marker": "o",
+            "include_in_in_frontier": True,  # Include in frontier analysis
+        },
+        # 128
+        {
+            "name": "128d sgd optimal lr",
+            "csv_path": "../experimental_data_folder/optimal_lr_sgd_scaling/optimal_lr_sgd_128d.csv",
+            "marker": "o",
+            "include_in_in_frontier": True,  # Include in frontier analysis
+        },
+        # plotting sgd variations
         {
             "name": "32d sgd cosine annealing",
             "csv_path": "../experimental_data_folder/variation_experiments/sgd_cosine_annealing.csv",
@@ -686,34 +712,88 @@ if __name__ == "__main__":
             "marker": "o",
             "include_in_in_frontier": True,  # Include in frontier analysis
         },
-        #sgd smaller
+        # sgd smaller
         {
             "name": "32d sgd smaller",
             "csv_path": "../experimental_data_folder/variation_experiments/sgd_smaller.csv",
             "marker": "o",
             "include_in_in_frontier": True,  # Include in frontier analysis
         },
-        #sgd 64 10 1.5 lr
+        # sgd 64 10 1.5 lr
         {
             "name": "64d sgd 10 1.5 lr",
             "csv_path": "../experimental_data_folder/variation_experiments/64d_10_15_lr.csv",
             "marker": "o",
             "include_in_in_frontier": True,  # Include in frontier analysis
         },
-        #cosine annealing 64
+        # cosine annealing 64
         {
             "name": "64d sgd cosine annealing",
             "csv_path": "../experimental_data_folder/variation_experiments/64d_sgd_cosine_annealing.csv",
             "marker": "o",
             "include_in_in_frontier": True,  # Include in frontier analysis
         },
-        #cosine annealing 64 small lr
-        
+        # cosine annealing 64 small lr
+        # trying variations of sgd
+        # 0.99 momentum
+        {
+            "name": "sgd 0.99 momentum",
+            "csv_path": "../experimental_data_folder/variation_experiments/sgd_099_momentum.csv",
+            "marker": "o",
+            "include_in_in_frontier": True,  # Include in frontier analysis
+        },
+        # 0.95 momentum
+        {
+            "name": "sgd nesterov 0.95 momentum",
+            "csv_path": "../experimental_data_folder/variation_experiments/sgd_nesterov_095_momentum.csv",
+            "marker": "o",
+            "include_in_in_frontier": True,  # Include in frontier analysis
+        },
+        # lr tune experiment
+        # {
+        #     "name": "lr tune experiment",
+        #     "csv_path": "../experimental_data_folder/variation_experiments_lr_sweep/best_sgd_lr_10e1.csv",
+        #     "marker": "s",
+        #     "color": "tab:red",
+        #     "include_in_in_frontier": True,  # Include in frontier analysis
+        # },
 
-
-
-
-
+        #best sgd 
+        {
+            "name": "32d best sgd",
+            "csv_path": "../experimental_data_folder/best_possible_sgd/32d_best_sgd.csv",
+            "marker": "s",
+            "color": "tab:red",
+            "include_in_in_frontier": True,  # Include in frontier analysis
+        },
+        {
+            "name": "48d best sgd",
+            "csv_path": "../experimental_data_folder/best_possible_sgd/48d_best_sgd.csv",
+            "marker": "s",
+            "color": "tab:red",
+            "include_in_in_frontier": True,  # Include in frontier analysis
+        },
+        {
+            "name": "64d best sgd",
+            "csv_path": "../experimental_data_folder/best_possible_sgd/64d_best_sgd.csv",
+            "marker": "s",
+            "color": "tab:red",
+            "include_in_in_frontier": True,  # Include in frontier analysis
+        },
+        # no momentum
+        # {
+        #     "name": "64d sgd no momentum",
+        #     "csv_path": "../experimental_data_folder/variation_experiments/64d_sgd_no_momentum.csv",
+        #     "marker": "o",
+        #     "include_in_in_frontier": True,  # Include in frontier analysis
+        # },
+        # #lr 1e-2
+        # {
+        #     "name": "64d sgd lr 1e-2",
+        #     "csv_path": "../experimental_data_folder/variation_experiments/64d_sgd_lr_1e-2.csv",
+        #     "marker": "o",
+        #     "include_in_in_frontier": True,  # Include in frontier analysis
+        # }
         # rms prop scaling experiments
         # {
         #     "name": "32d rms prop",

@@ -940,16 +940,15 @@ def get_dataset_configurations() -> dict:
     configurations = {}
 
     # 1. Optimal LR SGD scaling
-    optimal_lr_sgd_dir = data_folder / "optimal_lr_sgd_scaling"
+    optimal_lr_sgd_dir = data_folder / "best_possible_sgd"
     if optimal_lr_sgd_dir.exists():
         optimal_lr_sgd_pairs = [
-            (optimal_lr_sgd_dir / "optimal_lr_sgd_32d.csv", 1683000),
-            (optimal_lr_sgd_dir / "optimal_lr_sgd_40d.csv", 2098000),
-            (optimal_lr_sgd_dir / "optimal_lr_sgd_48d.csv", 2545000),
-            (optimal_lr_sgd_dir / "optimal_lr_sgd_56d.csv", 3015000),
-            (optimal_lr_sgd_dir / "optimal_lr_sgd_64d.csv", 3463000),
+            (optimal_lr_sgd_dir / "32d_best_sgd.csv", 1683000),
+            # (optimal_lr_sgd_dir / "optimal_lr_sgd_40d.csv", 2098000),
+            (optimal_lr_sgd_dir / "48d_best_sgd.csv", 2545000),
+            (optimal_lr_sgd_dir / "64d_best_sgd.csv", 3463000),
         ]
-        configurations["optimal_lr_sgd_scaling"] = [
+        configurations["best_possible_sgd"] = [
             (str(p), n) for p, n in optimal_lr_sgd_pairs if p.exists()
         ]
 
@@ -1130,16 +1129,19 @@ if __name__ == "__main__":
         "loss_column": "validation_loss",
         "use_tokens_column": True,
         "ignore_first_percent": ignore_first_percent,
-        "compute_confidence_intervals": False,
+        "compute_confidence_intervals": True,
         "use_chinchilla_sk_fit": False,  # Change this to False for standard fitting
-        "use_bootstrap": False,
-        "n_bootstrap": 200,
+        "use_bootstrap": True,
+        "n_bootstrap": 100,
     }
 
     # Check if user wants to run all datasets or just the default
     if len(sys.argv) > 1 and sys.argv[1] == "--all":
         run_all_dataset_analyses(
             ignore_first_percent=ignore_first_percent,
+            compute_confidence_intervals=fit_params["compute_confidence_intervals"],
+            use_bootstrap=fit_params["use_bootstrap"],
+            n_bootstrap=fit_params["n_bootstrap"],
             use_chinchilla_sk_fit=fit_params["use_chinchilla_sk_fit"],
         )
     else:
