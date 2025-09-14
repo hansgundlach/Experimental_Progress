@@ -103,20 +103,23 @@ def create_multi_lr_experiments(base_experiments, learning_rates):
                 original_label = sub_exp["label"]
                 # Format learning rate for filename-safe label with clear scientific notation
                 import math
+
                 if lr >= 1:
                     lr_str = f"{lr:.0f}"
                 else:
                     # Use clear scientific notation: 10e-1, 10e-2, 10e-3, etc.
                     log_lr = math.log10(lr)
-                    
+
                     # Check if it's close to a nice power of 10
-                    if abs(log_lr - round(log_lr)) < 0.01:  # Very close to integer power
+                    if (
+                        abs(log_lr - round(log_lr)) < 0.01
+                    ):  # Very close to integer power
                         exponent = int(round(log_lr))
                         lr_str = f"10e{exponent:+d}"  # +d ensures +/- sign
                     else:
                         # For non-integer powers, use coefficient notation
                         exponent = math.floor(log_lr)
-                        coefficient = lr / (10 ** exponent)
+                        coefficient = lr / (10**exponent)
                         if abs(coefficient - round(coefficient)) < 0.01:
                             lr_str = f"{round(coefficient):.0f}e{exponent:+d}"
                         else:
@@ -413,7 +416,7 @@ def gen_experim(
     num_layers = max(1, int(round(hidden_dim * layer_scale_ratio)))
 
     # 2. Scale num_heads to keep head dimension close to 32
-    target_head_dim = 32
+    target_head_dim = 16
     num_heads = max(1, int(round(hidden_dim / target_head_dim)))
     # Ensure hidden_dim is divisible by num_heads
     while hidden_dim % num_heads != 0 and num_heads > 1:
@@ -505,7 +508,7 @@ def get_base_config():
         "min_lr_multiplier": 0.1,
         "lr_schedule": "cosine_warmup",
         "warmup_frac": 0.02,
-        "weight_decay": 0.1,
+        "weight_decay": 0.01,
         "hidden_dim": 64,  # Base hidden dimension
         "num_layers": 4,  # Base number of layers
         "num_heads": 4,
@@ -528,7 +531,7 @@ def get_base_config():
         "activation": "gelu",
         "norm_type": "layer",
         "norm_placement": "pre",
-        "results_folder": "new_experiments_folder",
+        "results_folder": "new_experiments_folder_1",
         "csv_log_interval": 20,
         "seed": 123,
         # Complete-P (default OFF; non-breaking)

@@ -1276,54 +1276,54 @@ if __name__ == "__main__":
         #     "class": "vanilla_transformer",
         #     "hidden_dim": 16,
         # },
+        {
+            "name": "32 vanilla optimal lr",
+            "csv_path": "../experimental_data_folder/vanilla_scaling_optimal_lr/vanilla_32d.csv",
+            "marker": "o",
+            "include_in_frontier": True,  # Include in frontier analysis
+            "class": "vanilla_transformer",
+            "hidden_dim": 32,
+        },
         # {
-        #     "name": "32 vanilla optimal lr",
-        #     "csv_path": "../experimental_data_folder/vanilla_scaling_optimal_lr/vanilla_32d.csv",
+        #     "name": "40 vanilla optimal lr",
+        #     "csv_path": "../experimental_data_folder/vanilla_scaling_optimal_lr/vanilla_40d.csv",
         #     "marker": "o",
         #     "include_in_frontier": True,  # Include in frontier analysis
         #     "class": "vanilla_transformer",
-        #     "hidden_dim": 32,
+        #     "hidden_dim": 40,
         # },
-        {
-            "name": "40 vanilla optimal lr",
-            "csv_path": "../experimental_data_folder/vanilla_scaling_optimal_lr/vanilla_40d.csv",
-            "marker": "o",
-            "include_in_frontier": True,  # Include in frontier analysis
-            "class": "vanilla_transformer",
-            "hidden_dim": 40,
-        },
-        {
-            "name": "48 vanilla optimal lr",
-            "csv_path": "../experimental_data_folder/vanilla_scaling_optimal_lr/vanilla_48d.csv",
-            "marker": "o",
-            "include_in_frontier": True,  # Include in frontier analysis
-            "class": "vanilla_transformer",
-            "hidden_dim": 48,
-        },
-        {
-            "name": "56 vanilla optimal lr",
-            "csv_path": "../experimental_data_folder/vanilla_scaling_optimal_lr/vanilla_56d.csv",
-            "marker": "o",
-            "include_in_frontier": True,  # Include in frontier analysis
-            "class": "vanilla_transformer",
-            "hidden_dim": 56,
-        },
-        {
-            "name": "64 vanilla optimal lr",
-            "csv_path": "../experimental_data_folder/vanilla_scaling_optimal_lr/vanilla_64d.csv",
-            "marker": "o",
-            "include_in_frontier": True,  # Include in frontier analysis
-            "class": "vanilla_transformer",
-            "hidden_dim": 64,
-        },
-        {
-            "name": "72 vanilla optimal lr",
-            "csv_path": "../experimental_data_folder/vanilla_scaling_optimal_lr/vanilla_72d.csv",
-            "marker": "o",
-            "include_in_frontier": True,  # Include in frontier analysis
-            "class": "vanilla_transformer",
-            "hidden_dim": 72,
-        },
+        # {
+        #     "name": "48 vanilla optimal lr",
+        #     "csv_path": "../experimental_data_folder/vanilla_scaling_optimal_lr/vanilla_48d.csv",
+        #     "marker": "o",
+        #     "include_in_frontier": True,  # Include in frontier analysis
+        #     "class": "vanilla_transformer",
+        #     "hidden_dim": 48,
+        # },
+        # {
+        #     "name": "56 vanilla optimal lr",
+        #     "csv_path": "../experimental_data_folder/vanilla_scaling_optimal_lr/vanilla_56d.csv",
+        #     "marker": "o",
+        #     "include_in_frontier": True,  # Include in frontier analysis
+        #     "class": "vanilla_transformer",
+        #     "hidden_dim": 56,
+        # },
+        # {
+        #     "name": "64 vanilla optimal lr",
+        #     "csv_path": "../experimental_data_folder/vanilla_scaling_optimal_lr/vanilla_64d.csv",
+        #     "marker": "o",
+        #     "include_in_frontier": True,  # Include in frontier analysis
+        #     "class": "vanilla_transformer",
+        #     "hidden_dim": 64,
+        # },
+        # {
+        #     "name": "72 vanilla optimal lr",
+        #     "csv_path": "../experimental_data_folder/vanilla_scaling_optimal_lr/vanilla_72d.csv",
+        #     "marker": "o",
+        #     "include_in_frontier": True,  # Include in frontier analysis
+        #     "class": "vanilla_transformer",
+        #     "hidden_dim": 72,
+        # },
         {
             "name": "80 vanilla optimal lr",
             "csv_path": "../experimental_data_folder/vanilla_scaling_optimal_lr/vanilla_80d.csv",
@@ -1332,68 +1332,152 @@ if __name__ == "__main__":
             "class": "vanilla_transformer",
             "hidden_dim": 80,
         },
+        # {
+        #     "name": "96 vanilla optimal lr",
+        #     "csv_path": "../experimental_data_folder/vanilla_scaling_optimal_lr/vanilla_96d.csv",
+        #     "marker": "o",
+        #     "include_in_frontier": True,  # Include in frontier analysis
+        #     "class": "vanilla_transformer",
+        #     "hidden_dim": 96,
+        # },
+        # {
+        #     "name": "128 vanilla optimal lr",
+        #     "csv_path": "../experimental_data_folder/vanilla_scaling_optimal_lr/vanilla_128d.csv",
+        #     "marker": "o",
+        #     "include_in_frontier": True,  # Include in frontier analysis
+        #     "class": "vanilla_transformer",
+        #     "hidden_dim": 128,
+        # },
+        # {
         {
-            "name": "96 vanilla optimal lr",
-            "csv_path": "../experimental_data_folder/vanilla_scaling_optimal_lr/vanilla_96d.csv",
-            "marker": "o",
-            "include_in_frontier": True,  # Include in frontier analysis
-            "class": "vanilla_transformer",
-            "hidden_dim": 96,
-        },
-        {
-            "name": "128 vanilla optimal lr",
-            "csv_path": "../experimental_data_folder/vanilla_scaling_optimal_lr/vanilla_128d.csv",
-            "marker": "o",
-            "include_in_frontier": True,  # Include in frontier analysis
-            "class": "vanilla_transformer",
-            "hidden_dim": 128,
-        },
-        {
-            "name": "40d no rotary",
-            "csv_path": "../experimental_data_folder/vanilla_scaling_no_rotary/vanilla_40d.csv",
+            "name": "32d no rotary",
+            "csv_path": "../experimental_data_folder/vanilla_scaling_no_rotary/vanilla_32d_no_rot.csv",
             "marker": "o",
             "include_in_frontier": True,  # Include in frontier analysis
             "class": "vanilla_transformer_no_rotary",
+            "hidden_dim": 32,
+        },
+        {
+            "name": "32d no rotary lower min lr",
+            "csv_path": "../experimental_data_folder/variation_experiments_no_rot/lower_min_lr.csv",
+            "marker": "o",
+            "include_in_frontier": True,  # Include in frontier analysis
+            "class": "vanilla_transformer_no_rotary",
+            "hidden_dim": 70,
+        },
+        {
+            "name": "32d no rotary longer warmup",
+            "csv_path": "../experimental_data_folder/variation_experiments_no_rot/longer_warmup.csv",
+            "marker": "o",
+            "include_in_frontier": True,  # Include in frontier analysis
+            "class": "vanilla_transformer_no_rotary",
+            "hidden_dim": 2,
+        },
+        {
+            "name": "cosine annealing simple",
+            "csv_path": "../experimental_data_folder/variation_experiments_no_rot/cosine_annealing_simple.csv",
+            "marker": "o",
+            "include_in_frontier": True,  # Include in frontier analysis
+            "class": "vanilla_transformer_no_rotary",
+            "hidden_dim": 200,
+        },
+
+
+
+
+
+
+
+
+
+
+
+        # {
+        #     "name": "40d no rotary",
+        #     "csv_path": "../experimental_data_folder/vanilla_scaling_no_rotary/vanilla_40d_no_rot.csv",
+        #     "marker": "o",
+        #     "include_in_frontier": True,  # Include in frontier analysis
+        #     "class": "vanilla_transformer_no_rotary",
+        #     "hidden_dim": 40,
+        # },
+        # {
+        #     "name": "48d no rotary",
+        #     "csv_path": "../experimental_data_folder/vanilla_scaling_no_rotary/vanilla_48d_no_rot.csv",
+        #     "marker": "o",
+        #     "include_in_frontier": True,  # Include in frontier analysis
+        #     "class": "vanilla_transformer_no_rotary",
+        #     "hidden_dim": 48,
+        # },
+        # {
+        #     "name": "56d no rotary",
+        #     "csv_path": "../experimental_data_folder/vanilla_scaling_no_rotary/vanilla_56d_no_rot.csv",
+        #     "marker": "o",
+        #     "include_in_frontier": True,  # Include in frontier analysis
+        #     "class": "vanilla_transformer_no_rotary",
+        #     "hidden_dim": 56,
+        # },
+        # {
+        #     "name": "64d no rotary",
+        #     "csv_path": "../experimental_data_folder/vanilla_scaling_no_rotary/vanilla_64d_no_rot.csv",
+        #     "marker": "o",
+        #     "include_in_frontier": True,  # Include in frontier analysis
+        #     "class": "vanilla_transformer_no_rotary",
+        #     "hidden_dim": 64,
+        # },
+        # {
+        #     "name": "80d no rotary",
+        #     "csv_path": "../experimental_data_folder/vanilla_scaling_no_rotary/vanilla_80d_no_rot.csv",
+        #     "marker": "o",
+        #     "include_in_frontier": True,  # Include in frontier analysis
+        #     "class": "vanilla_transformer_no_rotary",
+        #     "hidden_dim": 80,
+        # },
+        {
+            "name": "32d rmsprop",
+            "csv_path": "../experimental_data_folder/vanilla_scaling_rmsprop/vanilla_32d_rmsprop.csv",
+            "marker": "o",
+            "include_in_frontier": True,  # Include in frontier analysis
+            "class": "vanilla_transformer_rmsprop",
+            "hidden_dim": 32,
+        },
+        {
+            "name": "40d rmsprop",
+            "csv_path": "../experimental_data_folder/vanilla_scaling_rmsprop/vanilla_40d_rmsprop.csv",
+            "marker": "o",
+            "include_in_frontier": True,  # Include in frontier analysis
+            "class": "vanilla_transformer_rmsprop",
             "hidden_dim": 40,
         },
         {
-            "name": "48d no rotary",
-            "csv_path": "../experimental_data_folder/vanilla_scaling_no_rotary/vanilla_48d.csv",
+            "name": "48d rmsprop",
+            "csv_path": "../experimental_data_folder/vanilla_scaling_rmsprop/vanilla_48d_rmsprop.csv",
             "marker": "o",
             "include_in_frontier": True,  # Include in frontier analysis
-            "class": "vanilla_transformer_no_rotary",
+            "class": "vanilla_transformer_rmsprop",
             "hidden_dim": 48,
         },
         {
-            "name": "56d no rotary",
-            "csv_path": "../experimental_data_folder/vanilla_scaling_no_rotary/vanilla_56d.csv",
+            "name": "56d rmsprop",
+            "csv_path": "../experimental_data_folder/vanilla_scaling_rmsprop/vanilla_56d_rmsprop.csv",
             "marker": "o",
             "include_in_frontier": True,  # Include in frontier analysis
-            "class": "vanilla_transformer_no_rotary",
+            "class": "vanilla_transformer_rmsprop",
             "hidden_dim": 56,
         },
         {
-            "name": "64d no rotary",
-            "csv_path": "../experimental_data_folder/vanilla_scaling_no_rotary/vanilla_64d.csv",
+            "name": "64d rmsprop",
+            "csv_path": "../experimental_data_folder/vanilla_scaling_rmsprop/vanilla_64d_rmsprop.csv",
             "marker": "o",
             "include_in_frontier": True,  # Include in frontier analysis
-            "class": "vanilla_transformer_no_rotary",
+            "class": "vanilla_transformer_rmsprop",
             "hidden_dim": 64,
         },
         {
-            "name": "72 vanilla optimal lr",
-            "csv_path": "../experimental_data_folder/vanilla_scaling_no_rotary/vanilla_72d.csv",
+            "name": "80d rmsprop",
+            "csv_path": "../experimental_data_folder/vanilla_scaling_rmsprop/vanilla_80d_rmsprop.csv",
             "marker": "o",
             "include_in_frontier": True,  # Include in frontier analysis
-            "class": "vanilla_transformer_no_rotary",
-            "hidden_dim": 72,
-        },
-        {
-            "name": "80 vanilla optimal lr",
-            "csv_path": "../experimental_data_folder/vanilla_scaling_no_rotary/vanilla_80d.csv",
-            "marker": "o",
-            "include_in_frontier": True,  # Include in frontier analysis
-            "class": "vanilla_transformer_no_rotary",
+            "class": "vanilla_transformer_rmsprop",
             "hidden_dim": 80,
         },
     ]
@@ -1453,34 +1537,43 @@ if __name__ == "__main__":
         )
 
     # Identify per-class frontiers
-    analyzer.identify_frontier_by_class(
-        method="pareto",
-        classes=[
-            "optimal_lr_sgd_transformer",
-            "vanilla_transformer",
-            "vanilla_transformer_no_rotary",
-        ],
-        flop_range_by_class={
-            "optimal_lr_sgd_transformer": (1e14, 1e15),
-            "vanilla_transformer": (3 * 1e14, 1e15),
-            "vanilla_transformer_no_rotary": (1e14, 1e15),
-        },
-    )
+    # analyzer.identify_frontier_by_class(
+    #     method="pareto",
+    #     classes=[
+    #         # "optimal_lr_sgd_transformer",
+    #         "vanilla_transformer",
+    #         "optimal_lr_sgd_transformer",
+    #         "vanilla_transformer_no_rotary",
+    #         "vanilla_transformer_rmsprop",
+    #         "optimal_lr_sgd_transformer",
+    #     ],
+    #     flop_range_by_class={
+    #         # "optimal_lr_sgd_transformer": (1e14, 1e15),
+    #         "vanilla_transformer": (1e14, 1e15),
+    #         "optimal_lr_sgd_transformer": (1e14, 1e15),
+    #         "vanilla_transformer_no_rotary": (1e14, 1e15),
+    #         "vanilla_transformer_rmsprop": (1e14, 1e15),
+    #     },
+    # )
 
     # Example 1: Plot all experiments with frontier analysis
     analyzer.plot_training_curves_by_class(
         show_all_curves=True,
-        show_power_law_fit=True,
+        show_power_law_fit=False,
         show_sklearn_fit=False,  # Enable sklearn-style fit: L = E + A * C^alpha
         save_path="Figures/universal_scaling_law_study_by_class.png",
         classes_to_plot=[
-            "optimal_lr_sgd_transformer",
+            # "optimal_lr_sgd_transformer",
+            "vanilla_transformer",
             "vanilla_transformer_no_rotary",
+            # "vanilla_transformer_rmsprop",
         ],
-        flop_range_by_class={
-            "optimal_lr_sgd_transformer": (1e14, 1e15),
-            "vanilla_transformer_no_rotary": (3 * 1e14, 1e15),
-        },
+        # flop_range_by_class={
+        #     "optimal_lr_sgd_transformer": (1e14, 1e15),
+        #     "vanilla_transformer": (1e14, 1e15),
+        #     "vanilla_transformer_no_rotary": (1e14, 1e15),
+        #     "vanilla_transformer_rmsprop": (1e14, 1e15),
+        # },
         colormap="viridis",  # Color experiments by hidden dimension
     )
 

@@ -6,7 +6,7 @@ from pathlib import Path
 
 import numpy as np
 import pandas as pd
-from scipy.optimize import curve_fit
+from scipy.optimize import curve_fit, minimize
 from scipy import stats
 
 
@@ -244,6 +244,7 @@ def bootstrap_confidence_intervals(
                 y_boot,
                 seed=np.random.randint(10000),
                 compute_confidence_intervals=False,
+                use_chinchilla_sk_fit=False,  # Use standard fitting for bootstrap
             )
             gamma, a, b = calculate_derived_parameters(result.alpha, result.beta)
 
@@ -406,6 +407,259 @@ def validation_loss_model(
     )
 
 
+def chinchilla_log_loss_model(
+    N: np.ndarray,
+    D: np.ndarray,
+    a: float,
+    alpha: float,
+    b: float,
+    beta: float,
+    e: float,
+) -> np.ndarray:
+    """
+    Chinchilla-style model: log L(N, D) = logsumexp(a - alpha*log(N), b - beta*log(D), e)
+    Following the Chinchilla paper's approach where they minimize Huber loss of log predictions.
+
+    Args:
+        N: Number of parameters (shape: [M])
+        D: Number of tokens (shape: [M])
+        a: Parameter scaling coefficient (log-space)
+        alpha: Scaling exponent for parameters (should be negative)
+        b: Data scaling coefficient (log-space)
+        beta: Scaling exponent for data (should be negative)
+        e: Irreducible loss term (log-space)
+
+    Returns:
+        Predicted log loss values (shape: [M])
+    """
+    # Guard against numerical issues with extremely small N or D
+    N_clamped = np.maximum(N, 1.0)
+    D_clamped = np.maximum(D, 1.0)
+
+    # Calculate the three terms for logsumexp
+    term1 = a - alpha * np.log(N_clamped)  # Parameter scaling term
+    term2 = b - beta * np.log(D_clamped)  # Data scaling term
+    term3 = np.full_like(N_clamped, e)  # Irreducible loss term
+
+    # Use logsumexp for numerical stability
+    return np.logaddexp(np.logaddexp(term1, term2), term3)
+
+
+def huber_loss(residuals: np.ndarray, delta: float = 0.1) -> float:
+    """
+    Calculate Huber loss for given residuals.
+
+    Args:
+        residuals: Array of residuals (predicted - actual)
+        delta: Threshold parameter for Huber loss
+
+    Returns:
+        Huber loss value
+    """
+    abs_residuals = np.abs(residuals)
+    quadratic_mask = abs_residuals <= delta
+    linear_mask = ~quadratic_mask
+
+    loss = np.sum(
+        np.where(
+            quadratic_mask, 0.5 * residuals**2, delta * (abs_residuals - 0.5 * delta)
+        )
+    )
+    return loss
+
+
+def chinchilla_sk_fit(
+    N_all: np.ndarray,
+    D_all: np.ndarray,
+    y_all: np.ndarray,
+    huber_delta: float = 0.1,
+    seed: int = 42,
+    confidence_level: float = 0.95,
+    use_bootstrap: bool = False,
+    n_bootstrap: int = 200,
+    compute_confidence_intervals: bool = False,
+) -> FitResult:
+    """
+    Fit the Chinchilla-style model using scikit-learn optimization with Huber loss.
+
+    This follows the Chinchilla paper approach:
+    - Uses logsumexp model: log L(N,D) = logsumexp(a - alpha*log(N), b - beta*log(D), e)
+    - Minimizes Huber loss of log predictions vs log targets
+    - Uses scikit-learn's minimize for optimization
+
+    Args:
+        N_all: Number of parameters for each data point
+        D_all: Number of tokens for each data point
+        y_all: Observed loss values (will be converted to log space)
+        huber_delta: Delta parameter for Huber loss
+        seed: Random seed for reproducibility
+        confidence_level: Confidence level for intervals (default: 0.95)
+        use_bootstrap: Whether to use bootstrap for confidence intervals (default: False)
+        n_bootstrap: Number of bootstrap samples (default: 200)
+        compute_confidence_intervals: Whether to compute confidence intervals at all (default: False)
+
+    Returns:
+        FitResult with fitted parameters, confidence intervals, and diagnostics
+    """
+    np.random.seed(seed)
+
+    # Convert observed losses to log space
+    log_y_all = np.log(np.maximum(y_all, 1e-10))  # Avoid log(0)
+
+    # Initial guesses for Chinchilla model: log L = logsumexp(a - alpha*log(N), b - beta*log(D), e)
+    # a_init, b_init, e_init: log-space coefficients
+    log_y_mean = float(np.mean(log_y_all))
+    log_y_std = float(np.std(log_y_all))
+
+    # Better initial guesses based on the data
+    a_init = log_y_mean + 0.5 * log_y_std  # Parameter scaling coefficient
+    b_init = log_y_mean + 0.5 * log_y_std  # Data scaling coefficient
+    e_init = log_y_mean  # Irreducible loss term
+    alpha_init = -0.3  # Negative for parameter scaling (closer to typical values)
+    beta_init = -0.1  # Negative for data scaling (closer to typical values)
+
+    initial_guess = [a_init, alpha_init, b_init, beta_init, e_init]
+
+    def objective(params):
+        """Objective function to minimize: Huber loss of log predictions vs log targets."""
+        a, alpha, b, beta, e = params
+
+        try:
+            # Get predicted log losses
+            log_y_pred = chinchilla_log_loss_model(N_all, D_all, a, alpha, b, beta, e)
+
+            # Calculate residuals (predicted - actual in log space)
+            residuals = log_y_pred - log_y_all
+
+            # Return Huber loss
+            return huber_loss(residuals, huber_delta)
+
+        except (ValueError, OverflowError):
+            # Return large value for invalid parameters
+            return 1e10
+
+    # Set bounds for parameters
+    bounds = [
+        (log_y_mean - 5, log_y_mean + 5),  # a: log-space parameter coefficient
+        (
+            -1.0,
+            -0.01,
+        ),  # alpha: parameter scaling exponent (negative, but not too close to 0)
+        (log_y_mean - 5, log_y_mean + 5),  # b: log-space data coefficient
+        (-1.0, -0.01),  # beta: data scaling exponent (negative, but not too close to 0)
+        (log_y_mean - 5, log_y_mean + 5),  # e: irreducible loss term
+    ]
+
+    try:
+        # Use scipy's minimize with L-BFGS-B method
+        result = minimize(
+            objective,
+            initial_guess,
+            method="L-BFGS-B",
+            bounds=bounds,
+            options={"maxiter": 1000, "ftol": 1e-6},
+        )
+
+        if not result.success:
+            print(f"Warning: Optimization did not converge: {result.message}")
+            # Use initial guess if optimization fails
+            a_val, alpha_val, b_val, beta_val, e_val = initial_guess
+        else:
+            a_val, alpha_val, b_val, beta_val, e_val = result.x
+
+        # Calculate final loss (Huber loss in log space)
+        log_y_pred = chinchilla_log_loss_model(
+            N_all, D_all, a_val, alpha_val, b_val, beta_val, e_val
+        )
+        residuals = log_y_pred - log_y_all
+        final_loss = huber_loss(residuals, huber_delta)
+
+        # Convert Chinchilla parameters to standard form for compatibility
+        # IMPORTANT: The Chinchilla model and standard model are fundamentally different!
+        # Chinchilla: log L = logsumexp(a - alpha*log(N), b - beta*log(D), e)
+        # Standard: L = exp(E) + exp(A) * N^alpha + exp(B) * D^beta
+        #
+        # The Chinchilla model uses logsumexp (smooth max) while the standard model uses addition.
+        # The parameters a, b, e in Chinchilla model are NOT directly comparable to A, B, E in standard model.
+        # We map them here only for display compatibility, but they have different meanings.
+        E_val = e_val
+        A_val = a_val
+        B_val = b_val
+
+        # Calculate derived parameters
+        gamma, a_derived, b_derived = calculate_derived_parameters(alpha_val, beta_val)
+
+        # Calculate confidence intervals only if requested
+        if compute_confidence_intervals:
+            if use_bootstrap:
+                # Use bootstrap method (more robust but slower)
+                gamma_ci, a_ci, b_ci = bootstrap_confidence_intervals(
+                    N_all, D_all, y_all, n_bootstrap, confidence_level, seed
+                )
+            else:
+                # For Chinchilla fit, we don't have covariance matrix from scikit-learn
+                # So we'll use bootstrap by default
+                gamma_ci, a_ci, b_ci = bootstrap_confidence_intervals(
+                    N_all, D_all, y_all, n_bootstrap, confidence_level, seed
+                )
+        else:
+            # No confidence intervals requested
+            gamma_ci, a_ci, b_ci = (np.nan, np.nan), (np.nan, np.nan), (np.nan, np.nan)
+
+        fit_result = FitResult(
+            E=float(E_val),
+            A=float(A_val),
+            alpha=float(alpha_val),
+            B=float(B_val),
+            beta=float(beta_val),
+            huber_beta=float(huber_delta),
+            num_points=int(y_all.shape[0]),
+            final_loss=final_loss,
+            exp_E=float(np.exp(E_val)),
+            exp_A=float(np.exp(A_val)),
+            exp_B=float(np.exp(B_val)),
+            gamma=float(gamma),
+            a=float(a_derived),
+            b=float(b_derived),
+            gamma_ci=gamma_ci,
+            a_ci=a_ci,
+            b_ci=b_ci,
+            param_cov=None,  # Not available from scikit-learn optimization
+        )
+
+    except Exception as e:
+        print(f"Warning: Chinchilla fitting failed with error: {e}")
+        print("Falling back to initial guess values")
+
+        # Fallback to initial guess
+        gamma_init, a_init_derived, b_init_derived = calculate_derived_parameters(
+            alpha_init, beta_init
+        )
+
+        fit_result = FitResult(
+            E=float(e_init),
+            A=float(a_init),
+            alpha=float(alpha_init),
+            B=float(b_init),
+            beta=float(beta_init),
+            huber_beta=float(huber_delta),
+            num_points=int(y_all.shape[0]),
+            final_loss=float("inf"),
+            exp_E=float(np.exp(e_init)),
+            exp_A=float(np.exp(a_init)),
+            exp_B=float(np.exp(b_init)),
+            gamma=float(gamma_init),
+            a=float(a_init_derived),
+            b=float(b_init_derived),
+            gamma_ci=(np.nan, np.nan),
+            a_ci=(np.nan, np.nan),
+            b_ci=(np.nan, np.nan),
+            param_cov=None,
+        )
+
+    return fit_result
+
+
 def fit_parameters(
     N_all: np.ndarray,
     D_all: np.ndarray,
@@ -419,9 +673,10 @@ def fit_parameters(
     use_bootstrap: bool = False,
     n_bootstrap: int = 200,
     compute_confidence_intervals: bool = False,
+    use_chinchilla_sk_fit: bool = False,
 ) -> FitResult:
     """
-    Fit the validation loss model using scipy's curve_fit.
+    Fit the validation loss model using either scipy's curve_fit or Chinchilla-style fitting.
 
     Args:
         N_all: Number of parameters for each data point
@@ -436,11 +691,26 @@ def fit_parameters(
         use_bootstrap: Whether to use bootstrap for confidence intervals (default: False)
         n_bootstrap: Number of bootstrap samples (default: 200)
         compute_confidence_intervals: Whether to compute confidence intervals at all (default: False)
+        use_chinchilla_sk_fit: Whether to use Chinchilla-style fitting with Huber loss (default: False)
 
     Returns:
         FitResult with fitted parameters, confidence intervals, and diagnostics
     """
     np.random.seed(seed)
+
+    # Use Chinchilla-style fitting if requested
+    if use_chinchilla_sk_fit:
+        return chinchilla_sk_fit(
+            N_all=N_all,
+            D_all=D_all,
+            y_all=y_all,
+            huber_delta=huber_beta,
+            seed=seed,
+            confidence_level=confidence_level,
+            use_bootstrap=use_bootstrap,
+            n_bootstrap=n_bootstrap,
+            compute_confidence_intervals=compute_confidence_intervals,
+        )
 
     # Initial guesses for exponential form: L = exp(E) + exp(A) * N^alpha + exp(B) * D^beta
     # E_init: log of baseline loss level
@@ -477,7 +747,7 @@ def fit_parameters(
             y_all,
             p0=initial_guess,
             bounds=bounds,
-            maxfev=10000,  # Maximum number of function evaluations
+            maxfev=2000,  # Maximum number of function evaluations (reduced for speed)
             method="trf",  # Trust Region Reflective algorithm
         )
 
@@ -581,6 +851,7 @@ def fit_validation_loss_from_pairs(
     use_bootstrap: bool = False,
     n_bootstrap: int = 200,
     compute_confidence_intervals: bool = False,
+    use_chinchilla_sk_fit: bool = False,
 ) -> FitResult:
     """
     Programmatic entry point to fit the validation loss model across multiple runs.
@@ -602,6 +873,7 @@ def fit_validation_loss_from_pairs(
         use_bootstrap: Whether to use bootstrap for confidence intervals (default: False).
         n_bootstrap: Number of bootstrap samples (default: 200).
         compute_confidence_intervals: Whether to compute confidence intervals at all (default: False).
+        use_chinchilla_sk_fit: Whether to use Chinchilla-style fitting with Huber loss (default: False).
 
     Returns:
         FitResult with fitted parameters, confidence intervals, and diagnostics.
@@ -640,6 +912,7 @@ def fit_validation_loss_from_pairs(
         use_bootstrap=use_bootstrap,
         n_bootstrap=n_bootstrap,
         compute_confidence_intervals=compute_confidence_intervals,
+        use_chinchilla_sk_fit=use_chinchilla_sk_fit,
     )
     return fit
 
@@ -691,28 +964,28 @@ def get_dataset_configurations() -> dict:
             (vanilla_optimal_dir / "vanilla_48d.csv", 2545000),
             (vanilla_optimal_dir / "vanilla_56d.csv", 3015000),
             (vanilla_optimal_dir / "vanilla_64d.csv", 3463000),
-            (vanilla_optimal_dir / "vanilla_72d.csv", int(3.917e6)),
+            # (vanilla_optimal_dir / "vanilla_72d.csv", int(3.917e6)),
             (vanilla_optimal_dir / "vanilla_80d.csv", int(4.454e6)),
-            (vanilla_optimal_dir / "vanilla_96d.csv", int(5.538e6)),
-            (vanilla_optimal_dir / "vanilla_128d.csv", int(8.056e6)),
+            # (vanilla_optimal_dir / "vanilla_96d.csv", int(5.538e6)),
+            # (vanilla_optimal_dir / "vanilla_128d.csv", int(8.056e6)),
         ]
         configurations["vanilla_scaling_optimal_lr"] = [
             (str(p), n) for p, n in vanilla_optimal_pairs if p.exists()
         ]
 
     # 3. MuP scaling experiments
-    mup_dir = data_folder / "mup_scaling_experiments"
-    if mup_dir.exists():
-        mup_pairs = [
-            (mup_dir / "mup_32d.csv", 1683000),
-            (mup_dir / "mup_40d.csv", 2098000),
-            (mup_dir / "mup_48d.csv", 2545000),
-            (mup_dir / "mup_56d.csv", 3015000),
-            (mup_dir / "mup_64d.csv", 3463000),
-        ]
-        configurations["mup_scaling_experiments"] = [
-            (str(p), n) for p, n in mup_pairs if p.exists()
-        ]
+    # mup_dir = data_folder / "mup_scaling_experiments"
+    # if mup_dir.exists():
+    #     mup_pairs = [
+    #         (mup_dir / "mup_32d.csv", 1683000),
+    #         (mup_dir / "mup_40d.csv", 2098000),
+    #         (mup_dir / "mup_48d.csv", 2545000),
+    #         (mup_dir / "mup_56d.csv", 3015000),
+    #         (mup_dir / "mup_64d.csv", 3463000),
+    #     ]
+    #     configurations["mup_scaling_experiments"] = [
+    #         (str(p), n) for p, n in mup_pairs if p.exists()
+    #     ]
 
     return configurations
 
@@ -733,12 +1006,20 @@ def _default_files_and_N() -> List[Tuple[str, int]]:
     return []
 
 
-def print_fit_results(dataset_name: str, fit: FitResult):
+def print_fit_results(dataset_name: str, fit: FitResult, is_chinchilla: bool = False):
     """Print formatted results for a single dataset fit."""
     print(f"\n{'='*80}")
     print(f"DATASET: {dataset_name.upper()}")
     print(f"{'='*80}")
-    print("Fitted parameters (L = exp(E) + exp(A) * N^alpha + exp(B) * D^beta):")
+    if is_chinchilla:
+        print(
+            "Chinchilla-style fitted parameters (log L = logsumexp(a - alpha*log(N), b - beta*log(D), e)):"
+        )
+        print(
+            "NOTE: Parameters are mapped to standard form for display, but have different meanings!"
+        )
+    else:
+        print("Fitted parameters (L = exp(E) + exp(A) * N^alpha + exp(B) * D^beta):")
     print("Log-space parameters:")
     print(f"  E     = {fit.E:.6f}")
     print(f"  A     = {fit.A:.6f}")
@@ -767,9 +1048,10 @@ def print_fit_results(dataset_name: str, fit: FitResult):
 
 def run_all_dataset_analyses(
     ignore_first_percent: float = 0.0,
-    compute_confidence_intervals: bool = True,
-    use_bootstrap: bool = True,
+    compute_confidence_intervals: bool = False,
+    use_bootstrap: bool = False,
     n_bootstrap: int = 200,
+    use_chinchilla_sk_fit: bool = False,
 ):
     """Run the fitting analysis on all available datasets."""
     configurations = get_dataset_configurations()
@@ -802,9 +1084,10 @@ def run_all_dataset_analyses(
                 compute_confidence_intervals=compute_confidence_intervals,
                 use_bootstrap=use_bootstrap,
                 n_bootstrap=n_bootstrap,
+                use_chinchilla_sk_fit=use_chinchilla_sk_fit,
             )
             results[dataset_name] = fit
-            print_fit_results(dataset_name, fit)
+            print_fit_results(dataset_name, fit, is_chinchilla=use_chinchilla_sk_fit)
 
         except Exception as e:
             print(f"Error processing {dataset_name}: {e}")
@@ -842,9 +1125,23 @@ if __name__ == "__main__":
             print(f"Error: ignore_first_percent must be a number, got {sys.argv[2]}")
             sys.exit(1)
 
+    # SET YOUR PARAMETERS HERE - both default and --all will use these exact same settings
+    fit_params = {
+        "loss_column": "validation_loss",
+        "use_tokens_column": True,
+        "ignore_first_percent": ignore_first_percent,
+        "compute_confidence_intervals": False,
+        "use_chinchilla_sk_fit": False,  # Change this to False for standard fitting
+        "use_bootstrap": False,
+        "n_bootstrap": 200,
+    }
+
     # Check if user wants to run all datasets or just the default
     if len(sys.argv) > 1 and sys.argv[1] == "--all":
-        run_all_dataset_analyses(ignore_first_percent=ignore_first_percent)
+        run_all_dataset_analyses(
+            ignore_first_percent=ignore_first_percent,
+            use_chinchilla_sk_fit=fit_params["use_chinchilla_sk_fit"],
+        )
     else:
         # Original behavior - run on default dataset
         pairs = _default_files_and_N()
@@ -858,15 +1155,30 @@ if __name__ == "__main__":
             )
             raise SystemExit(0)
 
-        fit = fit_validation_loss_from_pairs(
-            pairs,
-            loss_column="validation_loss",
-            use_tokens_column=True,
-            ignore_first_percent=ignore_first_percent,
-            compute_confidence_intervals=True,
-            use_bootstrap=True,
-            n_bootstrap=200,
+        fit = fit_validation_loss_from_pairs(pairs, **fit_params)
+        print_fit_results(
+            "default", fit, is_chinchilla=fit_params["use_chinchilla_sk_fit"]
         )
-        print_fit_results("default", fit)
 
 # %%
+
+# Example usage of Chinchilla-style fitting:
+#
+# # Standard fitting (original method)
+# fit_standard = fit_validation_loss_from_pairs(
+#     files_and_N,
+#     use_chinchilla_sk_fit=False,
+#     compute_confidence_intervals=True
+# )
+#
+# # Chinchilla-style fitting with Huber loss
+# fit_chinchilla = fit_validation_loss_from_pairs(
+#     files_and_N,
+#     use_chinchilla_sk_fit=True,
+#     huber_beta=0.1,  # Huber loss delta parameter
+#     compute_confidence_intervals=True
+# )
+#
+# # Compare results
+# print("Standard fit alpha:", fit_standard.alpha)
+# print("Chinchilla fit alpha:", fit_chinchilla.alpha)

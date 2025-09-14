@@ -55,18 +55,20 @@ def get_mup_learning_rates_transformer(
         pos_emb = getattr(model, "pos_emb", None)
 
     # Check if embeddings are tied
-    tie_embeddings = getattr(model.module if hasattr(model, "module") else model, "tie_embeddings", False)
-    
+    tie_embeddings = getattr(
+        model.module if hasattr(model, "module") else model, "tie_embeddings", False
+    )
+
     param_groups = []
-    
+
     # Handle embedding parameters based on weight tying
     if tie_embeddings:
         # When weight tying is enabled, tied weights serve both embedding and output functions
         # Use geometric mean of embedding scaling (1/scale) and output scaling (1.0)
         embedding_lr = base_lr / mup_scale  # What embedding would use
-        output_lr = base_lr  # What output would use  
+        output_lr = base_lr  # What output would use
         tied_lr = (embedding_lr * output_lr) ** 0.5  # Geometric mean
-        
+
         embedding_params = list(embedding.parameters())
         if pos_emb is not None:
             embedding_params.append(pos_emb)
@@ -82,7 +84,9 @@ def get_mup_learning_rates_transformer(
             {"params": embedding_params, "lr": base_lr / mup_scale, "name": "embedding"}
         )
         # Output layer parameters: no scaling (base lr)
-        param_groups.append({"params": fc.parameters(), "lr": base_lr, "name": "output"})
+        param_groups.append(
+            {"params": fc.parameters(), "lr": base_lr, "name": "output"}
+        )
 
     # Transformer layer parameters: lr scaled by 1/scale
     layer_params = []
@@ -141,8 +145,10 @@ def get_wikitext_data_by_tokens(token_limit, tokenizer):
     # Always use character approximation for speed (same as the old system)
     # Convert token limit to character limit using 4:1 ratio
     char_limit = int(token_limit * 4)
-    print(f"Loading WikiText data for {token_limit:,} tokens (~{char_limit:,} characters)...")
-    
+    print(
+        f"Loading WikiText data for {token_limit:,} tokens (~{char_limit:,} characters)..."
+    )
+
     # Use the existing fast character-based loading
     return get_wikitext_data(limit=char_limit)
 
@@ -549,7 +555,9 @@ class SimpleTransformer(nn.Module):
         # MODIFY THIS SECTION - Add positional embeddings based on config
         self.pos_encoding = config.pos_encoding
         if self.pos_encoding == "sinusoidal":
-            self.pos_emb = SinusoidalPositionalEmbedding(hidden_dim)
+            self.pos_emb = SinusoidalPositionalEmbedding(
+                hidden_dim, max_len=config.seq_length
+            )
         elif self.pos_encoding == "learned":
             # Max sequence length for learned positional embeddings
             max_seq_len = config.seq_length

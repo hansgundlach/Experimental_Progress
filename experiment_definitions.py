@@ -93,37 +93,36 @@ TRANSFORMER_SCALING_EXPERIMENTS_OPTIMAL_LR_NO_ROTARY = (
         32,
         label="vanilla_32d_no_rot",
         folder_name="vanilla_scaling_no_rotary",
-        learning_rate=1e-1,
+        learning_rate=1e-2,
+        pos_encoding="sinusoidal",
     )
-    + gen_experim(
-        40,
-        label="vanilla_40d_no_rot",
-        folder_name="vanilla_scaling_no_rotary",
-        learning_rate=10 ** (-1),
-    )
+    # + gen_experim(
+    #     40,
+    #     label="vanilla_40d_no_rot",
+    #     folder_name="vanilla_scaling_no_rotary",
+    #     learning_rate=10 ** (-2),
+    #     pos_encoding="sinusoidal",
+    # )
     + gen_experim(
         48,
         label="vanilla_48d_no_rot",
         folder_name="vanilla_scaling_no_rotary",
-        learning_rate=10 ** (-1),
+        learning_rate=10 ** (-2),
+        pos_encoding="sinusoidal",
     )
     + gen_experim(
         56,
         label="vanilla_56d_no_rot",
         folder_name="vanilla_scaling_no_rotary",
-        learning_rate=10 ** (-1),
+        learning_rate=10 ** (-2),
+        pos_encoding="sinusoidal",
     )
     + gen_experim(
         64,
         label="vanilla_64d_no_rot",
         folder_name="vanilla_scaling_no_rotary",
-        learning_rate=10 ** (-1),
-    )
-    + gen_experim(
-        80,
-        label="vanilla_80d_no_rot",
-        folder_name="vanilla_scaling_no_rotary",
-        learning_rate=10 ** (-1),
+        learning_rate=10 ** (-2),
+        pos_encoding="sinusoidal",
     )
 )
 
@@ -131,39 +130,31 @@ TRANSFORMER_SCALING_EXPERIMENTS_OPTIMAL_LR_NO_ROTARY = (
 TRANSFORMER_SCALING_EXPERIMENTS_RMSPROP = (
     gen_experim(
         32,
-        label="vanilla_32d",
+        label="vanilla_32d_rmsprop",
         folder_name="vanilla_scaling_rmsprop",
-        learning_rate=1e-1,
-    )
-    + gen_experim(
-        40,
-        label="vanilla_40d",
-        folder_name="vanilla_scaling_rmsprop",
-        learning_rate=10 ** (-1),
+        learning_rate=10 ** (-1.5),
+        optimizer="rmsprop",
     )
     + gen_experim(
         48,
-        label="vanilla_48d",
+        label="vanilla_48d_rmsprop",
         folder_name="vanilla_scaling_rmsprop",
-        learning_rate=10 ** (-1),
+        learning_rate=10 ** (-2),
+        optimizer="rmsprop",
     )
     + gen_experim(
         56,
-        label="vanilla_56d",
+        label="vanilla_56d_rmsprop",
         folder_name="vanilla_scaling_rmsprop",
-        learning_rate=10 ** (-1),
+        learning_rate=10 ** (-2),
+        optimizer="rmsprop",
     )
     + gen_experim(
         64,
-        label="vanilla_64d",
+        label="vanilla_64d_rmsprop",
         folder_name="vanilla_scaling_rmsprop",
-        learning_rate=10 ** (-1),
-    )
-    + gen_experim(
-        80,
-        label="vanilla_80d",
-        folder_name="vanilla_scaling_rmsprop",
-        learning_rate=10 ** (-1),
+        learning_rate=10 ** (-2),
+        optimizer="rmsprop",
     )
 )
 
@@ -213,14 +204,7 @@ TRANSFORMER_SGD_SCALING_EXPERIMENTS_OPTIMAL_LR = (
         32,
         label="optimal_lr_sgd_32d",
         folder_name="optimal_lr_sgd_scaling",
-        learning_rate=0.1,
-        optimizer="sgd",
-    )
-    + gen_experim(
-        40,
-        label="optimal_lr_sgd_40d",
-        folder_name="optimal_lr_sgd_scaling",
-        learning_rate=0.1,
+        learning_rate=10 ** (-1),
         optimizer="sgd",
     )
     + gen_experim(
@@ -234,14 +218,14 @@ TRANSFORMER_SGD_SCALING_EXPERIMENTS_OPTIMAL_LR = (
         56,
         label="optimal_lr_sgd_56d",
         folder_name="optimal_lr_sgd_scaling",
-        learning_rate=0.1,
+        learning_rate=10 ** (-1),
         optimizer="sgd",
     )
     + gen_experim(
         64,
         label="optimal_lr_sgd_64d",
         folder_name="optimal_lr_sgd_scaling",
-        learning_rate=0.1,
+        learning_rate=10 ** (-1),
         optimizer="sgd",
     )
 )
@@ -387,12 +371,179 @@ TRANSFORMER_LR_TUNE_STANDARD = create_multi_lr_experiments(
 #     )
 # )
 
-GRAND_EXPERIMENT = (
-    TRANSFORMER_SCALING_EXPERIMENTS_OPTIMAL_LR
-    + TRANSFORMER_SGD_SCALING_EXPERIMENTS_OPTIMAL_LR
-    + TRANSFORMER_SCALING_EXPERIMENTS_RMSPROP
-    + create_multi_lr_experiments(
-        TRANSFORMER_SGD_SCALING_EXPERIMENTS_OPTIMAL_LR, NARROW_LR_SWEEP
+
+# Grand lr tune experiments
+# GRAND_EXPERIMENT = (
+#     create_multi_lr_experiments(
+#         TRANSFORMER_SCALING_EXPERIMENTS_RMSPROP, NARROW_LR_SWEEP
+#     )
+#     + create_multi_lr_experiments(
+#         TRANSFORMER_SCALING_EXPERIMENTS_OPTIMAL_LR, NARROW_LR_SWEEP
+#     )
+#     + create_multi_lr_experiments(
+#         TRANSFORMER_SGD_SCALING_EXPERIMENTS_OPTIMAL_LR, NARROW_LR_SWEEP
+#     )
+# )
+# 6*5+6
+
+
+# GRAND_EXPERIMENT = (
+#     TRANSFORMER_SCALING_EXPERIMENTS_RMSPROP
+#     + TRANSFORMER_SCALING_EXPERIMENTS_OPTIMAL_LR
+#     + TRANSFORMER_SGD_SCALING_EXPERIMENTS_OPTIMAL_LR
+#     + TRANSFORMER_SCALING_EXPERIMENTS_OPTIMAL_LR_NO_ROTARY
+# )
+
+
+VARIATION_EXPERIMENTS = (
+    #     gen_experim(
+    #         32,
+    #         label="lower min lr",
+    #         folder_name="variation_experiments_no_rot",
+    #         learning_rate=1e-2,
+    #         pos_encoding="sinusoidal",
+    #         min_lr_multiplier=0.000001,
+    #     )
+    #     + gen_experim(
+    #         32,
+    #         label="cosine annealing simple",
+    #         folder_name="variation_experiments_no_rot",
+    #         learning_rate=1e-2,
+    #         pos_encoding="sinusoidal",
+    #         lr_schedule="cosine",
+    #     )
+    #     + gen_experim(
+    #         32,
+    #         label="longer warmup",
+    #         folder_name="variation_experiments_no_rot",
+    #         learning_rate=1e-2,
+    #         pos_encoding="sinusoidal",
+    #         warmup_frac=0.1,
+    #     )
+    #     + gen_experim(
+    #         32,
+    #         label="standard sin",
+    #         folder_name="variation_experiments_no_rot",
+    #         learning_rate=1e-2,
+    #         pos_encoding="sinusoidal",
+    #     )
+    # gen_experim(
+    #     32,
+    #     label="2 heads",
+    #     folder_name="variation_experiments_no_rot",
+    #     learning_rate=1e-2,
+    #     num_heads=2,
+    #     pos_encoding="sinusoidal",
+    # )
+    # + gen_experim(
+    #     32,
+    #     label="4 heads",
+    #     folder_name="variation_experiments_no_rot",
+    #     learning_rate=1e-2,
+    #     num_heads=4,
+    #     pos_encoding="sinusoidal",
+    #     )
+    #
+    gen_experim(
+        32,
+        label="sgd smaller",
+        folder_name="variation_experiments",
+        learning_rate=1e-2,
+        num_heads=2,
+        optimizer="sgd",
+    )
+    + gen_experim(
+        32,
+        label="sgd 4 head",
+        folder_name="variation_experiments",
+        learning_rate=1e-1,
+        num_heads=4,
+        optimizer="sgd",
+    )
+    + gen_experim(
+        32,
+        label="sgd_cosine_annealing",
+        folder_name="variation_experiments",
+        learning_rate=1e-1,
+        num_heads=2,
+        optimizer="sgd",
+        lr_schedule="cosine",
+    )
+    + gen_experim(
+        32,
+        label="sgd_cosine_annealing_small_lr",
+        folder_name="variation_experiments",
+        learning_rate=1e-2,
+        num_heads=2,
+        optimizer="sgd",
+        lr_schedule="cosine",
+    )
+    + gen_experim(
+        32,
+        label="long warmup",
+        folder_name="variation_experiments",
+        learning_rate=1e-1,
+        num_heads=2,
+        optimizer="sgd",
+        warmup_frac=0.1,
     )
 )
-# 6*5+6
+
+
+# GRAND_EXPERIMENT = (
+#     TRANSFORMER_SCALING_EXPERIMENTS_OPTIMAL_LR_NO_ROTARY
+#     + create_multi_lr_experiments(
+#         TRANSFORMER_SCALING_EXPERIMENTS_OPTIMAL_LR_NO_ROTARY, NARROW_LR_SWEEP
+#     )
+# )
+
+# do sgd and rmsprop lr tunes
+
+# GRAND_EXPERIMENT = create_multi_lr_experiments(
+#     TRANSFORMER_SGD_SCALING_EXPERIMENTS_OPTIMAL_LR, NARROW_LR_SWEEP
+# ) + create_multi_lr_experiments(
+#     TRANSFORMER_SCALING_EXPERIMENTS_RMSPROP, NARROW_LR_SWEEP
+# )
+
+# rms prop and sgd scaling
+# GRAND_EXPERIMENT = (
+#     TRANSFORMER_SGD_SCALING_EXPERIMENTS_OPTIMAL_LR
+#     + TRANSFORMER_SCALING_EXPERIMENTS_RMSPROP
+# )
+
+GRAND_EXPERIMENT = (
+    gen_experim(
+        64,
+        label="64d_sgd_cosine_annealing",
+        folder_name="variation_experiments",
+        learning_rate=1e-1,
+        num_heads=2,
+        optimizer="sgd",
+        lr_schedule="cosine",
+    )
+    + gen_experim(
+        64,
+        label="64d_sgd_cosine_annealing_small_lr",
+        folder_name="variation_experiments",
+        learning_rate=1e-2,
+        num_heads=2,
+        optimizer="sgd",
+        lr_schedule="cosine",
+    )
+    + gen_experim(
+        64,
+        label="64d_low_lr",
+        folder_name="variation_experiments",
+        learning_rate=1e-2,
+        num_heads=2,
+        optimizer="sgd",
+    )
+    + gen_experim(  
+        64,
+        label="64d_10_1.5_lr",
+        folder_name="variation_experiments",
+        learning_rate=10 ** (-1.5),
+        num_heads=2,
+        optimizer="sgd",
+    )
+)
