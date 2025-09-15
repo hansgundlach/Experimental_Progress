@@ -99,14 +99,24 @@ def get_mup_learning_rates(model, base_lr, use_mup=False, mup_base_width=64):
 cudnn.benchmark = True
 
 
-def tbptt_forward_backward(model, inputs, targets, hidden, criterion, use_amp, scaler, 
-                          tbptt_length, gradient_accumulation_steps, get_vocab_size_fn):
+def tbptt_forward_backward(
+    model,
+    inputs,
+    targets,
+    hidden,
+    criterion,
+    use_amp,
+    scaler,
+    tbptt_length,
+    gradient_accumulation_steps,
+    get_vocab_size_fn,
+):
     """
     Perform truncated BPTT forward and backward pass.
-    
+
     Args:
         model: LSTM model
-        inputs: Input tokens [batch_size, sequence_length]  
+        inputs: Input tokens [batch_size, sequence_length]
         targets: Target tokens [batch_size, sequence_length]
         hidden: Initial hidden state tuple (h, c)
         criterion: Loss function
@@ -115,51 +125,60 @@ def tbptt_forward_backward(model, inputs, targets, hidden, criterion, use_amp, s
         tbptt_length: Window length for truncated BPTT
         gradient_accumulation_steps: Number of gradient accumulation steps
         get_vocab_size_fn: Function to get vocabulary size
-    
+
     Returns:
         total_loss: Accumulated loss over all windows
         final_hidden: Final hidden state (detached)
     """
     batch_size, full_sequence_length = inputs.size()
     total_loss = 0.0
-    
+
     # Process sequence in windows of tbptt_length
     for start_idx in range(0, full_sequence_length, tbptt_length):
         end_idx = min(start_idx + tbptt_length, full_sequence_length)
         window_inputs = inputs[:, start_idx:end_idx]
         window_targets = targets[:, start_idx:end_idx]
-        
+
         # Forward pass through this window
         if use_amp:
             with autocast():
                 window_outputs, hidden = model(window_inputs, hidden)
                 # Detach hidden state to truncate gradients at window boundary
                 hidden = tuple(h.detach() for h in hidden)
-                
+
                 # Compute loss for this window
                 window_outputs = window_outputs.reshape(-1, get_vocab_size_fn())
                 window_targets_reshaped = window_targets.reshape(-1)
-                window_loss = criterion(window_outputs, window_targets_reshaped) / gradient_accumulation_steps
-                
+                window_loss = (
+                    criterion(window_outputs, window_targets_reshaped)
+                    / gradient_accumulation_steps
+                )
+
             # Backward pass for this window
             scaler.scale(window_loss).backward()
         else:
             # Regular precision
             window_outputs, hidden = model(window_inputs, hidden)
-            # Detach hidden state to truncate gradients at window boundary  
+            # Detach hidden state to truncate gradients at window boundary
             hidden = tuple(h.detach() for h in hidden)
-            
+
             # Compute loss for this window
             window_outputs = window_outputs.reshape(-1, get_vocab_size_fn())
             window_targets_reshaped = window_targets.reshape(-1)
-            window_loss = criterion(window_outputs, window_targets_reshaped) / gradient_accumulation_steps
-            
+            window_loss = (
+                criterion(window_outputs, window_targets_reshaped)
+                / gradient_accumulation_steps
+            )
+
             # Backward pass for this window
             window_loss.backward()
-            
+
         total_loss += window_loss.item()
-    
-    return total_loss * gradient_accumulation_steps, hidden  # Scale back loss for logging
+
+    return (
+        total_loss * gradient_accumulation_steps,
+        hidden,
+    )  # Scale back loss for logging
 
 
 class WikiTextDataset(Dataset):
@@ -204,14 +223,14 @@ class TextPreprocessor:
         # FIXED: Use tokenizer directly to avoid sequence length validation
         # The encode() method can trigger model max_length validation
         tokens = self.tokenizer(
-            text, 
+            text,
             add_special_tokens=False,
             truncation=False,
             padding=False,
             return_tensors=None,  # Return Python list
             return_attention_mask=False,
-            verbose=False
-        )['input_ids']
+            verbose=False,
+        )["input_ids"]
         return tokens
 
 
@@ -244,15 +263,179 @@ class VariationalDropout(nn.Module):
         return x * mask
 
 
-class AdvancedLSTMLanguageModel(nn.Module):
+class LSTMCellWithRecurrentDropout(nn.Module):
+    """
+    Custom LSTM cell with recurrent (hidden-to-hidden) dropout.
+    Applies dropout to the hidden state before it's used in the next timestep.
+    """
+
+    def __init__(self, input_size, hidden_size, recurrent_dropout=0.0):
+        super().__init__()
+        self.input_size = input_size
+        self.hidden_size = hidden_size
+        self.recurrent_dropout = recurrent_dropout
+
+        # Standard LSTM parameters
+        self.weight_ih = nn.Parameter(torch.randn(4 * hidden_size, input_size))
+        self.weight_hh = nn.Parameter(torch.randn(4 * hidden_size, hidden_size))
+        self.bias_ih = nn.Parameter(torch.randn(4 * hidden_size))
+        self.bias_hh = nn.Parameter(torch.randn(4 * hidden_size))
+
+        # Initialize weights
+        self._init_weights()
+
+    def _init_weights(self):
+        """Initialize weights following standard LSTM practices"""
+        # Input-to-hidden weights: Xavier uniform
+        nn.init.xavier_uniform_(self.weight_ih)
+        # Hidden-to-hidden weights: Orthogonal
+        nn.init.orthogonal_(self.weight_hh)
+        # Biases: zeros, except forget gate bias = 1
+        nn.init.zeros_(self.bias_ih)
+        nn.init.zeros_(self.bias_hh)
+        self.bias_ih[self.hidden_size : 2 * self.hidden_size].fill_(1.0)  # forget gate
+        self.bias_hh[self.hidden_size : 2 * self.hidden_size].fill_(1.0)  # forget gate
+
+    def forward(self, input, hidden):
+        """
+        Args:
+            input: (batch_size, input_size)
+            hidden: tuple of (h_prev, c_prev) each of shape (batch_size, hidden_size)
+        Returns:
+            output: (batch_size, hidden_size)
+            new_hidden: tuple of (h_new, c_new)
+        """
+        h_prev, c_prev = hidden
+        batch_size = input.size(0)
+
+        # Apply recurrent dropout to hidden state if training
+        if self.training and self.recurrent_dropout > 0:
+            # Create dropout mask for hidden state
+            dropout_mask = torch.bernoulli(
+                h_prev.new_ones(batch_size, self.hidden_size)
+                * (1 - self.recurrent_dropout)
+            ) / (1 - self.recurrent_dropout)
+            h_prev = h_prev * dropout_mask
+
+        # Compute gates
+        gi = torch.mm(input, self.weight_ih.t()) + self.bias_ih
+        gh = torch.mm(h_prev, self.weight_hh.t()) + self.bias_hh
+        gates = gi + gh
+
+        # Split gates
+        ingate, forgetgate, cellgate, outgate = gates.chunk(4, 1)
+
+        # Apply activations
+        ingate = torch.sigmoid(ingate)
+        forgetgate = torch.sigmoid(forgetgate)
+        cellgate = torch.tanh(cellgate)
+        outgate = torch.sigmoid(outgate)
+
+        # Update cell state
+        c_new = forgetgate * c_prev + ingate * cellgate
+
+        # Compute new hidden state
+        h_new = outgate * torch.tanh(c_new)
+
+        return h_new, (h_new, c_new)
+
+
+class MultiLayerLSTMWithRecurrentDropout(nn.Module):
+    """
+    Multi-layer LSTM using custom cells with recurrent dropout support.
+    """
+
+    def __init__(self, input_size, hidden_size, num_layers, recurrent_dropout=0.0):
+        super().__init__()
+        self.input_size = input_size
+        self.hidden_size = hidden_size
+        self.num_layers = num_layers
+        self.recurrent_dropout = recurrent_dropout
+
+        # Create LSTM cells
+        self.cells = nn.ModuleList()
+        for i in range(num_layers):
+            layer_input_size = input_size if i == 0 else hidden_size
+            self.cells.append(
+                LSTMCellWithRecurrentDropout(
+                    layer_input_size, hidden_size, recurrent_dropout
+                )
+            )
+
+    def forward(self, input, hidden=None):
+        """
+        Args:
+            input: (batch_size, seq_len, input_size)
+            hidden: tuple of (h_0, c_0) each of shape (num_layers, batch_size, hidden_size)
+        Returns:
+            output: (batch_size, seq_len, hidden_size)
+            new_hidden: tuple of (h_n, c_n)
+        """
+        batch_size, seq_len, _ = input.size()
+
+        if hidden is None:
+            h_0 = torch.zeros(
+                self.num_layers,
+                batch_size,
+                self.hidden_size,
+                device=input.device,
+                dtype=input.dtype,
+            )
+            c_0 = torch.zeros(
+                self.num_layers,
+                batch_size,
+                self.hidden_size,
+                device=input.device,
+                dtype=input.dtype,
+            )
+            hidden = (h_0, c_0)
+
+        h_prev, c_prev = hidden
+
+        # Process sequence
+        outputs = []
+        for t in range(seq_len):
+            x_t = input[:, t, :]  # (batch_size, input_size)
+
+            # Process through layers
+            h_new = []
+            c_new = []
+            for layer_idx, cell in enumerate(self.cells):
+                layer_hidden = (h_prev[layer_idx], c_prev[layer_idx])
+                h_out, (h_out, c_out) = cell(x_t, layer_hidden)
+                h_new.append(h_out)
+                c_new.append(c_out)
+                x_t = h_out  # Use output as input for next layer
+
+            # Stack layer outputs
+            h_prev = torch.stack(h_new, dim=0)  # (num_layers, batch_size, hidden_size)
+            c_prev = torch.stack(c_new, dim=0)  # (num_layers, batch_size, hidden_size)
+
+            # Store output from last layer
+            outputs.append(x_t)  # (batch_size, hidden_size)
+
+        # Stack time outputs
+        output = torch.stack(outputs, dim=1)  # (batch_size, seq_len, hidden_size)
+
+        return output, (h_prev, c_prev)
+
+
+class VanillaLSTMLanguageModel(nn.Module):
+    """
+    Advanced LSTM language model with comprehensive dropout support.
+    Supports variational dropout, between-layers dropout, and recurrent dropout.
+    """
+
     def __init__(
         self,
         vocab_size: int,
         hidden_size: int,
         num_layers: int,
-        input_dropout: float = 0.4,
-        hidden_dropout: float = 0.3,
-        output_dropout: float = 0.4,
+        input_dropout: float = 0.0,
+        hidden_dropout: float = 0.0,
+        output_dropout: float = 0.0,
+        between_layers_dropout: float = 0.0,
+        recurrent_dropout: float = 0.0,
         use_layer_norm: bool = False,
         layer_norm_position: str = "output",
         use_mup: bool = False,
@@ -272,18 +455,28 @@ class AdvancedLSTMLanguageModel(nn.Module):
 
         self.embedding = nn.Embedding(vocab_size, hidden_size)
 
-        # Create LSTM layers manually for better control
-        self.lstm_layers = nn.ModuleList()
-        for i in range(num_layers):
-            self.lstm_layers.append(
-                nn.LSTM(hidden_size, hidden_size, 1, batch_first=True)
+        # Create LSTM layers - use custom recurrent dropout LSTM if needed
+        if recurrent_dropout > 0:
+            # Use custom LSTM with recurrent dropout
+            self.lstm = MultiLayerLSTMWithRecurrentDropout(
+                hidden_size, hidden_size, num_layers, recurrent_dropout
             )
+            self.use_custom_lstm = True
+        else:
+            # Use standard PyTorch LSTM layers for better performance
+            self.lstm_layers = nn.ModuleList()
+            for i in range(num_layers):
+                self.lstm_layers.append(
+                    nn.LSTM(hidden_size, hidden_size, 1, batch_first=True)
+                )
+            self.use_custom_lstm = False
 
         # Different dropout types
         self.input_dropout = VariationalDropout(input_dropout)
         self.hidden_dropouts = nn.ModuleList(
             [VariationalDropout(hidden_dropout) for _ in range(num_layers - 1)]
         )
+        self.between_layers_dropout = nn.Dropout(between_layers_dropout)
         self.output_dropout = VariationalDropout(output_dropout)
 
         self.linear = nn.Linear(hidden_size, vocab_size)
@@ -316,21 +509,26 @@ class AdvancedLSTMLanguageModel(nn.Module):
         nn.init.xavier_uniform_(self.embedding.weight)
 
         # LSTM layers: follow standard LSTM initialization
-        for lstm_layer in self.lstm_layers:
-            for name, param in lstm_layer.named_parameters():
-                if "weight_ih" in name:
-                    # Input-to-hidden weights: Xavier uniform
-                    nn.init.xavier_uniform_(param.data)
-                elif "weight_hh" in name:
-                    # Hidden-to-hidden weights: Orthogonal
-                    nn.init.orthogonal_(param.data)
-                elif "bias" in name:
-                    # Set all biases to 0, then forget gate bias to +1
-                    param.data.fill_(0.0)
-                    hidden_size = param.size(0) // 4
-                    param.data[hidden_size : 2 * hidden_size].fill_(
-                        1.0
-                    )  # forget gate bias
+        if self.use_custom_lstm:
+            # Custom LSTM initialization is handled in the cell constructor
+            pass
+        else:
+            # Standard LSTM layers initialization
+            for lstm_layer in self.lstm_layers:
+                for name, param in lstm_layer.named_parameters():
+                    if "weight_ih" in name:
+                        # Input-to-hidden weights: Xavier uniform
+                        nn.init.xavier_uniform_(param.data)
+                    elif "weight_hh" in name:
+                        # Hidden-to-hidden weights: Orthogonal
+                        nn.init.orthogonal_(param.data)
+                    elif "bias" in name:
+                        # Set all biases to 0, then forget gate bias to +1
+                        param.data.fill_(0.0)
+                        hidden_size = param.size(0) // 4
+                        param.data[hidden_size : 2 * hidden_size].fill_(
+                            1.0
+                        )  # forget gate bias
 
         # Output layer: Xavier uniform initialization
         nn.init.xavier_uniform_(self.linear.weight)
@@ -344,23 +542,29 @@ class AdvancedLSTMLanguageModel(nn.Module):
         nn.init.uniform_(self.embedding.weight, -bound, bound)
 
         # LSTM layers: combine muP scaling with standard LSTM practices
-        for lstm_layer in self.lstm_layers:
-            for name, param in lstm_layer.named_parameters():
-                if "weight_ih" in name:
-                    # Input-to-hidden: muP scaled Xavier uniform
-                    std = 1 / math.sqrt(self.hidden_size)
-                    bound = math.sqrt(3.0) * std
-                    nn.init.uniform_(param.data, -bound, bound)
-                elif "weight_hh" in name:
-                    # Hidden-to-hidden: Orthogonal (standard LSTM practice)
-                    nn.init.orthogonal_(param.data)
-                elif "bias" in name:
-                    # Standard LSTM bias initialization
-                    param.data.fill_(0.0)
-                    hidden_size = param.size(0) // 4
-                    param.data[hidden_size : 2 * hidden_size].fill_(
-                        1.0
-                    )  # forget gate bias
+        if self.use_custom_lstm:
+            # Custom LSTM initialization is handled in the cell constructor
+            # We need to reinitialize the custom LSTM with muP scaling
+            pass  # For now, custom LSTM uses standard initialization
+        else:
+            # Standard LSTM layers initialization
+            for lstm_layer in self.lstm_layers:
+                for name, param in lstm_layer.named_parameters():
+                    if "weight_ih" in name:
+                        # Input-to-hidden: muP scaled Xavier uniform
+                        std = 1 / math.sqrt(self.hidden_size)
+                        bound = math.sqrt(3.0) * std
+                        nn.init.uniform_(param.data, -bound, bound)
+                    elif "weight_hh" in name:
+                        # Hidden-to-hidden: Orthogonal (standard LSTM practice)
+                        nn.init.orthogonal_(param.data)
+                    elif "bias" in name:
+                        # Standard LSTM bias initialization
+                        param.data.fill_(0.0)
+                        hidden_size = param.size(0) // 4
+                        param.data[hidden_size : 2 * hidden_size].fill_(
+                            1.0
+                        )  # forget gate bias
 
         # Output layer: muP scaled initialization
         # Only initialize if not tied to embedding
@@ -383,26 +587,38 @@ class AdvancedLSTMLanguageModel(nn.Module):
         if hidden is None:
             hidden = self.init_hidden(x.size(0), x.device)
 
-        # Process through LSTM layers with variational dropout
-        lstm_out = lstm_input
-        new_hidden = []
+        # Process through LSTM layers
+        if self.use_custom_lstm:
+            # Use custom LSTM with recurrent dropout
+            lstm_out, (h_n, c_n) = self.lstm(lstm_input, hidden)
+        else:
+            # Use standard LSTM layers with variational dropout
+            lstm_out = lstm_input
+            new_hidden = []
 
-        for i, lstm_layer in enumerate(self.lstm_layers):
-            layer_hidden = (hidden[0][i : i + 1], hidden[1][i : i + 1])
-            lstm_out, layer_new_hidden = lstm_layer(lstm_out, layer_hidden)
-            new_hidden.append(layer_new_hidden)
+            for i, lstm_layer in enumerate(self.lstm_layers):
+                layer_hidden = (hidden[0][i : i + 1], hidden[1][i : i + 1])
+                lstm_out, layer_new_hidden = lstm_layer(lstm_out, layer_hidden)
+                new_hidden.append(layer_new_hidden)
 
-            # Apply output LayerNorm if configured
-            if self.use_layer_norm and self.layer_norm_position in ["output", "both"]:
-                lstm_out = self.output_layer_norms[i](lstm_out)
+                # Apply output LayerNorm if configured
+                if self.use_layer_norm and self.layer_norm_position in [
+                    "output",
+                    "both",
+                ]:
+                    lstm_out = self.output_layer_norms[i](lstm_out)
 
-            # Apply hidden dropout (except for last layer)
-            if i < len(self.lstm_layers) - 1:
-                lstm_out = self.hidden_dropouts[i](lstm_out)
+                # Apply between-layers dropout (standard dropout between LSTM layers)
+                if i < len(self.lstm_layers) - 1:
+                    lstm_out = self.between_layers_dropout(lstm_out)
 
-        # Combine hidden states
-        h_n = torch.cat([h[0] for h in new_hidden], dim=0)
-        c_n = torch.cat([c[1] for c in new_hidden], dim=0)
+                # Apply hidden dropout (variational dropout, except for last layer)
+                if i < len(self.lstm_layers) - 1:
+                    lstm_out = self.hidden_dropouts[i](lstm_out)
+
+            # Combine hidden states
+            h_n = torch.cat([h[0] for h in new_hidden], dim=0)
+            c_n = torch.cat([c[1] for c in new_hidden], dim=0)
 
         # Apply output dropout
         lstm_out = self.output_dropout(lstm_out)
@@ -890,13 +1106,15 @@ def train_model(
     )
 
     # Initialize model
-    model = AdvancedLSTMLanguageModel(
+    model = VanillaLSTMLanguageModel(
         vocab_size=preprocessor.vocab_size,
         hidden_size=config["hidden_size"],
         num_layers=config["num_layers"],
         input_dropout=config["input_dropout"],
         hidden_dropout=config["hidden_dropout"],
         output_dropout=config["output_dropout"],
+        between_layers_dropout=config.get("between_layers_dropout", 0.0),
+        recurrent_dropout=config.get("recurrent_dropout", 0.0),
         use_layer_norm=config.get("use_layer_norm", False),
         layer_norm_position=config.get("layer_norm_position", "output"),
         use_mup=config.get("use_mup", False),
@@ -992,14 +1210,16 @@ def train_model(
     print(
         f"Gradient Accumulation: {gradient_accumulation_steps} steps (Effective batch size: {effective_batch_size})"
     )
-    
+
     # Print TBPTT configuration
     use_tbptt = config.get("use_tbptt", True)
     if use_tbptt:
         tbptt_length = config.get("tbptt_length", 128)
         tbptt_stride = config.get("tbptt_stride", 128)
         tbptt_reset_hidden = config.get("tbptt_reset_hidden", True)
-        print(f"Truncated BPTT: Enabled (length={tbptt_length}, stride={tbptt_stride}, reset_hidden={tbptt_reset_hidden})")
+        print(
+            f"Truncated BPTT: Enabled (length={tbptt_length}, stride={tbptt_stride}, reset_hidden={tbptt_reset_hidden})"
+        )
     else:
         print("Truncated BPTT: Disabled (using full sequence with hidden detaching)")
 
@@ -1143,11 +1363,21 @@ def train_model(
                 # Use truncated BPTT
                 tbptt_length = config.get("tbptt_length", 128)
                 loss_value, hidden = tbptt_forward_backward(
-                    model, inputs, targets, hidden, criterion, use_amp, scaler,
-                    tbptt_length, gradient_accumulation_steps, get_vocab_size
+                    model,
+                    inputs,
+                    targets,
+                    hidden,
+                    criterion,
+                    use_amp,
+                    scaler,
+                    tbptt_length,
+                    gradient_accumulation_steps,
+                    get_vocab_size,
                 )
                 # Convert loss value to tensor for consistent interface
-                loss = torch.tensor(loss_value / gradient_accumulation_steps, device=device)
+                loss = torch.tensor(
+                    loss_value / gradient_accumulation_steps, device=device
+                )
             else:
                 # Original method: full sequence forward pass with hidden state detaching
                 if use_amp:
@@ -1174,7 +1404,8 @@ def train_model(
                     targets_reshaped = targets.view(-1)
                     # Scale loss by accumulation steps
                     loss = (
-                        criterion(outputs, targets_reshaped) / gradient_accumulation_steps
+                        criterion(outputs, targets_reshaped)
+                        / gradient_accumulation_steps
                     )
                     loss.backward()
 

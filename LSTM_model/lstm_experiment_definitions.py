@@ -135,7 +135,7 @@ LSTM_SCALING_DIAGNOSTIC = (
         label="32d_lstm_low_dropout",
         folder_name="lstm_scaling_diagnostic",
         learning_rate=0.01,
-        input_dropout=0.05,  # Much lower
+        input_dropout=0.05,  # Much lowwer
         hidden_dropout=0.0,  # No hidden dropout
         output_dropout=0.1,  # Lower output dropout
         warmup_frac=0.05,
@@ -213,7 +213,7 @@ TESTING_TBPTTT = (
 LSTM_SCALING = (
     gen_lstm_experim(
         32,
-        label="yy32d_lstm_scaling",
+        label="yy32d_lstm_scaling_bs64",
         folder_name="lstm_scaling",
         learning_rate=0.01,
         input_dropout=0.0,  # No input dropout
@@ -223,10 +223,11 @@ LSTM_SCALING = (
         use_tbptt=True,
         tbptt_length=64,  # Half the sequence length - this will make TBPTT actually work!
         tbptt_stride=64,  # Match the length for non-overlapping windows
+        batch_size=64,
     )
     + gen_lstm_experim(
         48,
-        label="yy48d_lstm_scaling",
+        label="yy48d_lstm_scaling_bs64",
         folder_name="lstm_scaling",
         learning_rate=0.01,
         input_dropout=0.0,  # No input dropout
@@ -236,10 +237,11 @@ LSTM_SCALING = (
         use_tbptt=True,
         tbptt_length=64,  # Half the sequence length - this will make TBPTT actually work!
         tbptt_stride=64,  # Match the length for non-overlapping windows
+        batch_size=64,
     )
     + gen_lstm_experim(
         64,
-        label="yy64d_lstm_scaling",
+        label="yy64d_lstm_scaling_bs64",
         folder_name="lstm_scaling",
         learning_rate=0.01,
         input_dropout=0.0,  # No input dropout
@@ -249,6 +251,7 @@ LSTM_SCALING = (
         use_tbptt=True,
         tbptt_length=64,  # Half the sequence length - this will make TBPTT actually work!
         tbptt_stride=64,  # Match the length for non-overlapping windows
+        batch_size=64,
     )
 )
 
@@ -368,16 +371,6 @@ LSTM_VARIATIONS_SCALING = (
 )
 
 
-MORE_LSTM_VARIATIONS = (
-
-    
-
-)   
-
-
-
-
-
 #     gen_lstm_experim(
 #         48,
 #         label="32d_lstm_scaling_diagnostic",
@@ -435,7 +428,7 @@ MORE_LSTM_VARIATIONS = (
 # )
 
 
-GRAND_EXPERIMENT = LSTM_VARIATIONS_SCALING
+GRAND_EXPERIMENT = create_multi_lr_experiments(LSTM_SCALING, NARROW_LR_SWEEP)
 
 # GRAND_EXPERIMENT = (
 #     gen_lstm_experim(

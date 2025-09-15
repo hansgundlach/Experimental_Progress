@@ -126,7 +126,7 @@ def estimate_lstm_gpu_memory_and_grad_accum(
         # Determine effective sequence length for memory calculation
         # If TBPTT is used, memory is based on window length, not full sequence
         effective_seq_length = tbptt_length if tbptt_length is not None else seq_length
-        
+
         # CRITICAL: Final layer (logits) tensor for LSTM
         # Output tensor: [per_step_batch_size, effective_seq_length, vocab_size]
         # This is often the largest single tensor in LSTM models too
@@ -147,7 +147,12 @@ def estimate_lstm_gpu_memory_and_grad_accum(
             per_step_batch_size * effective_seq_length * hidden_size * num_layers * 4
         )  # cell states
         lstm_gate_activations = (
-            per_step_batch_size * effective_seq_length * hidden_size * num_layers * 4 * 4
+            per_step_batch_size
+            * effective_seq_length
+            * hidden_size
+            * num_layers
+            * 4
+            * 4
         )  # 4 gates
 
         # Gradient storage for LSTM activations
@@ -236,11 +241,15 @@ def gen_lstm_experim(
     # Use target_effective_batch_size parameter (constant across experiments)
     world_size = 2  # Typical LSTM training setup
     target_effective_batch_size = base_config["target_effective_batch_size"]
-    
+
     # Check if TBPTT is enabled and get window length for memory calculation
     use_tbptt = overrides.get("use_tbptt", base_config.get("use_tbptt", True))
-    tbptt_length = overrides.get("tbptt_length", base_config.get("tbptt_length", 128)) if use_tbptt else None
-    
+    tbptt_length = (
+        overrides.get("tbptt_length", base_config.get("tbptt_length", 128))
+        if use_tbptt
+        else None
+    )
+
     grad_accum_steps = estimate_lstm_gpu_memory_and_grad_accum(
         hidden_size,
         num_layers,
@@ -353,6 +362,7 @@ def get_lstm_base_config():
         "input_dropout": 0.2,
         "hidden_dropout": 0.1,
         "output_dropout": 0.2,
+        "between_layers_dropout": 0.0,  # Standard dropout between LSTM layers (0.1-0.5 typical range)
         "use_layer_norm": True,
         "layer_norm_position": "output",
         "use_mup": False,

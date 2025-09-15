@@ -8,12 +8,6 @@ import matplotlib.colors as mcolors
 from typing import List, Dict, Tuple, Optional
 import warnings
 
-# %%
-print("hello")
-# %%
-
-
-# %%
 
 IRREDUCIBLE_LOSS = 1.8
 
@@ -478,7 +472,7 @@ if __name__ == "__main__":
             "color": "tab:red",
             "hidden_dim": 32,
         },
-        #low drouput scaling diagnostic
+        # low drouput scaling diagnostic
         {
             "name": "32d lstm low dropout scaling diagnostic",
             "csv_path": "../experimental_data_folder/lstm_scaling_diagnostic/32d_lstm_low_dropout.csv",
@@ -488,7 +482,7 @@ if __name__ == "__main__":
             "color": "tab:red",
             "hidden_dim": 32,
         },
-        #tbptt scaling diagnostic
+        # tbptt scaling diagnostic
         {
             "name": "32d lstm tbptt scaling diagnostic",
             "csv_path": "../experimental_data_folder/lstm_scaling_diagnostic/32d_lstm_no_dropout_002_warmup_testtbptt64.csv",
@@ -498,8 +492,16 @@ if __name__ == "__main__":
             "color": "tab:purple",
             "hidden_dim": 32,
         },
-
-        #lstm scaling
+        {
+            "name": "32d lstm tbptt scaling diagnostic",
+            "csv_path": "../experimental_data_folder/lstm_scaling_diagnostic/48d_batchsize64ll.csv",
+            "marker": "o",
+            "include_in_frontier": True,  # Include in frontier analysis
+            "class": "lstm",
+            "color": "tab:purple",
+            "hidden_dim": 32,
+        },
+        # lstm scaling
         {
             "name": "32d lstm scaling",
             "csv_path": "../experimental_data_folder/lstm_scaling/32d_lstm_scaling.csv",
@@ -527,11 +529,6 @@ if __name__ == "__main__":
             "color": "tab:cyan",
             "hidden_dim": 64,
         },
-
-
-
-
-
     ]
 
     # Add experiments
