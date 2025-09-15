@@ -157,10 +157,10 @@ LSTM_SCALING_DIAGNOSTIC = (
 
 
 # test no dropu
-GRAND_EXPERIMENT = (
+TESTING_TBPTTT = (
     gen_lstm_experim(
         32,
-        label="32dyy_lstm_no_dropout_002_warmup",
+        label="yy32d_lstm_no_dropout_002_warmup_tbpttfalse",
         folder_name="lstm_scaling_diagnostic",
         learning_rate=0.01,
         input_dropout=0.0,  # No input dropout
@@ -183,7 +183,7 @@ GRAND_EXPERIMENT = (
     # )
     + gen_lstm_experim(
         32,
-        label="32dyy_lstm_no_dropout_002_warmup_testtbptt",
+        label="yy32d_lstm_no_dropout_002_warmup_testtbptt64",
         folder_name="lstm_scaling_diagnostic",
         learning_rate=0.01,
         input_dropout=0.0,  # No input dropout
@@ -191,8 +191,269 @@ GRAND_EXPERIMENT = (
         output_dropout=0.0,  # No output dropout
         warmup_frac=0.02,
         use_tbptt=True,
+        tbptt_length=64,  # Half the sequence length - this will make TBPTT actually work!
+        tbptt_stride=64,  # Match the length for non-overlapping windows
+    )
+    + gen_lstm_experim(
+        32,
+        label="yy32d_lstm_no_dropout_002_warmup_testtbptt32",
+        folder_name="lstm_scaling_diagnostic",
+        learning_rate=0.01,
+        input_dropout=0.0,  # No input dropout
+        hidden_dropout=0.0,  # No hidden dropout
+        output_dropout=0.0,  # No output dropout
+        warmup_frac=0.02,
+        use_tbptt=True,
+        tbptt_length=32,  # Half the sequence length - this will make TBPTT actually work!
+        tbptt_stride=32,  # Match the length for non-overlapping windows
     )
 )
+
+
+LSTM_SCALING = (
+    gen_lstm_experim(
+        32,
+        label="yy32d_lstm_scaling",
+        folder_name="lstm_scaling",
+        learning_rate=0.01,
+        input_dropout=0.0,  # No input dropout
+        hidden_dropout=0.0,  # No hidden dropout
+        output_dropout=0.0,  # No output dropout
+        warmup_frac=0.02,
+        use_tbptt=True,
+        tbptt_length=64,  # Half the sequence length - this will make TBPTT actually work!
+        tbptt_stride=64,  # Match the length for non-overlapping windows
+    )
+    + gen_lstm_experim(
+        48,
+        label="yy48d_lstm_scaling",
+        folder_name="lstm_scaling",
+        learning_rate=0.01,
+        input_dropout=0.0,  # No input dropout
+        hidden_dropout=0.0,  # No hidden dropout
+        output_dropout=0.0,  # No output dropout
+        warmup_frac=0.02,
+        use_tbptt=True,
+        tbptt_length=64,  # Half the sequence length - this will make TBPTT actually work!
+        tbptt_stride=64,  # Match the length for non-overlapping windows
+    )
+    + gen_lstm_experim(
+        64,
+        label="yy64d_lstm_scaling",
+        folder_name="lstm_scaling",
+        learning_rate=0.01,
+        input_dropout=0.0,  # No input dropout
+        hidden_dropout=0.0,  # No hidden dropout
+        output_dropout=0.0,  # No output dropout
+        warmup_frac=0.02,
+        use_tbptt=True,
+        tbptt_length=64,  # Half the sequence length - this will make TBPTT actually work!
+        tbptt_stride=64,  # Match the length for non-overlapping windows
+    )
+)
+
+LSTM_SCALING_DIAGNOSTIC = gen_lstm_experim(
+    48,
+    label="32d_lstm_scaling_diagnostic",
+    folder_name="lstm_scaling_diagnostic",
+    learning_rate=0.01,
+    input_dropout=0.0,  # No input dropout
+    hidden_dropout=0.0,  # No hidden dropout
+    output_dropout=0.0,  # No output dropout
+    warmup_frac=0.02,
+    use_tbptt=True,
+    tbptt_length=32,  # Half the sequence length - this will make TBPTT actually work!
+    tbptt_stride=32,  # Match the length for non-overlapping windows
+)
+
+
+LSTM_VARIATIONS_SCALING = (
+    gen_lstm_experim(
+        48,
+        label="48d_tbptt_dropoutll",
+        folder_name="lstm_scaling_diagnostic",
+        learning_rate=0.01,
+        input_dropout=0.2,  # No input dropout
+        hidden_dropout=0.1,  # No hidden dropout
+        output_dropout=0.2,  # No output dropout
+        warmup_frac=0.02,
+        use_tbptt=True,
+        tbptt_length=64,  # Half the sequence length - this will make TBPTT actually work!
+        tbptt_stride=64,  # Match the length for non-overlapping windows
+    )
+    + gen_lstm_experim(
+        48,
+        label="48d_diff_seedll",
+        folder_name="lstm_scaling_diagnostic",
+        learning_rate=0.01,
+        input_dropout=0.0,  # No input dropout
+        hidden_dropout=0.0,  # No hidden dropout
+        output_dropout=0.0,  # No output dropout
+        warmup_frac=0.02,
+        use_tbptt=True,
+        tbptt_length=64,  # Half the sequence length - this will make TBPTT actually work!
+        tbptt_stride=64,  # Match the length for non-overlapping windows
+        seed=456,
+    )
+    + gen_lstm_experim(
+        48,
+        label="48d_batchsize64ll",
+        folder_name="lstm_scaling_diagnostic",
+        learning_rate=0.01,
+        input_dropout=0.0,  # No input dropout
+        hidden_dropout=0.0,  # No hidden dropout
+        output_dropout=0.0,  # No output dropout
+        warmup_frac=0.02,
+        use_tbptt=True,
+        tbptt_length=64,  # Half the sequence length - this will make TBPTT actually work!
+        tbptt_stride=64,  # Match the length for non-overlapping windows
+        batch_size=64,
+    )
+    + gen_lstm_experim(
+        48,
+        label="48d_tbptt32ll",
+        folder_name="lstm_scaling_diagnostic",
+        learning_rate=0.01,
+        input_dropout=0.0,  # No input dropout
+        hidden_dropout=0.0,  # No hidden dropout
+        output_dropout=0.0,  # No output dropout
+        warmup_frac=0.02,
+        use_tbptt=True,
+        tbptt_length=32,  # Half the sequence length - this will make TBPTT actually work!
+        tbptt_stride=32,  # Match the length for non-overlapping windows
+        batch_size=128,
+    )
+    + gen_lstm_experim(
+        48,
+        label="48d_tbptt32_batch64ll",
+        folder_name="lstm_scaling_diagnostic",
+        learning_rate=0.01,
+        input_dropout=0.0,  # No input dropout
+        hidden_dropout=0.0,  # No hidden dropout
+        output_dropout=0.0,  # No output dropout
+        warmup_frac=0.02,
+        use_tbptt=True,
+        tbptt_length=32,  # Half the sequence length - this will make TBPTT actually work!
+        tbptt_stride=32,  # Match the length for non-overlapping windows
+        batch_size=64,
+    )
+    + gen_lstm_experim(
+        48,
+        label="48d_tbptt32_batch64_dropoutll",
+        folder_name="lstm_scaling_diagnostic",
+        learning_rate=0.01,
+        input_dropout=0.2,
+        hidden_dropout=0.1,
+        output_dropout=0.2,
+        warmup_frac=0.02,
+        use_tbptt=True,
+        tbptt_length=32,  # Half the sequence length - this will make TBPTT actually work!
+        tbptt_stride=32,  # Match the length for non-overlapping windows
+        batch_size=64,
+    )
+    + gen_lstm_experim(
+        48,
+        label="48d_tbptt32_batch64_strong_dropoutll",
+        folder_name="lstm_scaling_diagnostic",
+        learning_rate=0.01,
+        input_dropout=0.6,
+        hidden_dropout=0.5,
+        output_dropout=0.6,
+        warmup_frac=0.02,
+        use_tbptt=True,
+        tbptt_length=32,  # Half the sequence length - this will make TBPTT actually work!
+        tbptt_stride=32,  # Match the length for non-overlapping windows
+        batch_size=64,
+    )
+)
+
+
+MORE_LSTM_VARIATIONS = (
+
+    
+
+)   
+
+
+
+
+
+#     gen_lstm_experim(
+#         48,
+#         label="32d_lstm_scaling_diagnostic",
+#         folder_name="lstm_scaling_diagnostic",
+#         learning_rate=0.01,
+#         input_dropout=0.0,  # No input dropout
+#         hidden_dropout=0.0,  # No hidden dropout
+#         output_dropout=0.0,  # No output dropout
+#         warmup_frac=0.02,
+#         use_tbptt=True,
+#         tbptt_length=32,  # Half the sequence length - this will make TBPTT actually work!
+#         tbptt_stride=32,  # Match the length for non-overlapping windows
+#     )
+#     + gen_lstm_experim(
+#         48,
+#         label="48d_lstm_scaling_diagnostic_256_seq",
+#         folder_name="lstm_scaling_diagnostic",
+#         learning_rate=0.01,
+#         input_dropout=0.0,  # No input dropout
+#         hidden_dropout=0.0,  # No hidden dropout
+#         output_dropout=0.0,  # No output dropout
+#         warmup_frac=0.02,
+#         use_tbptt=True,
+#         tbptt_length=64,  # Half the sequence length - this will make TBPTT actually work!
+#         tbptt_stride=64,  # Match the length for non-overlapping windows
+#         sequence_length=256,
+#     )
+
+#     + gen_lstm_experim(
+#         48,
+#         label="48d_diagnostic64",
+#         folder_name="lstm_scaling_diagnostic",
+#         learning_rate=0.01,
+#         input_dropout=0.0,  # No input dropout
+#         hidden_dropout=0.0,  # No hidden dropout
+#         output_dropout=0.0,  # No output dropout
+#         warmup_frac=0.02,
+#         use_tbptt=True,
+#         tbptt_length=64,  # Half the sequence length - this will make TBPTT actually work!
+#         tbptt_stride=64,  # Match the length for non-overlapping windows
+#     )
+#     + gen_lstm_experim(
+#         48,
+#         label="48d_lstm_strongdropout",
+#         folder_name="lstm_scaling_diagnostic",
+#         learning_rate=0.01,
+#         input_dropout=0.2,  # No input dropout
+#         hidden_dropout=0.1,  # No hidden dropout
+#         output_dropout=0.2,  # No output dropout
+#         warmup_frac=0.02,
+#         use_tbptt=True,
+#         tbptt_length=64,  # Half the sequence length - this will make TBPTT actually work!
+#         tbptt_stride=64,  # Match the length for non-overlapping windows
+#     )
+# )
+
+
+GRAND_EXPERIMENT = LSTM_VARIATIONS_SCALING
+
+# GRAND_EXPERIMENT = (
+#     gen_lstm_experim(
+#         32,
+#         label="32d_short_tbptt_length",
+#         folder_name="lstm_scaling_diagnostic",
+#         learning_rate=0.01,
+#         input_dropout=0.0,  # No input dropout
+#         hidden_dropout=0.0,  # No hidden dropout
+#         output_dropout=0.0,  # No output dropout
+#         warmup_frac=0.02,
+#         use_tbptt=False,
+#         tbptt_length=32,
+#         tbptt_stride=32,
+#     )
+
+# )
+
 
 # lr_tune_experiments standard
 # LSTM_LR_TUNE_STANDARD = create_multi_lr_experiments(

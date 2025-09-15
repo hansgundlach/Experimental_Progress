@@ -71,6 +71,7 @@ def estimate_lstm_gpu_memory_and_grad_accum(
     seq_length,
     gpu_type="V100",
     world_size=2,  # Default to 2 GPUs as typical for LSTM training
+    tbptt_length=None,  # TBPTT window length (if None, uses full seq_length)
 ):
     """
     Estimate GPU memory usage and suggest gradient accumulation steps for LSTM.
@@ -122,11 +123,15 @@ def estimate_lstm_gpu_memory_and_grad_accum(
             grad_accum = grad_accum - 1
             break
 
+        # Determine effective sequence length for memory calculation
+        # If TBPTT is used, memory is based on window length, not full sequence
+        effective_seq_length = tbptt_length if tbptt_length is not None else seq_length
+        
         # CRITICAL: Final layer (logits) tensor for LSTM
-        # Output tensor: [per_step_batch_size, seq_length, vocab_size]
+        # Output tensor: [per_step_batch_size, effective_seq_length, vocab_size]
         # This is often the largest single tensor in LSTM models too
         final_layer_output = (
-            per_step_batch_size * seq_length * vocab_size * 4
+            per_step_batch_size * effective_seq_length * vocab_size * 4
         )  # 4 bytes per float32
         final_layer_gradients = final_layer_output  # Gradients have same size
         final_layer_memory = final_layer_output + final_layer_gradients
@@ -134,14 +139,15 @@ def estimate_lstm_gpu_memory_and_grad_accum(
         # LSTM activation memory is different from transformers
         # LSTM needs to store hidden states and cell states for each layer
         # Plus activations for backward pass
+        # NOTE: With TBPTT, memory is based on window length, not full sequence
         lstm_hidden_states = (
-            per_step_batch_size * seq_length * hidden_size * num_layers * 4
+            per_step_batch_size * effective_seq_length * hidden_size * num_layers * 4
         )  # hidden states
         lstm_cell_states = (
-            per_step_batch_size * seq_length * hidden_size * num_layers * 4
+            per_step_batch_size * effective_seq_length * hidden_size * num_layers * 4
         )  # cell states
         lstm_gate_activations = (
-            per_step_batch_size * seq_length * hidden_size * num_layers * 4 * 4
+            per_step_batch_size * effective_seq_length * hidden_size * num_layers * 4 * 4
         )  # 4 gates
 
         # Gradient storage for LSTM activations
@@ -230,6 +236,11 @@ def gen_lstm_experim(
     # Use target_effective_batch_size parameter (constant across experiments)
     world_size = 2  # Typical LSTM training setup
     target_effective_batch_size = base_config["target_effective_batch_size"]
+    
+    # Check if TBPTT is enabled and get window length for memory calculation
+    use_tbptt = overrides.get("use_tbptt", base_config.get("use_tbptt", True))
+    tbptt_length = overrides.get("tbptt_length", base_config.get("tbptt_length", 128)) if use_tbptt else None
+    
     grad_accum_steps = estimate_lstm_gpu_memory_and_grad_accum(
         hidden_size,
         num_layers,
@@ -237,6 +248,7 @@ def gen_lstm_experim(
         base_config["sequence_length"],
         gpu_type,
         world_size,
+        tbptt_length,  # Pass TBPTT window length for accurate memory estimation
     )
 
     # Calculate the actual per-step batch size to use

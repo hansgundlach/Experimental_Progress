@@ -137,8 +137,8 @@ def tbptt_forward_backward(model, inputs, targets, hidden, criterion, use_amp, s
                 hidden = tuple(h.detach() for h in hidden)
                 
                 # Compute loss for this window
-                window_outputs = window_outputs.view(-1, get_vocab_size_fn())
-                window_targets_reshaped = window_targets.view(-1)
+                window_outputs = window_outputs.reshape(-1, get_vocab_size_fn())
+                window_targets_reshaped = window_targets.reshape(-1)
                 window_loss = criterion(window_outputs, window_targets_reshaped) / gradient_accumulation_steps
                 
             # Backward pass for this window
@@ -150,8 +150,8 @@ def tbptt_forward_backward(model, inputs, targets, hidden, criterion, use_amp, s
             hidden = tuple(h.detach() for h in hidden)
             
             # Compute loss for this window
-            window_outputs = window_outputs.view(-1, get_vocab_size_fn())
-            window_targets_reshaped = window_targets.view(-1)
+            window_outputs = window_outputs.reshape(-1, get_vocab_size_fn())
+            window_targets_reshaped = window_targets.reshape(-1)
             window_loss = criterion(window_outputs, window_targets_reshaped) / gradient_accumulation_steps
             
             # Backward pass for this window
@@ -201,7 +201,17 @@ class TextPreprocessor:
 
     def text_to_indices(self, text: str) -> List[int]:
         # Tokenize the text using GPT2 tokenizer
-        tokens = self.tokenizer.encode(text, add_special_tokens=False)
+        # FIXED: Use tokenizer directly to avoid sequence length validation
+        # The encode() method can trigger model max_length validation
+        tokens = self.tokenizer(
+            text, 
+            add_special_tokens=False,
+            truncation=False,
+            padding=False,
+            return_tensors=None,  # Return Python list
+            return_attention_mask=False,
+            verbose=False
+        )['input_ids']
         return tokens
 
 
