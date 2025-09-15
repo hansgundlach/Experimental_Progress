@@ -81,7 +81,117 @@ LSTM_SGD_ALL_SCALE_LR_TUNE = create_multi_lr_experiments(
 )
 
 
-GRAND_EXPERIMENT = LSTM_SCALING_EXPERIMENTS_OPTIMAL_LR
+# TBPTT comparison experiments
+TBPTT_COMPARISON_EXPERIMENTS = (
+    gen_lstm_experim(
+        32,
+        label="32d_lstm_tbptt_default",
+        folder_name="tbptt_comparison",
+        learning_rate=0.01,
+        use_tbptt=True,
+        tbptt_length=128,
+        tbptt_stride=128,
+    )
+    + gen_lstm_experim(
+        32,
+        label="32d_lstm_tbptt_disabled",
+        folder_name="tbptt_comparison",
+        learning_rate=0.01,
+        use_tbptt=False,
+    )
+    + gen_lstm_experim(
+        32,
+        label="32d_lstm_tbptt_64_length",
+        folder_name="tbptt_comparison",
+        learning_rate=0.01,
+        use_tbptt=True,
+        tbptt_length=64,
+        tbptt_stride=64,
+    )
+)
+
+# Diagnostic experiments to fix scaling plateau
+LSTM_SCALING_DIAGNOSTIC = (
+    # Test higher learning rates
+    gen_lstm_experim(
+        32,
+        label="32d_lstm_lr_aggressive",
+        folder_name="lstm_scaling_diagnostic",
+        learning_rate=0.01,  # 5x higher than current
+        warmup_frac=0.05,  # 5x longer warmup
+        use_tbptt=False,  # Disable TBPTT initially
+    )
+    + gen_lstm_experim(
+        32,
+        label="32d_lstm_lr_very_aggressive",
+        folder_name="lstm_scaling_diagnostic",
+        learning_rate=0.03,  # 15x higher
+        warmup_frac=0.1,  # 10x longer warmup
+        use_tbptt=False,
+    )
+    # Test lower dropout
+    + gen_lstm_experim(
+        32,
+        label="32d_lstm_low_dropout",
+        folder_name="lstm_scaling_diagnostic",
+        learning_rate=0.01,
+        input_dropout=0.05,  # Much lower
+        hidden_dropout=0.0,  # No hidden dropout
+        output_dropout=0.1,  # Lower output dropout
+        warmup_frac=0.05,
+        use_tbptt=False,
+    )
+    # Test longer sequences with TBPTT
+    + gen_lstm_experim(
+        32,
+        label="32d_lstm_long_seq",
+        folder_name="lstm_scaling_diagnostic",
+        learning_rate=0.01,
+        sequence_length=256,  # 2x longer sequences
+        tbptt_length=128,  # Half the sequence length
+        warmup_frac=0.05,
+        use_tbptt=True,
+    )
+    #
+)
+
+
+# test no dropu
+GRAND_EXPERIMENT = (
+    gen_lstm_experim(
+        32,
+        label="32d_lstm_no_dropout_0.05_warmup",
+        folder_name="lstm_scaling_diagnostic",
+        learning_rate=0.01,
+        input_dropout=0.0,  # Much lower
+        hidden_dropout=0.0,  # No hidden dropout
+        output_dropout=0.0,  # Lower output dropout
+        warmup_frac=0.05,
+        use_tbptt=False,
+    )
+    + gen_lstm_experim(
+        32,
+        label="32d_lstm_low_dropout_0.02_warmup",
+        folder_name="lstm_scaling_diagnostic",
+        learning_rate=0.01,
+        input_dropout=0.05,  # Much lower
+        hidden_dropout=0.0,  # No hidden dropout
+        output_dropout=0.1,  # Lower output dropout
+        warmup_frac=0.02,
+        use_tbptt=False,
+    )
+    + gen_lstm_experim(
+        32,
+        label="32d_lstm_low_dropout_0.02_warmup_testtbptt",
+        folder_name="lstm_scaling_diagnostic",
+        learning_rate=0.01,
+        input_dropout=0.05,  # Much lower
+        hidden_dropout=0.0,  # No hidden dropout
+        output_dropout=0.1,  # Lower output dropout
+        warmup_frac=0.02,
+        use_tbptt=True,
+    )
+)
 
 # lr_tune_experiments standard
 # LSTM_LR_TUNE_STANDARD = create_multi_lr_experiments(

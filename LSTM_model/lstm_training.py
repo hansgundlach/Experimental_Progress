@@ -99,6 +99,69 @@ def get_mup_learning_rates(model, base_lr, use_mup=False, mup_base_width=64):
 cudnn.benchmark = True
 
 
+def tbptt_forward_backward(model, inputs, targets, hidden, criterion, use_amp, scaler, 
+                          tbptt_length, gradient_accumulation_steps, get_vocab_size_fn):
+    """
+    Perform truncated BPTT forward and backward pass.
+    
+    Args:
+        model: LSTM model
+        inputs: Input tokens [batch_size, sequence_length]  
+        targets: Target tokens [batch_size, sequence_length]
+        hidden: Initial hidden state tuple (h, c)
+        criterion: Loss function
+        use_amp: Whether to use automatic mixed precision
+        scaler: GradScaler for mixed precision
+        tbptt_length: Window length for truncated BPTT
+        gradient_accumulation_steps: Number of gradient accumulation steps
+        get_vocab_size_fn: Function to get vocabulary size
+    
+    Returns:
+        total_loss: Accumulated loss over all windows
+        final_hidden: Final hidden state (detached)
+    """
+    batch_size, full_sequence_length = inputs.size()
+    total_loss = 0.0
+    
+    # Process sequence in windows of tbptt_length
+    for start_idx in range(0, full_sequence_length, tbptt_length):
+        end_idx = min(start_idx + tbptt_length, full_sequence_length)
+        window_inputs = inputs[:, start_idx:end_idx]
+        window_targets = targets[:, start_idx:end_idx]
+        
+        # Forward pass through this window
+        if use_amp:
+            with autocast():
+                window_outputs, hidden = model(window_inputs, hidden)
+                # Detach hidden state to truncate gradients at window boundary
+                hidden = tuple(h.detach() for h in hidden)
+                
+                # Compute loss for this window
+                window_outputs = window_outputs.view(-1, get_vocab_size_fn())
+                window_targets_reshaped = window_targets.view(-1)
+                window_loss = criterion(window_outputs, window_targets_reshaped) / gradient_accumulation_steps
+                
+            # Backward pass for this window
+            scaler.scale(window_loss).backward()
+        else:
+            # Regular precision
+            window_outputs, hidden = model(window_inputs, hidden)
+            # Detach hidden state to truncate gradients at window boundary  
+            hidden = tuple(h.detach() for h in hidden)
+            
+            # Compute loss for this window
+            window_outputs = window_outputs.view(-1, get_vocab_size_fn())
+            window_targets_reshaped = window_targets.view(-1)
+            window_loss = criterion(window_outputs, window_targets_reshaped) / gradient_accumulation_steps
+            
+            # Backward pass for this window
+            window_loss.backward()
+            
+        total_loss += window_loss.item()
+    
+    return total_loss * gradient_accumulation_steps, hidden  # Scale back loss for logging
+
+
 class WikiTextDataset(Dataset):
     """Dataset of fixed‐length sequences with configurable stride."""
 
@@ -919,6 +982,16 @@ def train_model(
     print(
         f"Gradient Accumulation: {gradient_accumulation_steps} steps (Effective batch size: {effective_batch_size})"
     )
+    
+    # Print TBPTT configuration
+    use_tbptt = config.get("use_tbptt", True)
+    if use_tbptt:
+        tbptt_length = config.get("tbptt_length", 128)
+        tbptt_stride = config.get("tbptt_stride", 128)
+        tbptt_reset_hidden = config.get("tbptt_reset_hidden", True)
+        print(f"Truncated BPTT: Enabled (length={tbptt_length}, stride={tbptt_stride}, reset_hidden={tbptt_reset_hidden})")
+    else:
+        print("Truncated BPTT: Disabled (using full sequence with hidden detaching)")
 
     # Calculate total steps and warmup steps for step-based schedulers
     steps_per_epoch = math.ceil(len(train_loader) / gradient_accumulation_steps)
@@ -1055,9 +1128,35 @@ def train_model(
                     )
                 flop_counter.add_batch_flops(microbatches_this_step)
 
-            # Forward pass with mixed precision
-            if use_amp:
-                with autocast():
+            # Choose forward/backward method based on TBPTT configuration
+            if config.get("use_tbptt", True):
+                # Use truncated BPTT
+                tbptt_length = config.get("tbptt_length", 128)
+                loss_value, hidden = tbptt_forward_backward(
+                    model, inputs, targets, hidden, criterion, use_amp, scaler,
+                    tbptt_length, gradient_accumulation_steps, get_vocab_size
+                )
+                # Convert loss value to tensor for consistent interface
+                loss = torch.tensor(loss_value / gradient_accumulation_steps, device=device)
+            else:
+                # Original method: full sequence forward pass with hidden state detaching
+                if use_amp:
+                    with autocast():
+                        outputs, hidden = model(inputs, hidden)
+                        # Detach hidden state to treat it as a new input, preventing BPTT through all time
+                        hidden = tuple(h.detach() for h in hidden)
+                        outputs = outputs.view(-1, get_vocab_size())
+                        targets_reshaped = targets.view(-1)
+                        # Scale loss by accumulation steps
+                        loss = (
+                            criterion(outputs, targets_reshaped)
+                            / gradient_accumulation_steps
+                        )
+
+                    # Mixed precision backward pass
+                    scaler.scale(loss).backward()
+                else:
+                    # Regular precision
                     outputs, hidden = model(inputs, hidden)
                     # Detach hidden state to treat it as a new input, preventing BPTT through all time
                     hidden = tuple(h.detach() for h in hidden)
@@ -1065,24 +1164,9 @@ def train_model(
                     targets_reshaped = targets.view(-1)
                     # Scale loss by accumulation steps
                     loss = (
-                        criterion(outputs, targets_reshaped)
-                        / gradient_accumulation_steps
+                        criterion(outputs, targets_reshaped) / gradient_accumulation_steps
                     )
-
-                # Mixed precision backward pass
-                scaler.scale(loss).backward()
-            else:
-                # Regular precision
-                outputs, hidden = model(inputs, hidden)
-                # Detach hidden state to treat it as a new input, preventing BPTT through all time
-                hidden = tuple(h.detach() for h in hidden)
-                outputs = outputs.view(-1, get_vocab_size())
-                targets_reshaped = targets.view(-1)
-                # Scale loss by accumulation steps
-                loss = (
-                    criterion(outputs, targets_reshaped) / gradient_accumulation_steps
-                )
-                loss.backward()
+                    loss.backward()
 
             # Update epoch statistics
             epoch_loss += (

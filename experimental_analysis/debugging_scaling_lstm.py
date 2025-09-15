@@ -468,6 +468,27 @@ if __name__ == "__main__":
             "class": "lstm",
             "hidden_dim": 64,
         },
+        # lr sweep lstm
+        {
+            "name": "32d lstm lr sweep",
+            "csv_path": "../experimental_data_folder/lstm_scaling_lr_sweep/32d_lstm_experiment_lr_10e2.csv",
+            "marker": "o",
+            "include_in_frontier": True,  # Include in frontier analysis
+            "class": "lstm",
+            "color": "tab:red",
+            "hidden_dim": 32,
+        },
+        #low drouput scaling diagnostic
+        {
+            "name": "32d lstm low dropout scaling diagnostic",
+            "csv_path": "../experimental_data_folder/lstm_scaling_diagnostic/32d_lstm_low_dropout.csv",
+            "marker": "o",
+            "include_in_frontier": True,  # Include in frontier analysis
+            "class": "lstm",
+            "color": "tab:red",
+            "hidden_dim": 32,
+        },
+
     ]
 
     # Add experiments
@@ -503,4 +524,5 @@ if __name__ == "__main__":
         save_path="Figures/universal_scaling_law_study_full_model.png",
     )
 
+# %
 # %%

@@ -311,7 +311,7 @@ def get_lstm_base_config():
         "lr_schedule": "cosine_warmup",
         "warmup_frac": 0.01,  # 10% warmup steps
         "min_lr_multiplier": 0.1,  # Min LR as 1% of base LR
-        "scheduler_type": "step",
+        # "scheduler_type": "step",
         "step_size": 10,
         "gamma": 0.1,
         "num_epochs": 1,
@@ -346,6 +346,11 @@ def get_lstm_base_config():
         "use_mup": False,
         "mup_base_width": 16,
         "tie_embeddings": True,  # Enable weight tying by default
+        # Truncated BPTT parameters
+        "use_tbptt": True,  # Enable truncated BPTT by default
+        "tbptt_length": 128,  # Window length L (number of timesteps to backprop through)
+        "tbptt_stride": 128,  # Stride S (usually equal to tbptt_length for non-overlapping windows)
+        "tbptt_reset_hidden": True,  # Reset hidden state at sequence boundaries
     }
 
 
