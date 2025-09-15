@@ -160,34 +160,35 @@ LSTM_SCALING_DIAGNOSTIC = (
 GRAND_EXPERIMENT = (
     gen_lstm_experim(
         32,
-        label="32d_lstm_no_dropout_0.05_warmup",
+        label="32dyy_lstm_no_dropout_002_warmup",
         folder_name="lstm_scaling_diagnostic",
         learning_rate=0.01,
-        input_dropout=0.0,  # Much lower
+        input_dropout=0.0,  # No input dropout
         hidden_dropout=0.0,  # No hidden dropout
-        output_dropout=0.0,  # Lower output dropout
-        warmup_frac=0.05,
-        use_tbptt=False,
-    )
-    + gen_lstm_experim(
-        32,
-        label="32d_lstm_low_dropout_0.02_warmup",
-        folder_name="lstm_scaling_diagnostic",
-        learning_rate=0.01,
-        input_dropout=0.05,  # Much lower
-        hidden_dropout=0.0,  # No hidden dropout
-        output_dropout=0.1,  # Lower output dropout
+        output_dropout=0.0,  # No output dropout
         warmup_frac=0.02,
         use_tbptt=False,
     )
+    # Uncomment to add low dropout experiment
+    # + gen_lstm_experim(
+    #     32,
+    #     label="32d_lstm_low_dropout_0.02_warmup",
+    #     folder_name="lstm_scaling_diagnostic",
+    #     learning_rate=0.01,
+    #     input_dropout=0.05,   # Low input dropout
+    #     hidden_dropout=0.0,   # No hidden dropout
+    #     output_dropout=0.1,   # Low output dropout
+    #     warmup_frac=0.02,
+    #     use_tbptt=False,
+    # )
     + gen_lstm_experim(
         32,
-        label="32d_lstm_low_dropout_0.02_warmup_testtbptt",
+        label="32dyy_lstm_no_dropout_002_warmup_testtbptt",
         folder_name="lstm_scaling_diagnostic",
         learning_rate=0.01,
-        input_dropout=0.05,  # Much lower
+        input_dropout=0.0,  # No input dropout
         hidden_dropout=0.0,  # No hidden dropout
-        output_dropout=0.1,  # Lower output dropout
+        output_dropout=0.0,  # No output dropout
         warmup_frac=0.02,
         use_tbptt=True,
     )
