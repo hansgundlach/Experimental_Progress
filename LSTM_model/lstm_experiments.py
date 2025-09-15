@@ -1,5 +1,4 @@
 import torch
-import torch.distributed as dist
 import os
 import time
 import copy
@@ -282,7 +281,6 @@ def run_ddp_worker(
     # The csv_log_path is passed, but only rank 0 will write to it.
     train_model(
         config=config,
-        local_rank=local_rank,
         run_name=run_name,
         csv_log_path=csv_log_path,
     )
@@ -295,12 +293,14 @@ def run_ddp_worker(
 
 
 if __name__ == "__main__":
+    print("Starting LSTM experiments...")
     parser = argparse.ArgumentParser(description="Run LSTM Experiments")
     parser.add_argument("--job_id", type=int, default=0, help="SLURM job array ID")
     parser.add_argument(
         "--total_jobs", type=int, default=1, help="Total SLURM jobs in array"
     )
     args = parser.parse_args()
+    print(f"Arguments parsed: job_id={args.job_id}, total_jobs={args.total_jobs}")
 
     # Fallback: derive array info from SLURM env if not provided via CLI
     if args.total_jobs == 1 and os.environ.get("SLURM_ARRAY_TASK_ID") is not None:
@@ -318,6 +318,7 @@ if __name__ == "__main__":
             pass
 
     # --- 1. Prepare all sub-experiments from the EXPERIMENTS list ---
+    print(f"Building experiments from {len(EXPERIMENTS)} experiment groups...")
     all_sub_experiments = []
     for exp in EXPERIMENTS:
         exp_name = exp["name"]
@@ -377,7 +378,6 @@ if __name__ == "__main__":
         # Run single-GPU training directly (no DDP, no multiprocessing)
         train_model(
             config=config,
-            local_rank=0,  # Always use GPU 0 for single-GPU training
             run_name=run_name,
             csv_log_path=csv_path,
         )

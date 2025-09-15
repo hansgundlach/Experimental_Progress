@@ -14,95 +14,10 @@ import multiprocessing as mp
 from torch.cuda.amp import autocast, GradScaler
 import math
 import torch.backends.cudnn as cudnn
-import torch.distributed as dist
-from torch.utils.data.distributed import DistributedSampler
 import random  # NEW: for reproducible seeding
 import copy
 import csv
 
-
-def get_mup_learning_rates(model, base_lr, use_mup=False, mup_base_width=64):
-    """Get muP-scaled learning rates for different parameter groups"""
-    if not use_mup:
-        return [{"params": model.parameters(), "lr": base_lr}]
-
-    # Calculate scaling factor
-    if hasattr(model, "module"):  # Handle DDP only
-        hidden_size = model.module.hidden_size
-        mup_scale = hidden_size / mup_base_width
-        embedding = model.module.embedding
-        lstm_layers = model.module.lstm_layers
-        linear = model.module.linear
-        tie_embeddings = getattr(model.module, "tie_embeddings", False)
-    else:
-        hidden_size = model.hidden_size
-        mup_scale = hidden_size / mup_base_width
-        embedding = model.embedding
-        lstm_layers = model.lstm_layers
-        linear = model.linear
-        tie_embeddings = getattr(model, "tie_embeddings", False)
-
-    param_groups = []
-
-    # Handle embedding parameters
-    if tie_embeddings:
-        # When weight tying is enabled, tied weights serve both embedding and output functions
-        # Use geometric mean of embedding scaling (1/scale) and output scaling (1.0)
-        # This preserves muP scaling laws better than choosing one or the other
-        embedding_lr = base_lr / mup_scale  # What embedding would use
-        output_lr = base_lr  # What output would use
-        tied_lr = (embedding_lr * output_lr) ** 0.5  # Geometric mean
-
-        # FIXED: If tie_embeddings=True, still optimize linear.bias separately
-        param_groups.append(
-            {
-                "params": [embedding.weight],
-                "lr": tied_lr,
-                "name": "embedding_tied",
-            }
-        )
-        # Add separate parameter group for output bias
-        param_groups.append(
-            {
-                "params": [linear.bias],
-                "lr": base_lr,
-                "name": "output_bias",
-            }
-        )
-    else:
-        # Separate embedding and output parameters when not tied
-        # Embedding parameters: lr scaled by 1/scale
-        param_groups.append(
-            {
-                "params": embedding.parameters(),
-                "lr": base_lr / mup_scale,
-                "name": "embedding",
-            }
-        )
-        # Output layer parameters: no scaling (base lr)
-        param_groups.append(
-            {"params": linear.parameters(), "lr": base_lr, "name": "output"}
-        )
-
-    # LSTM parameters: lr scaled by 1/scale
-    lstm_params = []
-    for lstm_layer in lstm_layers:
-        lstm_params.extend(list(lstm_layer.parameters()))
-    param_groups.append(
-        {"params": lstm_params, "lr": base_lr / mup_scale, "name": "lstm"}
-    )
-
-    if tie_embeddings:
-        tied_lr = (base_lr / mup_scale * base_lr) ** 0.5  # Recalculate for printing
-        print(
-            f"muP learning rates (tied): embedding/output={tied_lr:.6f} (geometric mean), lstm={base_lr/mup_scale:.6f}"
-        )
-    else:
-        print(
-            f"muP learning rates: embedding={base_lr/mup_scale:.6f}, lstm={base_lr/mup_scale:.6f}, output={base_lr:.6f}"
-        )
-
-    return param_groups
 
 
 cudnn.benchmark = True
@@ -446,20 +361,13 @@ class VanillaLSTMLanguageModel(nn.Module):
         recurrent_dropout: float = 0.0,
         use_layer_norm: bool = False,
         layer_norm_position: str = "output",
-        use_mup: bool = False,
-        mup_base_width: int = 64,
         tie_embeddings: bool = True,
     ):
         super().__init__()
         self.hidden_size = hidden_size
         self.num_layers = num_layers
         self.vocab_size = vocab_size
-        self.use_mup = use_mup
-        self.mup_base_width = mup_base_width
         self.tie_embeddings = tie_embeddings
-
-        # Calculate muP scaling factor
-        self.mup_scale = hidden_size / mup_base_width if use_mup else 1.0
 
         self.embedding = nn.Embedding(vocab_size, hidden_size)
 
@@ -505,11 +413,8 @@ class VanillaLSTMLanguageModel(nn.Module):
                     [nn.LayerNorm(hidden_size) for _ in range(num_layers)]
                 )
 
-        # Apply initialization based on configuration
-        if use_mup:
-            self._apply_mup_init()
-        else:
-            self._apply_standard_lstm_init()
+        # Apply standard initialization
+        self._apply_standard_lstm_init()
 
     def _apply_standard_lstm_init(self):
         """Apply standard LSTM initialization recipe"""
@@ -542,45 +447,6 @@ class VanillaLSTMLanguageModel(nn.Module):
         nn.init.xavier_uniform_(self.linear.weight)
         nn.init.zeros_(self.linear.bias)
 
-    def _apply_mup_init(self):
-        """Apply muP initialization with standard LSTM practices"""
-        # Embedding layer: scale by 1/sqrt(width) but use uniform distribution
-        std = 1 / math.sqrt(self.hidden_size)
-        bound = math.sqrt(3.0) * std  # Convert to uniform bound
-        nn.init.uniform_(self.embedding.weight, -bound, bound)
-
-        # LSTM layers: combine muP scaling with standard LSTM practices
-        if self.use_custom_lstm:
-            # Custom LSTM initialization is handled in the cell constructor
-            # We need to reinitialize the custom LSTM with muP scaling
-            pass  # For now, custom LSTM uses standard initialization
-        else:
-            # Standard LSTM layers initialization
-            for lstm_layer in self.lstm_layers:
-                for name, param in lstm_layer.named_parameters():
-                    if "weight_ih" in name:
-                        # Input-to-hidden: muP scaled Xavier uniform
-                        std = 1 / math.sqrt(self.hidden_size)
-                        bound = math.sqrt(3.0) * std
-                        nn.init.uniform_(param.data, -bound, bound)
-                    elif "weight_hh" in name:
-                        # Hidden-to-hidden: Orthogonal (standard LSTM practice)
-                        nn.init.orthogonal_(param.data)
-                    elif "bias" in name:
-                        # Standard LSTM bias initialization
-                        param.data.fill_(0.0)
-                        hidden_size = param.size(0) // 4
-                        param.data[hidden_size : 2 * hidden_size].fill_(
-                            1.0
-                        )  # forget gate bias
-
-        # Output layer: muP scaled initialization
-        # Only initialize if not tied to embedding
-        if not self.tie_embeddings:
-            std = 1 / self.hidden_size
-            bound = math.sqrt(3.0) * std
-            nn.init.uniform_(self.linear.weight, -bound, bound)
-        nn.init.zeros_(self.linear.bias)
 
     def forward(self, x, hidden=None):
         embedded = self.embedding(x)
@@ -657,11 +523,7 @@ class FLOPCounter:
         self.profiled = False
 
     def get_model_vocab_size(self):
-        # Handle wrapped models (DistributedDataParallel only)
-        if hasattr(self.model, "module"):
-            return self.model.module.vocab_size
-        else:
-            return self.model.vocab_size
+        return self.model.vocab_size
 
     def profile_one_batch(
         self, inputs, targets, hidden, optimizer, criterion, scaler=None
@@ -869,35 +731,17 @@ def load_and_preprocess_data(
     print(f"  persistent_workers: {persistent_workers}")
     print(f"  prefetch_factor: {prefetch_factor}")
 
-    # Create optimized data loaders (use sampler under DDP)
-    if dist.is_initialized():
-        train_sampler = DistributedSampler(
-            train_dataset,
-            num_replicas=dist.get_world_size(),
-            rank=dist.get_rank(),
-            shuffle=False,  # Must be False for stateful training
-        )
-        train_loader = DataLoader(
-            train_dataset,
-            batch_size=config["batch_size"],
-            sampler=train_sampler,
-            num_workers=num_workers,
-            pin_memory=pin_memory,
-            persistent_workers=persistent_workers,
-            prefetch_factor=prefetch_factor,
-            drop_last=False,
-        )
-    else:
-        train_loader = DataLoader(
-            train_dataset,
-            batch_size=config["batch_size"],
-            shuffle=False,  # Must be False for stateful training
-            num_workers=num_workers,
-            pin_memory=pin_memory,
-            persistent_workers=persistent_workers,
-            prefetch_factor=prefetch_factor,
-            drop_last=False,
-        )
+    # Create optimized data loaders (single-GPU only)
+    train_loader = DataLoader(
+        train_dataset,
+        batch_size=config["batch_size"],
+        shuffle=False,  # Must be False for stateful training
+        num_workers=num_workers,
+        pin_memory=pin_memory,
+        persistent_workers=persistent_workers,
+        prefetch_factor=prefetch_factor,
+        drop_last=False,
+    )
 
     val_loader = DataLoader(
         val_dataset,
@@ -940,19 +784,13 @@ def evaluate_model(
     total_loss = 0
     total_batches = 0
 
-    # Helper function to handle DDP wrapping
+    # Helper function to get hidden state
     def get_hidden(batch_size):
-        if isinstance(model, torch.nn.parallel.DistributedDataParallel):
-            return model.module.init_hidden(batch_size, device)
-        else:
-            return model.init_hidden(batch_size, device)
+        return model.init_hidden(batch_size, device)
 
     # Helper function to get vocab size
     def get_vocab_size():
-        if isinstance(model, torch.nn.parallel.DistributedDataParallel):
-            return model.module.vocab_size
-        else:
-            return model.vocab_size
+        return model.vocab_size
 
     total_tokens = 0
     
@@ -994,19 +832,13 @@ def evaluate_model_amp(
     total_loss = 0
     total_batches = 0
 
-    # Helper function to handle DDP wrapping
+    # Helper function to get hidden state
     def get_hidden(batch_size):
-        if isinstance(model, torch.nn.parallel.DistributedDataParallel):
-            return model.module.init_hidden(batch_size, device)
-        else:
-            return model.init_hidden(batch_size, device)
+        return model.init_hidden(batch_size, device)
 
     # Helper function to get vocab size
     def get_vocab_size():
-        if isinstance(model, torch.nn.parallel.DistributedDataParallel):
-            return model.module.vocab_size
-        else:
-            return model.vocab_size
+        return model.vocab_size
 
     total_tokens = 0
     
@@ -1042,14 +874,14 @@ def evaluate_model_amp(
 
 
 def train_model(
-    config: Dict, local_rank=0, run_name: str = None, csv_log_path: str = None
+    config: Dict, run_name: str = None, csv_log_path: str = None
 ):
     """Main training function with mixed precision and gradient accumulation"""
     # Initialize wandb
     if config["wandb_offline"]:
         os.environ["WANDB_MODE"] = "offline"
 
-    is_main_process = not dist.is_initialized() or dist.get_rank() == 0
+    is_main_process = True  # Always main process in single-GPU training
 
     # CSV Logging Setup
     csv_log_interval = config.get("csv_log_interval")
@@ -1118,19 +950,11 @@ def train_model(
         recurrent_dropout=config.get("recurrent_dropout", 0.0),
         use_layer_norm=config.get("use_layer_norm", False),
         layer_norm_position=config.get("layer_norm_position", "output"),
-        use_mup=config.get("use_mup", False),
-        mup_base_width=config.get("mup_base_width", 64),
         tie_embeddings=config.get("tie_embeddings", True),  # Default to True
     ).to(device)
 
-    # Use DDP if initialized (single-GPU by default)
-    if dist.is_initialized():
-        print(f"Using DistributedDataParallel for training")
-        model = torch.nn.parallel.DistributedDataParallel(
-            model, device_ids=[local_rank], output_device=local_rank
-        )
-    else:
-        print(f"Using single-GPU training")
+    # Single-GPU training only
+    print(f"Using single-GPU training")
 
     # NEW: compile the model (must be after any parallel wrappers)
     if config.get("use_compile", False):
@@ -1138,12 +962,9 @@ def train_model(
         # you can pass mode/backend args here, e.g. backend="inductor", mode="max-autotune"
         model = torch.compile(model)
 
-    # Helper function to handle DDP wrapping
+    # Helper function to get hidden state
     def init_hidden(batch_size):
-        if isinstance(model, torch.nn.parallel.DistributedDataParallel):
-            return model.module.init_hidden(batch_size, device)
-        else:
-            return model.init_hidden(batch_size, device)
+        return model.init_hidden(batch_size, device)
 
     # Initialize FLOP counter
     flop_counter = FLOPCounter(model, config, preprocessor.tokenizer)
@@ -1151,52 +972,23 @@ def train_model(
     # Loss and optimizer - use reduction='sum' for proper per-token scaling
     criterion = nn.CrossEntropyLoss(reduction='sum')
 
-    # Get parameter groups with muP learning rate scaling if enabled
-    use_mup = config.get("use_mup", False)
-    if use_mup:
-        param_groups = get_mup_learning_rates(
-            model,
-            config["learning_rate"],
-            use_mup=True,
-            mup_base_width=config.get("mup_base_width", 64),
-        )
-    else:
-        # Standard case: single parameter group
-        param_groups = model.parameters()
-
     # Select optimizer based on config
     opt_name = config.get("optimizer", "adam").lower()
     if opt_name == "adam":
-        if use_mup:
-            optimizer = optim.Adam(param_groups)
-        else:
-            optimizer = optim.Adam(param_groups, lr=config["learning_rate"])
+        optimizer = optim.Adam(model.parameters(), lr=config["learning_rate"])
     elif opt_name == "adamw":
-        if use_mup:
-            optimizer = optim.AdamW(
-                param_groups,
-                weight_decay=config.get("weight_decay", 0.0),
-            )
-        else:
-            optimizer = optim.AdamW(
-                param_groups,
-                lr=config["learning_rate"],
-                weight_decay=config.get("weight_decay", 0.0),
-            )
+        optimizer = optim.AdamW(
+            model.parameters(),
+            lr=config["learning_rate"],
+            weight_decay=config.get("weight_decay", 0.0),
+        )
     elif opt_name == "sgd":
-        if use_mup:
-            optimizer = optim.SGD(
-                param_groups,
-                momentum=config.get("momentum", 0.9),
-                weight_decay=config.get("weight_decay", 0.0),
-            )
-        else:
-            optimizer = optim.SGD(
-                param_groups,
-                lr=config["learning_rate"],
-                momentum=config.get("momentum", 0.9),
-                weight_decay=config.get("weight_decay", 0.0),
-            )
+        optimizer = optim.SGD(
+            model.parameters(),
+            lr=config["learning_rate"],
+            momentum=config.get("momentum", 0.9),
+            weight_decay=config.get("weight_decay", 0.0),
+        )
     else:
         raise ValueError(f"Unsupported optimizer: {config['optimizer']}")
 
@@ -1292,17 +1084,12 @@ def train_model(
 
     # Add this function inside train_model
     def get_vocab_size():
-        if isinstance(model, torch.nn.parallel.DistributedDataParallel):
-            return model.module.vocab_size
-        else:
-            return model.vocab_size
+        return model.vocab_size
 
     # Training loop
     optimizer_step_counter = 0
     for epoch in range(config["num_epochs"]):
-        # reshuffle for DDP
-        if dist.is_initialized():
-            train_loader.sampler.set_epoch(epoch)
+        # Single-GPU training - no reshuffling needed
         model.train()
         epoch_start_time = time.time()
         epoch_loss = 0
@@ -1601,11 +1388,7 @@ def train_model(
 
     # Count non-embedding parameters
     num_params = sum(p.numel() for p in model.parameters() if p.requires_grad)
-    # Handle DDP wrapping
-    if hasattr(model, "module"):
-        num_embedding_params = model.module.embedding.weight.numel()
-    else:
-        num_embedding_params = model.embedding.weight.numel()
+    num_embedding_params = model.embedding.weight.numel()
     num_non_embedding_params = num_params - num_embedding_params
 
     total_flops_theoretical_standard = (
@@ -1658,12 +1441,9 @@ def benchmark_model(model: nn.Module, config: Dict, tokenizer: GPT2Tokenizer):
     device = torch.device(config["device"])
     model.eval()
 
-    # Function to handle DDP wrapping
+    # Function to get hidden state
     def init_hidden(batch_size):
-        if isinstance(model, torch.nn.parallel.DistributedDataParallel):
-            return model.module.init_hidden(batch_size, device)
-        else:
-            return model.init_hidden(batch_size, device)
+        return model.init_hidden(batch_size, device)
 
     # Create dummy input using tokenizer vocab size
     dummy_input = torch.randint(
