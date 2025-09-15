@@ -27,7 +27,7 @@ def get_mup_learning_rates(model, base_lr, use_mup=False, mup_base_width=64):
         return [{"params": model.parameters(), "lr": base_lr}]
 
     # Calculate scaling factor
-    if hasattr(model, "module"):  # Handle DataParallel/DDP
+    if hasattr(model, "module"):  # Handle DDP only
         hidden_size = model.module.hidden_size
         mup_scale = hidden_size / mup_base_width
         embedding = model.module.embedding
@@ -53,11 +53,20 @@ def get_mup_learning_rates(model, base_lr, use_mup=False, mup_base_width=64):
         output_lr = base_lr  # What output would use
         tied_lr = (embedding_lr * output_lr) ** 0.5  # Geometric mean
 
+        # FIXED: If tie_embeddings=True, still optimize linear.bias separately
         param_groups.append(
             {
-                "params": embedding.parameters(),
+                "params": [embedding.weight],
                 "lr": tied_lr,
                 "name": "embedding_tied",
+            }
+        )
+        # Add separate parameter group for output bias
+        param_groups.append(
+            {
+                "params": [linear.bias],
+                "lr": base_lr,
+                "name": "output_bias",
             }
         )
     else:
@@ -112,14 +121,14 @@ def tbptt_forward_backward(
     get_vocab_size_fn,
 ):
     """
-    Perform truncated BPTT forward and backward pass.
+    Perform truncated BPTT forward and backward pass with proper per-token loss scaling.
 
     Args:
         model: LSTM model
         inputs: Input tokens [batch_size, sequence_length]
         targets: Target tokens [batch_size, sequence_length]
         hidden: Initial hidden state tuple (h, c)
-        criterion: Loss function
+        criterion: Loss function (should use reduction='sum')
         use_amp: Whether to use automatic mixed precision
         scaler: GradScaler for mixed precision
         tbptt_length: Window length for truncated BPTT
@@ -127,11 +136,15 @@ def tbptt_forward_backward(
         get_vocab_size_fn: Function to get vocabulary size
 
     Returns:
-        total_loss: Accumulated loss over all windows
+        per_token_loss: Per-token loss for logging
         final_hidden: Final hidden state (detached)
     """
     batch_size, full_sequence_length = inputs.size()
-    total_loss = 0.0
+    tokens_mb = batch_size * full_sequence_length  # Total tokens in microbatch
+    total_loss_sum = 0.0
+    
+    # Per-token loss scaling for gradient accumulation
+    scale = 1.0 / (tokens_mb * gradient_accumulation_steps)
 
     # Process sequence in windows of tbptt_length
     for start_idx in range(0, full_sequence_length, tbptt_length):
@@ -146,39 +159,34 @@ def tbptt_forward_backward(
                 # Detach hidden state to truncate gradients at window boundary
                 hidden = tuple(h.detach() for h in hidden)
 
-                # Compute loss for this window
+                # Compute sum loss for this window
                 window_outputs = window_outputs.reshape(-1, get_vocab_size_fn())
                 window_targets_reshaped = window_targets.reshape(-1)
-                window_loss = (
-                    criterion(window_outputs, window_targets_reshaped)
-                    / gradient_accumulation_steps
-                )
+                loss_sum = criterion(window_outputs, window_targets_reshaped)
 
-            # Backward pass for this window
-            scaler.scale(window_loss).backward()
+            # Backward pass with proper scaling
+            scaled_loss = loss_sum * scale
+            scaler.scale(scaled_loss).backward()
         else:
             # Regular precision
             window_outputs, hidden = model(window_inputs, hidden)
             # Detach hidden state to truncate gradients at window boundary
             hidden = tuple(h.detach() for h in hidden)
 
-            # Compute loss for this window
+            # Compute sum loss for this window
             window_outputs = window_outputs.reshape(-1, get_vocab_size_fn())
             window_targets_reshaped = window_targets.reshape(-1)
-            window_loss = (
-                criterion(window_outputs, window_targets_reshaped)
-                / gradient_accumulation_steps
-            )
+            loss_sum = criterion(window_outputs, window_targets_reshaped)
 
-            # Backward pass for this window
-            window_loss.backward()
+            # Backward pass with proper scaling
+            scaled_loss = loss_sum * scale
+            scaled_loss.backward()
 
-        total_loss += window_loss.item()
+        total_loss_sum += loss_sum.item()
 
-    return (
-        total_loss * gradient_accumulation_steps,
-        hidden,
-    )  # Scale back loss for logging
+    # Return per-token loss for logging
+    per_token_loss = total_loss_sum / tokens_mb
+    return per_token_loss, hidden
 
 
 class WikiTextDataset(Dataset):
@@ -625,9 +633,8 @@ class VanillaLSTMLanguageModel(nn.Module):
 
         output = self.linear(lstm_out)
 
-        # Apply muP output scaling
-        if self.use_mup:
-            output = output * self.mup_scale
+        # FIXED: Remove post-hoc muP logit scaling
+        # muP scaling should be handled via learning rates and initialization only
 
         return output, (h_n, c_n)
 
@@ -650,7 +657,7 @@ class FLOPCounter:
         self.profiled = False
 
     def get_model_vocab_size(self):
-        # Handle wrapped models (DataParallel or DistributedDataParallel)
+        # Handle wrapped models (DistributedDataParallel only)
         if hasattr(self.model, "module"):
             return self.model.module.vocab_size
         else:
@@ -698,29 +705,17 @@ class FLOPCounter:
                     loss = criterion(outputs, targets_reshaped)
 
             with record_function("backward_pass"):
+                # FIXED: Profiler must not train - only forward+backward, no optimizer step
+                # Clear gradients first for clean profiling
                 optimizer.zero_grad()
 
-                # NEW: Mixed precision backward pass
+                # Mixed precision backward pass (for FLOP counting only)
                 if scaler is not None:
                     scaler.scale(loss).backward()
-                    # Gradient clipping with scaler
-                    if self.config.get("use_gradient_clipping", False):
-                        scaler.unscale_(optimizer)
-                        torch.nn.utils.clip_grad_norm_(
-                            self.model.parameters(),
-                            self.config.get("gradient_clip_val", 1.0),
-                        )
-                    scaler.step(optimizer)
-                    scaler.update()
+                    # Do NOT call scaler.step() or scaler.update() - we're only profiling
                 else:
                     loss.backward()
-                    # Regular gradient clipping
-                    if self.config.get("use_gradient_clipping", False):
-                        torch.nn.utils.clip_grad_norm_(
-                            self.model.parameters(),
-                            self.config.get("gradient_clip_val", 1.0),
-                        )
-                    optimizer.step()
+                    # Do NOT call optimizer.step() - we're only profiling
 
         # Synchronize CUDA operations before measuring time
         if device.type == "cuda":
@@ -763,7 +758,8 @@ class FLOPCounter:
         )
 
         self.profiled = True
-        self.total_flops += self.flops_per_batch
+        # FIXED: Don't increment total_flops in profiler - only set flops_per_batch
+        # total_flops should only be incremented on real optimizer steps
         return loss
 
     def count_forward_flops_manual(self, batch_size: int, sequence_length: int) -> int:
@@ -944,29 +940,29 @@ def evaluate_model(
     total_loss = 0
     total_batches = 0
 
-    # Helper function to handle DataParallel or DDP wrapping
+    # Helper function to handle DDP wrapping
     def get_hidden(batch_size):
-        if isinstance(model, nn.DataParallel) or isinstance(
-            model, torch.nn.parallel.DistributedDataParallel
-        ):
+        if isinstance(model, torch.nn.parallel.DistributedDataParallel):
             return model.module.init_hidden(batch_size, device)
         else:
             return model.init_hidden(batch_size, device)
 
     # Helper function to get vocab size
     def get_vocab_size():
-        if isinstance(model, nn.DataParallel) or isinstance(
-            model, torch.nn.parallel.DistributedDataParallel
-        ):
+        if isinstance(model, torch.nn.parallel.DistributedDataParallel):
             return model.module.vocab_size
         else:
             return model.vocab_size
 
+    total_tokens = 0
+    
     with torch.no_grad():
         for batch_idx, (inputs, targets) in enumerate(data_loader):
             inputs, targets = inputs.to(device), targets.to(device)
-            batch_size = inputs.size(0)
+            batch_size, sequence_length = inputs.size()
+            tokens_in_batch = batch_size * sequence_length
 
+            # Reset hidden state for each batch (non-streaming baseline)
             hidden = get_hidden(batch_size)
             outputs, _ = model(inputs, hidden)
 
@@ -974,13 +970,16 @@ def evaluate_model(
             outputs = outputs.view(-1, get_vocab_size())
             targets = targets.view(-1)
 
-            loss = criterion(outputs, targets)
-            total_loss += loss.item()
+            # Criterion now uses reduction='sum', so we get total loss for the batch
+            loss_sum = criterion(outputs, targets)
+            total_loss += loss_sum.item()
+            total_tokens += tokens_in_batch
             total_batches += 1
 
-    if total_batches == 0:
+    if total_tokens == 0:
         return float("nan")
-    return total_loss / total_batches
+    # Return per-token loss for consistent logging
+    return total_loss / total_tokens
 
 
 def evaluate_model_amp(
@@ -995,29 +994,29 @@ def evaluate_model_amp(
     total_loss = 0
     total_batches = 0
 
-    # Helper function to handle DataParallel or DDP wrapping
+    # Helper function to handle DDP wrapping
     def get_hidden(batch_size):
-        if isinstance(model, nn.DataParallel) or isinstance(
-            model, torch.nn.parallel.DistributedDataParallel
-        ):
+        if isinstance(model, torch.nn.parallel.DistributedDataParallel):
             return model.module.init_hidden(batch_size, device)
         else:
             return model.init_hidden(batch_size, device)
 
     # Helper function to get vocab size
     def get_vocab_size():
-        if isinstance(model, nn.DataParallel) or isinstance(
-            model, torch.nn.parallel.DistributedDataParallel
-        ):
+        if isinstance(model, torch.nn.parallel.DistributedDataParallel):
             return model.module.vocab_size
         else:
             return model.vocab_size
 
+    total_tokens = 0
+    
     with torch.no_grad():
         for batch_idx, (inputs, targets) in enumerate(data_loader):
             inputs, targets = inputs.to(device), targets.to(device)
-            batch_size = inputs.size(0)
+            batch_size, sequence_length = inputs.size()
+            tokens_in_batch = batch_size * sequence_length
 
+            # Reset hidden state for each batch (non-streaming baseline)
             hidden = get_hidden(batch_size)
 
             if use_amp:
@@ -1025,19 +1024,21 @@ def evaluate_model_amp(
                     outputs, _ = model(inputs, hidden)
                     outputs = outputs.view(-1, get_vocab_size())
                     targets = targets.view(-1)
-                    loss = criterion(outputs, targets)
+                    loss_sum = criterion(outputs, targets)
             else:
                 outputs, _ = model(inputs, hidden)
                 outputs = outputs.view(-1, get_vocab_size())
                 targets = targets.view(-1)
-                loss = criterion(outputs, targets)
+                loss_sum = criterion(outputs, targets)
 
-            total_loss += loss.item()
+            total_loss += loss_sum.item()
+            total_tokens += tokens_in_batch
             total_batches += 1
 
-    if total_batches == 0:
+    if total_tokens == 0:
         return float("nan")
-    return total_loss / total_batches
+    # Return per-token loss for consistent logging
+    return total_loss / total_tokens
 
 
 def train_model(
@@ -1122,15 +1123,14 @@ def train_model(
         tie_embeddings=config.get("tie_embeddings", True),  # Default to True
     ).to(device)
 
-    # Use DataParallel or DDP if requested
-    if torch.cuda.device_count() > 1 and not dist.is_initialized():
-        print(f"Using {torch.cuda.device_count()} GPUs with DataParallel")
-        model = nn.DataParallel(model)
-    elif dist.is_initialized():
+    # Use DDP if initialized (single-GPU by default)
+    if dist.is_initialized():
         print(f"Using DistributedDataParallel for training")
         model = torch.nn.parallel.DistributedDataParallel(
             model, device_ids=[local_rank], output_device=local_rank
         )
+    else:
+        print(f"Using single-GPU training")
 
     # NEW: compile the model (must be after any parallel wrappers)
     if config.get("use_compile", False):
@@ -1138,11 +1138,9 @@ def train_model(
         # you can pass mode/backend args here, e.g. backend="inductor", mode="max-autotune"
         model = torch.compile(model)
 
-    # Helper function to handle DataParallel or DDP wrapping
+    # Helper function to handle DDP wrapping
     def init_hidden(batch_size):
-        if isinstance(model, nn.DataParallel) or isinstance(
-            model, torch.nn.parallel.DistributedDataParallel
-        ):
+        if isinstance(model, torch.nn.parallel.DistributedDataParallel):
             return model.module.init_hidden(batch_size, device)
         else:
             return model.init_hidden(batch_size, device)
@@ -1150,8 +1148,8 @@ def train_model(
     # Initialize FLOP counter
     flop_counter = FLOPCounter(model, config, preprocessor.tokenizer)
 
-    # Loss and optimizer
-    criterion = nn.CrossEntropyLoss()
+    # Loss and optimizer - use reduction='sum' for proper per-token scaling
+    criterion = nn.CrossEntropyLoss(reduction='sum')
 
     # Get parameter groups with muP learning rate scaling if enabled
     use_mup = config.get("use_mup", False)
@@ -1294,9 +1292,7 @@ def train_model(
 
     # Add this function inside train_model
     def get_vocab_size():
-        if isinstance(model, nn.DataParallel) or isinstance(
-            model, torch.nn.parallel.DistributedDataParallel
-        ):
+        if isinstance(model, torch.nn.parallel.DistributedDataParallel):
             return model.module.vocab_size
         else:
             return model.vocab_size
@@ -1313,15 +1309,12 @@ def train_model(
         epoch_batches = 0
         optimizer.zero_grad()  # Zero gradients at the start of epoch
 
-        # Initialize hidden state at the start of each epoch
-        hidden = None
-
         for batch_idx, (inputs, targets) in enumerate(train_loader):
             batch_size, sequence_length = inputs.size()
 
-            # Initialize or resize hidden state if necessary
-            if hidden is None or inputs.size(0) != hidden[0].size(1):
-                hidden = init_hidden(batch_size)
+            # Reset hidden state at the start of EVERY batch (non-streaming baseline)
+            # This ensures we don't carry hidden state across DataLoader batches
+            hidden = init_hidden(batch_size)
 
             # Profile only the very first batch of training
             if not flop_counter.profiled:
@@ -1360,9 +1353,9 @@ def train_model(
 
             # Choose forward/backward method based on TBPTT configuration
             if config.get("use_tbptt", True):
-                # Use truncated BPTT
+                # Use truncated BPTT with proper per-token loss scaling
                 tbptt_length = config.get("tbptt_length", 128)
-                loss_value, hidden = tbptt_forward_backward(
+                per_token_loss, hidden = tbptt_forward_backward(
                     model,
                     inputs,
                     targets,
@@ -1374,12 +1367,14 @@ def train_model(
                     gradient_accumulation_steps,
                     get_vocab_size,
                 )
-                # Convert loss value to tensor for consistent interface
-                loss = torch.tensor(
-                    loss_value / gradient_accumulation_steps, device=device
-                )
+                # Use per-token loss directly for logging (already properly scaled)
+                loss = torch.tensor(per_token_loss, device=device)
             else:
-                # Original method: full sequence forward pass with hidden state detaching
+                # Full sequence forward pass with proper per-token loss scaling
+                batch_size, sequence_length = inputs.size()
+                tokens_mb = batch_size * sequence_length
+                scale = 1.0 / (tokens_mb * gradient_accumulation_steps)
+                
                 if use_amp:
                     with autocast():
                         outputs, hidden = model(inputs, hidden)
@@ -1387,14 +1382,14 @@ def train_model(
                         hidden = tuple(h.detach() for h in hidden)
                         outputs = outputs.view(-1, get_vocab_size())
                         targets_reshaped = targets.view(-1)
-                        # Scale loss by accumulation steps
-                        loss = (
-                            criterion(outputs, targets_reshaped)
-                            / gradient_accumulation_steps
-                        )
+                        # Compute sum loss and scale properly
+                        loss_sum = criterion(outputs, targets_reshaped)
+                        scaled_loss = loss_sum * scale
 
                     # Mixed precision backward pass
-                    scaler.scale(loss).backward()
+                    scaler.scale(scaled_loss).backward()
+                    # Store per-token loss for logging
+                    loss = torch.tensor(loss_sum.item() / tokens_mb, device=device)
                 else:
                     # Regular precision
                     outputs, hidden = model(inputs, hidden)
@@ -1402,17 +1397,15 @@ def train_model(
                     hidden = tuple(h.detach() for h in hidden)
                     outputs = outputs.view(-1, get_vocab_size())
                     targets_reshaped = targets.view(-1)
-                    # Scale loss by accumulation steps
-                    loss = (
-                        criterion(outputs, targets_reshaped)
-                        / gradient_accumulation_steps
-                    )
-                    loss.backward()
+                    # Compute sum loss and scale properly
+                    loss_sum = criterion(outputs, targets_reshaped)
+                    scaled_loss = loss_sum * scale
+                    scaled_loss.backward()
+                    # Store per-token loss for logging
+                    loss = torch.tensor(loss_sum.item() / tokens_mb, device=device)
 
-            # Update epoch statistics
-            epoch_loss += (
-                loss.item() * gradient_accumulation_steps
-            )  # Scale back for logging
+            # Update epoch statistics - loss is already per-token, no need to scale
+            epoch_loss += loss.item()
             epoch_batches += 1
 
             # Step optimizer after accumulation steps
@@ -1665,11 +1658,9 @@ def benchmark_model(model: nn.Module, config: Dict, tokenizer: GPT2Tokenizer):
     device = torch.device(config["device"])
     model.eval()
 
-    # Function to handle DataParallel or DDP wrapping
+    # Function to handle DDP wrapping
     def init_hidden(batch_size):
-        if isinstance(model, nn.DataParallel) or isinstance(
-            model, torch.nn.parallel.DistributedDataParallel
-        ):
+        if isinstance(model, torch.nn.parallel.DistributedDataParallel):
             return model.module.init_hidden(batch_size, device)
         else:
             return model.init_hidden(batch_size, device)

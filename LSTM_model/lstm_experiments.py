@@ -295,7 +295,7 @@ def run_ddp_worker(
 
 
 if __name__ == "__main__":
-    parser = argparse.ArgumentParser(description="Run LSTM Experiments with DDP")
+    parser = argparse.ArgumentParser(description="Run LSTM Experiments")
     parser.add_argument("--job_id", type=int, default=0, help="SLURM job array ID")
     parser.add_argument(
         "--total_jobs", type=int, default=1, help="Total SLURM jobs in array"
@@ -363,12 +363,7 @@ if __name__ == "__main__":
         my_sub_experiments = all_sub_experiments
         print("Single job mode: this node will run all experiments.")
 
-    # --- 3. Run this node's assigned experiments one by one using DDP ---
-    world_size = torch.cuda.device_count()
-    master_addr = os.environ.get(
-        "HOSTNAME", "localhost"
-    )  # Get hostname from SLURM environment if available
-
+    # --- 3. Run this node's assigned experiments one by one using single-GPU training ---
     for sub_exp_details in my_sub_experiments:
         run_name = sub_exp_details["sub_label"]
         config = sub_exp_details["config"]
@@ -379,15 +374,12 @@ if __name__ == "__main__":
         )
         training_start_time = time.time()
 
-        # Find a free port for each DDP run to avoid conflicts
-        master_port = find_free_port()
-
-        # Launch DDP processes for this single experiment
-        mp.spawn(
-            run_ddp_worker,
-            args=(world_size, master_addr, master_port, config, run_name, csv_path),
-            nprocs=world_size,
-            join=True,
+        # Run single-GPU training directly (no DDP, no multiprocessing)
+        train_model(
+            config=config,
+            local_rank=0,  # Always use GPU 0 for single-GPU training
+            run_name=run_name,
+            csv_log_path=csv_path,
         )
 
         training_elapsed = time.time() - training_start_time

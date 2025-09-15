@@ -237,9 +237,9 @@ def gen_lstm_experim(
     # Convert to character limit (using 4:1 ratio for compatibility with existing system)
     max_characters = int(20 * trainable_params * 4)  # 20x params in characters
 
-    # 3. Estimate gradient accumulation based on GPU memory and typical 2-GPU setup
+    # 3. Estimate gradient accumulation based on GPU memory and single-GPU setup
     # Use target_effective_batch_size parameter (constant across experiments)
-    world_size = 2  # Typical LSTM training setup
+    world_size = 1  # Single-GPU training setup
     target_effective_batch_size = base_config["target_effective_batch_size"]
 
     # Check if TBPTT is enabled and get window length for memory calculation

@@ -1,12 +1,12 @@
 #!/bin/bash
-#SBATCH --job-name=lstm_job_array
+#SBATCH --job-name=lstm_single_gpu
 #SBATCH --output=slurm-lstm-array-%A_task-%a.out
 #SBATCH --error=slurm-lstm-array-%A_task-%a.err
 #SBATCH --partition=xeon-g6-volta
 #SBATCH --nodes=1
-#SBATCH --ntasks-per-node=2
-#SBATCH --gres=gpu:volta:2
-#SBATCH --mem=32G
+#SBATCH --ntasks-per-node=1
+#SBATCH --gres=gpu:volta:1
+#SBATCH --mem=16G
 # Array specification is now handled by submit_lstm_job.sh wrapper
 
 # Create logs directory name with timestamp
