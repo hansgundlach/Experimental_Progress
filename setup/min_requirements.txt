@@ -1,0 +1,63 @@
+# Minimal requirements for running the experiments
+# Based on imports found in main_experiment.py, lstm_experiment.py, and other core files
+
+# Core ML/DL frameworks
+torch>=2.5.1
+torchvision>=0.20.1
+torchaudio>=2.5.1
+
+# Transformers and NLP
+transformers>=4.36.0
+tokenizers>=0.15.2
+datasets>=2.15.0
+
+# Data processing and analysis
+numpy>=1.24.3
+pandas
+pyarrow>=18.1.0
+
+# Experiment tracking and logging
+wandb>=0.21.0
+
+# Utilities
+requests>=2.32.3
+tqdm>=4.67.1
+pyyaml
+pathlib2
+
+# Development and testing (optional)
+pytest
+jupyter
+ipython
+
+# System utilities
+psutil
+setproctitle
+
+# File handling
+fsspec
+filelock
+
+# Networking
+urllib3
+certifi
+
+# Type hints and validation
+typing-extensions
+pydantic
+
+# Math and scientific computing
+sympy
+mpmath
+
+# Image processing (if needed)
+pillow
+
+# Additional utilities
+click
+colorama
+packaging
+
+# For CUDA support (uncomment if needed)
+# torch-audio
+# torch-vision

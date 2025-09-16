@@ -529,6 +529,16 @@ if __name__ == "__main__":
             "color": "tab:cyan",
             "hidden_dim": 64,
         },
+        #lstm lr rate scaling experiment 
+        {
+            "name": "32d lstm lr rate scaling experiment",
+            "csv_path": "../experimental_data_folder/lstm_scaling_lr_sweep/yy32d_lstm_scaling_bs64_lr_10e2.csv",
+            "marker": "o",
+            "include_in_frontier": True,  # Include in frontier analysis
+            "class": "lstm",
+            "color": "tab:cyan",
+            "hidden_dim": 32,
+        },
     ]
 
     # Add experiments
