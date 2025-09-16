@@ -13,6 +13,11 @@ NARROW_LR_SWEEP = [
     10 ** (-1.5),
     10 ** (-1),
 ]
+VERY_NARROW_LR_SWEEP = [
+    10 ** (-2),
+    10 ** (-1.5),
+    10 ** (-1),
+]
 
 TEST_EXPERIMENT = gen_experim(
     16,
@@ -46,11 +51,11 @@ TRANSFORMER_LR_TUNE_MUP_SGD = create_multi_lr_experiments(
     NARROW_LR_SWEEP,
 )
 
-VANILLA_SCALING = (
+TRANSFORMER_SCALING = (
     gen_experim(
         32,
         label="vanilla_32d",
-        folder_name="vanilla_scaling",
+        folder_name="transformer_scaling",
         learning_rate=1e-1,
     )
     # + gen_experim(
@@ -62,7 +67,7 @@ VANILLA_SCALING = (
     + gen_experim(
         48,
         label="vanilla_48d",
-        folder_name="vanilla_scaling",
+        folder_name="transformer_scaling",
         learning_rate=10 ** (-1),
     )
     # + gen_experim(
@@ -74,7 +79,7 @@ VANILLA_SCALING = (
     + gen_experim(
         64,
         label="vanilla_64d",
-        folder_name="vanilla_scaling",
+        folder_name="transformer_scaling",
         learning_rate=10 ** (-1),
     )
     # + gen_experim(
@@ -304,12 +309,12 @@ TRANSFORMER_SGD_SCALING_EXPERIMENTS_OPTIMAL_LR = (
 # )
 
 
-TRANSFORMER_ALL_SCALE_LR_TUNE = create_multi_lr_experiments(
-    TRANSFORMER_SCALING_EXPERIMENTS_OPTIMAL_LR, NARROW_LR_SWEEP
-)
-TRANSFORMER_SGD_ALL_SCALE_LR_TUNE = create_multi_lr_experiments(
-    TRANSFORMER_SGD_SCALING_EXPERIMENTS_OPTIMAL_LR, NARROW_LR_SWEEP
-)
+# TRANSFORMER_ALL_SCALE_LR_TUNE = create_multi_lr_experiments(
+#     TRANSFORMER_SCALING_EXPERIMENTS_OPTIMAL_LR, NARROW_LR_SWEEP
+# )
+# TRANSFORMER_SGD_ALL_SCALE_LR_TUNE = create_multi_lr_experiments(
+#     TRANSFORMER_SGD_SCALING_EXPERIMENTS_OPTIMAL_LR, NARROW_LR_SWEEP
+# )
 
 
 # activation variation experiments
@@ -697,11 +702,25 @@ BEST_POSSIBLE_SGD_SCALING = (
 #     + create_multi_lr_experiments(best_sgd, NARROW_LR_SWEEP)
 # )
 
-GRAND_EXPERIMENT = (
-    TRANSFORMER_SCALING_EXPERIMENTS_OPTIMAL_LR
-    + TRANSFORMER_SCALING_NO_ROTARY
-    + create_multi_lr_experiments(
-        BEST_POSSIBLE_SGD_SCALING,
-        NARROW_LR_SWEEP,
-    )
+# GRAND_EXPERIMENT = (
+#     TRANSFORMER_SCALING_EXPERIMENTS_OPTIMAL_LR
+#     + TRANSFORMER_SCALING_NO_ROTARY
+#     + create_multi_lr_experiments(
+#         BEST_POSSIBLE_SGD_SCALING,
+#         NARROW_LR_SWEEP,
+#     )
+# )
+
+
+# GRAND_EXPERIMENT = create_multi_lr_experiments(
+#     TRANSFORMER_SCALING, VERY_NARROW_LR_SWEEP
+# )
+
+
+GRAND_EXPERIMENT = gen_experim(
+    48,
+    label="transformer_48_diagnostic",
+    folder_name="transformer_scaling_diagnostic",
+    learning_rate=10 ** (-1.5),
+    batch_size=64,
 )

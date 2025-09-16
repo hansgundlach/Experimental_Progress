@@ -372,7 +372,7 @@ def get_lstm_base_config():
         "use_tbptt": True,  # Enable truncated BPTT by default
         "tbptt_length": 128,  # Window length L (number of timesteps to backprop through)
         "tbptt_stride": 128,  # Stride S (usually equal to tbptt_length for non-overlapping windows)
-        "tbptt_reset_hidden": True,  # Reset hidden state at sequence boundaries
+        "tbptt_reset_hidden": False,  # Reset hidden state at sequence boundaries
     }
 
 

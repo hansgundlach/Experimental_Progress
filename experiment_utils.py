@@ -548,4 +548,5 @@ def get_base_config():
         "tie_embeddings": True,  # Default to True for weight tying
         "sgd_momentum": 0.9,  # SGD momentum parameter
         "sgd_nesterov": False,  # SGD Nesterov momentum
+        "use_amp": False,
     }
