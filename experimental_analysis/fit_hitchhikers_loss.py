@@ -972,19 +972,22 @@ def get_dataset_configurations() -> dict:
             (str(p), n) for p, n in vanilla_optimal_pairs if p.exists()
         ]
 
-    # 3. MuP scaling experiments
-    # mup_dir = data_folder / "mup_scaling_experiments"
-    # if mup_dir.exists():
-    #     mup_pairs = [
-    #         (mup_dir / "mup_32d.csv", 1683000),
-    #         (mup_dir / "mup_40d.csv", 2098000),
-    #         (mup_dir / "mup_48d.csv", 2545000),
-    #         (mup_dir / "mup_56d.csv", 3015000),
-    #         (mup_dir / "mup_64d.csv", 3463000),
-    #     ]
-    #     configurations["mup_scaling_experiments"] = [
-    #         (str(p), n) for p, n in mup_pairs if p.exists()
-    #     ]
+
+
+
+    #no rotary scaling 
+    mup_dir = data_folder / "mup_scaling_experiments"
+    if mup_dir.exists():
+        mup_pairs = [
+            (mup_dir / "vanilla_32d_no_rot.csv", 1683000),
+            (mup_dir / "vanilla_40d_no_rot.csv", 2098000),
+            (mup_dir / "vanilla_48d_no_rot.csv", 2545000),
+            (mup_dir / "vanilla_56d_no_rot.csv", 3015000),
+            (mup_dir / "vanilla_64d_no_rot.csv", 3463000),
+        ]
+        configurations["mup_scaling_experiments"] = [
+            (str(p), n) for p, n in mup_pairs if p.exists()
+        ]
 
     return configurations
 
