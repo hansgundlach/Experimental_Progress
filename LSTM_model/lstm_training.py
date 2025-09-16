@@ -487,7 +487,9 @@ class VanillaLSTMLanguageModel(nn.Module):
                         )  # forget gate bias
 
         # Output layer: Xavier uniform initialization
-        nn.init.xavier_uniform_(self.linear.weight)
+        # FIXED: Only initialize if not tied to embedding (avoid double initialization)
+        if not self.tie_embeddings:
+            nn.init.xavier_uniform_(self.linear.weight)
         nn.init.zeros_(self.linear.bias)
 
 
@@ -508,6 +510,22 @@ class VanillaLSTMLanguageModel(nn.Module):
         if self.use_custom_lstm:
             # Use custom LSTM with recurrent dropout
             lstm_out, (h_n, c_n) = self.lstm(lstm_input, hidden)
+            
+            # FIXED: Apply the same regularization as standard LSTM path
+            # Note: Custom LSTM already handles layer-by-layer processing, so we need
+            # to simulate the per-layer regularization that standard LSTM does
+            # For simplicity, apply layer norm and dropouts to the final output
+            if self.use_layer_norm and self.layer_norm_position in ["output", "both"]:
+                # Apply layer norm from the last layer
+                lstm_out = self.output_layer_norms[-1](lstm_out)
+            
+            # Apply between-layers dropout (equivalent to what happens between layers)
+            if self.num_layers > 1:
+                lstm_out = self.between_layers_dropout(lstm_out)
+            
+            # Apply hidden dropout (equivalent to what happens between layers)
+            if self.num_layers > 1:
+                lstm_out = self.hidden_dropouts[-1](lstm_out)
         else:
             # Use standard LSTM layers with variational dropout
             lstm_out = lstm_input
@@ -839,6 +857,7 @@ def evaluate_model(
     data_loader: DataLoader,
     criterion: nn.Module,
     device: torch.device,
+    config: Dict = None,
 ) -> float:
     """Evaluate model on validation/test set"""
     model.eval()
@@ -853,6 +872,12 @@ def evaluate_model(
     def get_vocab_size():
         return model.vocab_size
 
+    # Handle streaming evaluation policy  
+    use_streaming = config.get("use_streaming", False) if config else False
+    eval_streaming_like_train = config.get("eval_streaming_like_train", True) if config else True
+    use_eval_streaming = use_streaming and eval_streaming_like_train
+    
+    eval_hidden = None
     total_tokens = 0
     
     with torch.no_grad():
@@ -867,9 +892,23 @@ def evaluate_model(
             batch_size, sequence_length = inputs.size()
             tokens_in_batch = batch_size * sequence_length
 
-            # Reset hidden state for each batch (non-streaming baseline)
-            hidden = get_hidden(batch_size)
-            outputs, _ = model(inputs, hidden)
+            # Handle hidden state based on eval streaming policy
+            if use_eval_streaming:
+                # Streaming evaluation: carry hidden state across batches (like training)
+                if eval_hidden is None:
+                    hidden = get_hidden(batch_size)
+                else:
+                    # Use carried-over hidden state (detached to prevent gradients)
+                    hidden = eval_hidden
+            else:
+                # Non-streaming evaluation: reset hidden state for each batch
+                hidden = get_hidden(batch_size)
+            outputs, new_hidden = model(inputs, hidden)
+            
+            # Update hidden state for streaming evaluation
+            if use_eval_streaming:
+                # Detach hidden state to prevent gradient flow but keep for next batch
+                eval_hidden = tuple(h.detach() for h in new_hidden)
 
             # Reshape for loss calculation
             outputs = outputs.view(-1, get_vocab_size())
@@ -893,6 +932,7 @@ def evaluate_model_amp(
     criterion: nn.Module,
     device: torch.device,
     use_amp: bool = False,
+    config: Dict = None,
 ) -> float:
     """Evaluate model with mixed precision support"""
     model.eval()
@@ -907,6 +947,12 @@ def evaluate_model_amp(
     def get_vocab_size():
         return model.vocab_size
 
+    # Handle streaming evaluation policy
+    use_streaming = config.get("use_streaming", False) if config else False
+    eval_streaming_like_train = config.get("eval_streaming_like_train", True) if config else True
+    use_eval_streaming = use_streaming and eval_streaming_like_train
+    
+    eval_hidden = None
     total_tokens = 0
     
     with torch.no_grad():
@@ -921,20 +967,34 @@ def evaluate_model_amp(
             batch_size, sequence_length = inputs.size()
             tokens_in_batch = batch_size * sequence_length
 
-            # Reset hidden state for each batch (non-streaming baseline)
-            hidden = get_hidden(batch_size)
+            # Handle hidden state based on eval streaming policy
+            if use_eval_streaming:
+                # Streaming evaluation: carry hidden state across batches (like training)
+                if eval_hidden is None:
+                    hidden = get_hidden(batch_size)
+                else:
+                    # Use carried-over hidden state (detached to prevent gradients)
+                    hidden = eval_hidden
+            else:
+                # Non-streaming evaluation: reset hidden state for each batch
+                hidden = get_hidden(batch_size)
 
             if use_amp:
                 with autocast():
-                    outputs, _ = model(inputs, hidden)
+                    outputs, new_hidden = model(inputs, hidden)
                     outputs = outputs.view(-1, get_vocab_size())
                     targets = targets.view(-1)
                     loss_sum = criterion(outputs, targets)
             else:
-                outputs, _ = model(inputs, hidden)
+                outputs, new_hidden = model(inputs, hidden)
                 outputs = outputs.view(-1, get_vocab_size())
                 targets = targets.view(-1)
                 loss_sum = criterion(outputs, targets)
+            
+            # Update hidden state for streaming evaluation
+            if use_eval_streaming:
+                # Detach hidden state to prevent gradient flow but keep for next batch
+                eval_hidden = tuple(h.detach() for h in new_hidden)
 
             total_loss += loss_sum.item()
             total_tokens += tokens_in_batch
@@ -1350,7 +1410,7 @@ def train_model(
                 model.eval()
                 with torch.no_grad():
                     current_val_loss = evaluate_model_amp(
-                        model, val_loader, criterion, device, use_amp
+                        model, val_loader, criterion, device, use_amp, config
                     )
                 model.train()
 
@@ -1412,7 +1472,7 @@ def train_model(
         epoch_time = time.time() - epoch_start_time
 
         # Evaluate on validation set (no gradient accumulation needed here)
-        val_loss = evaluate_model_amp(model, val_loader, criterion, device, use_amp)
+        val_loss = evaluate_model_amp(model, val_loader, criterion, device, use_amp, config)
 
         # Calculate perplexity
         train_perplexity = np.exp(avg_train_loss)
@@ -1470,7 +1530,7 @@ def train_model(
 
     # Final evaluation
     print("\nEvaluating on test set...")
-    test_loss = evaluate_model_amp(model, test_loader, criterion, device, use_amp)
+    test_loss = evaluate_model_amp(model, test_loader, criterion, device, use_amp, config)
     test_perplexity = np.exp(test_loss)
     print(f"Test Loss: {test_loss:.4f} (Perplexity: {test_perplexity:.2f})")
 

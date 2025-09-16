@@ -224,6 +224,8 @@ LSTM_SCALING = (
         tbptt_length=64,  # Half the sequence length - this will make TBPTT actually work!
         tbptt_stride=64,  # Match the length for non-overlapping windows
         batch_size=64,
+        use_streaming=True,
+        streaming_reset_prob=0.01,
     )
     + gen_lstm_experim(
         48,
@@ -238,6 +240,8 @@ LSTM_SCALING = (
         tbptt_length=64,  # Half the sequence length - this will make TBPTT actually work!
         tbptt_stride=64,  # Match the length for non-overlapping windows
         batch_size=64,
+        use_streaming=True,
+        streaming_reset_prob=0.01,
     )
     + gen_lstm_experim(
         64,
@@ -252,6 +256,8 @@ LSTM_SCALING = (
         tbptt_length=64,  # Half the sequence length - this will make TBPTT actually work!
         tbptt_stride=64,  # Match the length for non-overlapping windows
         batch_size=64,
+        use_streaming=True,
+        streaming_reset_prob=0.01,
     )
 )
 
@@ -428,23 +434,24 @@ LSTM_VARIATIONS_SCALING = (
 # )
 
 
-GRAND_EXPERIMENT = gen_lstm_experim(
-    48,
-    label="48d_tbptt32ll",
-    folder_name="lstm_scaling_diagnostic",
+GRAND_EXPERIMENT = create_multi_lr_experiments(
+    LSTM_SCALING, NARROW_LR_SWEEP
+) + gen_lstm_experim(
+    32,
+    label="yy32d_lstm_scaling_bs256lr001",
+    folder_name="lstm_scaling",
     learning_rate=0.01,
     input_dropout=0.0,  # No input dropout
     hidden_dropout=0.0,  # No hidden dropout
     output_dropout=0.0,  # No output dropout
     warmup_frac=0.02,
     use_tbptt=True,
-    tbptt_length=32,  # Half the sequence length - this will make TBPTT actually work!
-    tbptt_stride=32,  # Match the length for non-overlapping windows
-    batch_size=128,
+    tbptt_length=64,  # Half the sequence length - this will make TBPTT actually work!
+    tbptt_stride=64,  # Match the length for non-overlapping windows
+    batch_size=256,
     use_streaming=True,
     streaming_reset_prob=0.01,
 )
-# GRAND_EXPERIMENT = (
 #     gen_lstm_experim(
 #         32,
 #         label="32d_short_tbptt_length",
