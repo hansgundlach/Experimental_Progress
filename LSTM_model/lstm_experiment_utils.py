@@ -357,6 +357,9 @@ def get_lstm_base_config():
         "seed": 123,
         "optimizer": "adamw",
         "weight_decay": 0.01,
+        "adam_beta1": 0.9,
+        "adam_beta2": 0.999,
+        "adam_epsilon": 1e-8,
         "stride": 128,
         # LSTM-specific dropout settings
         "input_dropout": 0.2,

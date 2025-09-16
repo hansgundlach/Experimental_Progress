@@ -1,5 +1,4 @@
 # %%
-# %%
 import pandas as pd
 import numpy as np
 from scipy.optimize import curve_fit
@@ -480,6 +479,28 @@ if __name__ == "__main__":
             "csv_path": "../experimental_data_folder/best_possible_sgd/64d_best_sgd.csv",
             "marker": "s",
             "color": "tab:cyan",
+            "include_in_in_frontier": True,  # Include in frontier analysis
+        },
+        #melis scaling
+        {
+            "name": "32d melis scaling experiments",
+            "csv_path": "../experimental_data_folder/lstm_scaling_diagnostic/32melis_settings_low_dropout.csv",
+            "marker": "o",
+            "color": "deeppink",
+            "include_in_in_frontier": True,  # Include in frontier analysis
+        },
+        {
+            "name": "48d melis scaling experiments",
+            "csv_path": "../experimental_data_folder/lstm_scaling_diagnostic/48melis_settings_low_dropout.csv",
+            "marker": "o",
+            "color": "deeppink",
+            "include_in_in_frontier": True,  # Include in frontier analysis
+        },
+        {
+            "name": "64d melis scaling experiments",
+            "csv_path": "../experimental_data_folder/lstm_scaling_diagnostic/64melis_settings_low_dropout.csv",
+            "marker": "o",
+            "color": "deeppink",
             "include_in_in_frontier": True,  # Include in frontier analysis
         },
        

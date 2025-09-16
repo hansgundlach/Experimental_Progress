@@ -92,7 +92,7 @@ def main():
     print("Testing gen_experim function output for multiple model sizes...")
 
     # Test different hidden dimensions
-    hidden_dims = [32, 40, 48, 56, 64]
+    hidden_dims = [32, 48, 64, 200]
 
     for i, hidden_dim in enumerate(hidden_dims):
         analyze_experiment(hidden_dim, f" ({i+1}/4)")
@@ -105,4 +105,4 @@ def main():
 if __name__ == "__main__":
     main()
 
-#test git 
+# test git

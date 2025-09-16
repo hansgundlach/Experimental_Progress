@@ -637,7 +637,245 @@ LSTM_VARIATIONS_SCALING_2 = (
 )
 
 
-GRAND_EXPERIMENT = LSTM_VARIATIONS_SCALING_2
+LSTM_VARIATIONS_SCALING_3 = (
+    gen_lstm_experim(
+        64,
+        label="melis_settings",
+        folder_name="lstm_scaling_diagnostic",
+        learning_rate=10 ** (-2),
+        input_dropout=0.6,  # No input dropout
+        hidden_dropout=0.5,  # No hidden dropout
+        output_dropout=0.7,  # No output dropout
+        between_layers_dropout=0.3,
+        optimizer="adam",
+        adam_beta1=0.0,
+        adam_beta2=0.999,
+        adam_epsilon=1e-9,
+        weight_decay=1e-4,
+        warmup_frac=0.02,
+        use_tbptt=True,
+        tbptt_length=32,  # Half the sequence length - this will make TBPTT actually work!
+        tbptt_stride=32,  # Match the length for non-overlapping windows
+        tbptt_reset_hidden=False,
+        use_streaming=True,
+        streaming_reset_prob=0.01,
+        batch_size=64,
+        num_layers=1,
+    )
+    + gen_lstm_experim(
+        64,
+        label="melis_settings_low_dropout",
+        folder_name="lstm_scaling_diagnostic",
+        learning_rate=10 ** (-2),
+        input_dropout=0.2,  # No input dropout
+        hidden_dropout=0.05,  # No hidden dropout
+        output_dropout=0.2,  # No output dropout
+        between_layers_dropout=0.3,
+        optimizer="adam",
+        adam_beta1=0.0,
+        adam_beta2=0.999,
+        adam_epsilon=1e-9,
+        weight_decay=1e-4,
+        warmup_frac=0.02,
+        use_tbptt=True,
+        tbptt_length=32,  # Half the sequence length - this will make TBPTT actually work!
+        tbptt_stride=32,  # Match the length for non-overlapping windows
+        tbptt_reset_hidden=False,
+        use_streaming=True,
+        streaming_reset_prob=0.01,
+        batch_size=64,
+        num_layers=1,
+    )
+    + gen_lstm_experim(
+        64,
+        label="64d_tbptt_nodrop_lr001_4layers",
+        folder_name="lstm_scaling_diagnostic",
+        learning_rate=10 ** (-2),
+        input_dropout=0.0,  # No input dropout
+        hidden_dropout=0.0,  # No hidden dropout
+        output_dropout=0.0,  # No output dropout
+        warmup_frac=0.02,
+        use_tbptt=True,
+        tbptt_length=64,  # Half the sequence length - this will make TBPTT actually work!
+        tbptt_stride=64,  # Match the length for non-overlapping windows
+        tbptt_reset_hidden=False,
+        use_streaming=True,
+        streaming_reset_prob=0.01,
+        num_layers=4,
+    )
+    + gen_lstm_experim(
+        64,
+        label="64d_tbptt_nodrop_lr001_4layers",
+        folder_name="lstm_scaling_diagnostic",
+        learning_rate=10 ** (-2),
+        input_dropout=0.0,  # No input dropout
+        hidden_dropout=0.0,  # No hidden dropout
+        output_dropout=0.0,  # No output dropout
+        warmup_frac=0.02,
+        use_tbptt=True,
+        tbptt_length=64,  # Half the sequence length - this will make TBPTT actually work!
+        tbptt_stride=64,  # Match the length for non-overlapping windows
+        tbptt_reset_hidden=False,
+        use_streaming=True,
+        streaming_reset_prob=0.01,
+        num_layers=4,
+    )
+    + gen_lstm_experim(
+        64,
+        label="64d_tbptt_nodrop_lr001_2layers_005warmup",
+        folder_name="lstm_scaling_diagnostic",
+        learning_rate=10 ** (-2),
+        input_dropout=0.0,  # No input dropout
+        hidden_dropout=0.0,  # No hidden dropout
+        output_dropout=0.0,  # No output dropout
+        warmup_frac=0.05,
+        use_tbptt=True,
+        tbptt_length=64,  # Half the sequence length - this will make TBPTT actually work!
+        tbptt_stride=64,  # Match the length for non-overlapping windows
+        tbptt_reset_hidden=False,
+        use_streaming=True,
+        streaming_reset_prob=0.01,
+        num_layers=2,
+    )
+    + gen_lstm_experim(
+        64,
+        label="64d_tbptt_nodrop_lr001_2layers_005warmup",
+        folder_name="lstm_scaling_diagnostic",
+        learning_rate=10 ** (-2),
+        input_dropout=0.0,  # No input dropout
+        hidden_dropout=0.0,  # No hidden dropout
+        output_dropout=0.0,  # No output dropout
+        warmup_frac=0.02,
+        use_tbptt=True,
+        tbptt_length=64,  # Half the sequence length - this will make TBPTT actually work!
+        tbptt_stride=64,  # Match the length for non-overlapping windows
+        tbptt_reset_hidden=False,
+        use_streaming=True,
+        streaming_reset_prob=0.01,
+        num_layers=2,
+    )
+    + gen_lstm_experim(
+        64,
+        label="64d_tbptt_nodrop_lr001_2layers_gradientclipping5",
+        folder_name="lstm_scaling_diagnostic",
+        learning_rate=10 ** (-2),
+        input_dropout=0.0,  # No input dropout
+        hidden_dropout=0.0,  # No hidden dropout
+        output_dropout=0.0,  # No output dropout
+        warmup_frac=0.02,
+        use_tbptt=True,
+        tbptt_length=64,  # Half the sequence length - this will make TBPTT actually work!
+        tbptt_stride=64,  # Match the length for non-overlapping windows
+        tbptt_reset_hidden=False,
+        use_streaming=True,
+        streaming_reset_prob=0.01,
+        num_layers=2,
+        gradient_clipping=5.0,
+    )
+)
+
+
+MELIS_SCALING = (
+    gen_lstm_experim(
+        32,
+        label="32melis_settings_low_dropout",
+        folder_name="lstm_scaling_diagnostic",
+        learning_rate=10 ** (-2),
+        input_dropout=0.2,
+        hidden_dropout=0.05,
+        output_dropout=0.2,
+        between_layers_dropout=0.3,
+        optimizer="adam",
+        adam_beta1=0.0,
+        adam_beta2=0.999,
+        adam_epsilon=1e-9,
+        weight_decay=1e-4,
+        warmup_frac=0.02,
+        use_tbptt=True,
+        tbptt_length=32,
+        tbptt_stride=32,
+        tbptt_reset_hidden=False,
+        use_streaming=True,
+        streaming_reset_prob=0.01,
+        batch_size=64,
+        num_layers=1,
+    )
+    + gen_lstm_experim(
+        32,
+        label="32melis_settings_low_dropout_128bs",
+        folder_name="lstm_scaling_diagnostic",
+        learning_rate=10**-2,
+        input_dropout=0.2,
+        hidden_dropout=0.05,
+        output_dropout=0.2,
+        between_layers_dropout=0.3,
+        optimizer="adam",
+        adam_beta1=0.0,
+        adam_beta2=0.999,
+        adam_epsilon=1e-9,
+        weight_decay=1e-4,
+        warmup_frac=0.02,
+        use_tbptt=True,
+        tbptt_length=32,
+        tbptt_stride=32,
+        tbptt_reset_hidden=False,
+        use_streaming=True,
+        streaming_reset_prob=0.01,
+        batch_size=128,
+        num_layers=1,
+    )
+    + gen_lstm_experim(
+        48,
+        label="48melis_settings_low_dropout",
+        folder_name="lstm_scaling_diagnostic",
+        learning_rate=10**-2,
+        input_dropout=0.2,
+        hidden_dropout=0.05,
+        output_dropout=0.2,
+        between_layers_dropout=0.3,
+        optimizer="adam",
+        adam_beta1=0.0,
+        adam_beta2=0.999,
+        adam_epsilon=1e-9,
+        weight_decay=1e-4,
+        warmup_frac=0.02,
+        use_tbptt=True,
+        tbptt_length=32,
+        tbptt_stride=32,
+        tbptt_reset_hidden=False,
+        use_streaming=True,
+        streaming_reset_prob=0.01,
+        batch_size=64,
+        num_layers=1,
+    )
+    + gen_lstm_experim(
+        64,
+        label="64melis_settings_low_dropout",
+        folder_name="lstm_scaling_diagnostic",
+        learning_rate=10**-2,
+        input_dropout=0.2,
+        hidden_dropout=0.05,
+        output_dropout=0.2,
+        between_layers_dropout=0.3,
+        optimizer="adam",
+        adam_beta1=0.0,
+        adam_beta2=0.999,
+        adam_epsilon=1e-9,
+        weight_decay=1e-4,
+        warmup_frac=0.02,
+        use_tbptt=True,
+        tbptt_length=32,
+        tbptt_stride=32,
+        tbptt_reset_hidden=False,
+        use_streaming=True,
+        streaming_reset_prob=0.01,
+        batch_size=64,
+        num_layers=1,
+    )
+)
+
+
+GRAND_EXPERIMENT = MELIS_SCALING
 
 
 #     gen_lstm_experim(

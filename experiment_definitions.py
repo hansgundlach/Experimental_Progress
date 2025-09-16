@@ -719,8 +719,29 @@ BEST_POSSIBLE_SGD_SCALING = (
 
 GRAND_EXPERIMENT = gen_experim(
     48,
-    label="transformer_48_diagnostic",
+    label="transformer_48_diagnostic_lr_10e15bs64",
     folder_name="transformer_scaling_diagnostic",
     learning_rate=10 ** (-1.5),
+    batch_size=64,
+)
++gen_experim(
+    48,
+    label="transformer_48_diagnostic_lr_10e15bs32",
+    folder_name="transformer_scaling_diagnostic",
+    learning_rate=10 ** (-1.5),
+    batch_size=32,
+)
++gen_experim(
+    48,
+    label="transformer_48_diagnostic_lr_10e2bs64",
+    folder_name="transformer_scaling_diagnostic",
+    learning_rate=10 ** (-2),
+    batch_size=64,
+)
++gen_experim(
+    48,
+    label="transformer_48_diagnostic_lr_10e12bs64",
+    folder_name="transformer_scaling_diagnostic",
+    learning_rate=10 ** (-1),
     batch_size=64,
 )

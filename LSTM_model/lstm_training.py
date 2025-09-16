@@ -1108,12 +1108,19 @@ def train_model(
     # Select optimizer based on config
     opt_name = config.get("optimizer", "adam").lower()
     if opt_name == "adam":
-        optimizer = optim.Adam(model.parameters(), lr=config["learning_rate"])
+        optimizer = optim.Adam(
+            model.parameters(), 
+            lr=config["learning_rate"],
+            betas=(config.get("adam_beta1", 0.9), config.get("adam_beta2", 0.999)),
+            eps=config.get("adam_epsilon", 1e-8)
+        )
     elif opt_name == "adamw":
         optimizer = optim.AdamW(
             model.parameters(),
             lr=config["learning_rate"],
             weight_decay=config.get("weight_decay", 0.0),
+            betas=(config.get("adam_beta1", 0.9), config.get("adam_beta2", 0.999)),
+            eps=config.get("adam_epsilon", 1e-8)
         )
     elif opt_name == "sgd":
         optimizer = optim.SGD(
@@ -1222,6 +1229,11 @@ def train_model(
     # Training loop
     optimizer_step_counter = 0
     
+    # Initialize metrics counters
+    tokens_cumulative = 0
+    streaming_reset_count = 0
+    effective_batch_tokens = config["batch_size"] * gradient_accumulation_steps * config["sequence_length"]
+    
     # Initialize hidden state for streaming mode
     use_streaming = config.get("use_streaming", False)
     streaming_hidden = None
@@ -1244,6 +1256,9 @@ def train_model(
                 targets = targets.squeeze(0)  # [B, seq_len]
             
             batch_size, sequence_length = inputs.size()
+            
+            # Track cumulative tokens processed
+            tokens_cumulative += batch_size * sequence_length
 
             # Handle hidden state based on streaming mode
             if use_streaming:
@@ -1260,6 +1275,7 @@ def train_model(
                     if torch.rand(1).item() < streaming_reset_prob:
                         print(f"  Randomly resetting hidden state at batch {batch_idx}")
                         hidden = init_hidden(batch_size)
+                        streaming_reset_count += 1
             else:
                 # Non-streaming baseline: reset hidden state at EVERY batch
                 # This ensures we don't carry hidden state across DataLoader batches
@@ -1378,19 +1394,25 @@ def train_model(
                 batch_idx + 1 == len(train_loader)
             ):
                 # Apply gradient clipping and optimizer step
+                grad_norm_preclip = 0.0
+                clipped_step = 0
+                clip_val = config.get("gradient_clip_val", 1.0)
+                
                 if use_amp:
                     if config.get("use_gradient_clipping", False):
                         scaler.unscale_(optimizer)
-                        torch.nn.utils.clip_grad_norm_(
-                            model.parameters(), config.get("gradient_clip_val", 1.0)
+                        grad_norm_preclip = torch.nn.utils.clip_grad_norm_(
+                            model.parameters(), clip_val
                         )
+                        clipped_step = int(grad_norm_preclip > clip_val)
                     scaler.step(optimizer)
                     scaler.update()
                 else:
                     if config.get("use_gradient_clipping", False):
-                        torch.nn.utils.clip_grad_norm_(
-                            model.parameters(), config.get("gradient_clip_val", 1.0)
+                        grad_norm_preclip = torch.nn.utils.clip_grad_norm_(
+                            model.parameters(), clip_val
                         )
+                        clipped_step = int(grad_norm_preclip > clip_val)
                     optimizer.step()
 
                 # Zero gradients after optimization step
@@ -1400,6 +1422,27 @@ def train_model(
                 optimizer_step_counter += 1
                 if scheduler is not None and scheduler_type == "step":
                     scheduler.step(optimizer_step_counter)
+                
+                # Log high-leverage metrics to wandb after each optimizer step
+                current_lr = optimizer.param_groups[0]["lr"]
+                flops_per_batch = flop_counter.flops_per_batch if flop_counter.profiled else 0
+                total_flops = flop_counter.total_flops
+                
+                step_log_dict = {
+                    "learning_rate": current_lr,
+                    "train_loss_per_token": loss.item(),
+                    "grad_norm_preclip": float(grad_norm_preclip),
+                    "clipped_step": clipped_step,
+                    "effective_batch_tokens": effective_batch_tokens,
+                    "tokens_cumulative": tokens_cumulative,
+                    "flops_per_batch": flops_per_batch,
+                    "total_flops": total_flops,
+                    "streaming_reset_count": streaming_reset_count,
+                    "optimizer_step": optimizer_step_counter,
+                }
+                
+                if not config.get("wandb_offline", False):
+                    wandb.log(step_log_dict, step=optimizer_step_counter)
 
             # Log to CSV if enabled
             if csv_writer and (batch_idx + 1) % csv_log_interval == 0:
@@ -1445,7 +1488,8 @@ def train_model(
                 # ALSO: log validation loss and cumulative FLOPs to W&B
                 wandb.log(
                     {
-                        "validation_loss": current_val_loss,
+                        "val_loss_per_token": current_val_loss,
+                        "validation_loss": current_val_loss,  # Keep for backwards compatibility
                         "total_flops_profiler": total_flops,
                     },
                     step=current_step,

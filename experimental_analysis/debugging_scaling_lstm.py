@@ -429,14 +429,14 @@ if __name__ == "__main__":
         #     "class": "vanilla_transformer_no_rotary",
         #     "hidden_dim": 64,
         # },
-        # {
-        #     "name": "32 vanilla optimal lr",
-        #     "csv_path": "../experimental_data_folder/vanilla_scaling_optimal_lr/vanilla_32d.csv",
-        #     "marker": "o",
-        #     "include_in_frontier": True,  # Include in frontier analysis
-        #     "class": "vanilla_transformer",
-        #     "hidden_dim": 32,
-        # },
+        {
+            "name": "32 vanilla optimal lr",
+            "csv_path": "../experimental_data_folder/vanilla_scaling_optimal_lr/vanilla_32d.csv",
+            "marker": "o",
+            "include_in_frontier": True,  # Include in frontier analysis
+            "class": "vanilla_transformer",
+            "hidden_dim": 32,
+        },
         # lstm scaling
         # {
         #     "name": "32d lstm optimal lr",
@@ -565,6 +565,34 @@ if __name__ == "__main__":
             "include_in_frontier": True,  # Include in frontier analysis
             "class": "lstm",
             "color": "deeppink",
+            "hidden_dim": 64,
+        },
+        # melis scaling
+        {
+            "name": "32d melis scaling experiments",
+            "csv_path": "../experimental_data_folder/lstm_scaling_diagnostic/32melis_settings_low_dropout.csv",
+            "marker": "o",
+            "include_in_frontier": True,  # Include in frontier analysis
+            "class": "lstm",
+            "color": "tab:cyan",
+            "hidden_dim": 32,
+        },
+        {
+            "name": "48d melis scaling experiments",
+            "csv_path": "../experimental_data_folder/lstm_scaling_diagnostic/48melis_settings_low_dropout.csv",
+            "marker": "o",
+            "include_in_frontier": True,  # Include in frontier analysis
+            "class": "lstm",
+            "color": "tab:cyan",
+            "hidden_dim": 48,
+        },
+        {
+            "name": "64d melis scaling experiments",
+            "csv_path": "../experimental_data_folder/lstm_scaling_diagnostic/64melis_settings_low_dropout.csv",
+            "marker": "o",
+            "include_in_frontier": True,  # Include in frontier analysis
+            "class": "lstm",
+            "color": "tab:cyan",
             "hidden_dim": 64,
         },
     ]
