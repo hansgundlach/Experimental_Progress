@@ -125,6 +125,49 @@ class WikiTextDataset(Dataset):
         return seq, tgt
 
 
+class WikiTextStreamingDataset(Dataset):
+    """
+    Streaming dataset that reshapes data into B contiguous streams.
+    Follows Melis/Merity style: data is reshaped into [B, T_total] where
+    each batch consists of the next tokens from B continuous streams.
+    """
+
+    def __init__(self, text_data: List[int], sequence_length: int, batch_size: int):
+        self.sequence_length = sequence_length
+        self.batch_size = batch_size
+        
+        # Calculate how many tokens we can use (must be divisible by batch_size)
+        total_tokens = len(text_data)
+        tokens_per_stream = total_tokens // batch_size
+        usable_tokens = tokens_per_stream * batch_size
+        
+        if usable_tokens < batch_size * sequence_length:
+            raise ValueError(f"Dataset too small: need at least {batch_size * sequence_length} tokens, got {usable_tokens}")
+        
+        # Reshape into [B, T_stream] where T_stream = tokens_per_stream
+        data_tensor = torch.tensor(text_data[:usable_tokens], dtype=torch.long)
+        self.streams = data_tensor.view(batch_size, tokens_per_stream)
+        
+        # Number of sequence-length windows we can extract from each stream
+        self.num_batches = (tokens_per_stream - 1) // sequence_length
+        
+        print(f"Streaming dataset: {batch_size} streams, {tokens_per_stream} tokens per stream, {self.num_batches} batches")
+
+    def __len__(self):
+        return self.num_batches
+
+    def __getitem__(self, idx):
+        # Extract sequence starting at position idx * sequence_length from all streams
+        start_pos = idx * self.sequence_length
+        end_pos = start_pos + self.sequence_length
+        
+        # Get inputs and targets for all streams at this time step
+        inputs = self.streams[:, start_pos:end_pos]  # [B, seq_len]
+        targets = self.streams[:, start_pos + 1:end_pos + 1]  # [B, seq_len]
+        
+        return inputs, targets
+
+
 class TextPreprocessor:
     def __init__(self, tokenizer_path: str):
         # Load tokenizer from local directory (offline mode)
@@ -698,13 +741,28 @@ def load_and_preprocess_data(
     val_data = full_data[n_train : n_train + n_val]
     test_data = full_data[n_train + n_val :]
 
-    # Create sliding‐window datasets with same stride as transformer
-    stride = config.get("stride", 1)
-    train_dataset = WikiTextDataset(
-        train_data, config["sequence_length"], stride=stride
-    )
-    val_dataset = WikiTextDataset(val_data, config["sequence_length"], stride=stride)
-    test_dataset = WikiTextDataset(test_data, config["sequence_length"], stride=stride)
+    # Choose dataset type based on streaming config
+    use_streaming = config.get("use_streaming", False)
+    
+    if use_streaming:
+        print("Using streaming (Melis/Merity style) datasets")
+        train_dataset = WikiTextStreamingDataset(
+            train_data, config["sequence_length"], config["batch_size"]
+        )
+        val_dataset = WikiTextStreamingDataset(
+            val_data, config["sequence_length"], config["batch_size"]
+        )
+        test_dataset = WikiTextStreamingDataset(
+            test_data, config["sequence_length"], config["batch_size"]
+        )
+    else:
+        print("Using non-streaming (sliding window) datasets")
+        stride = config.get("stride", 1)
+        train_dataset = WikiTextDataset(
+            train_data, config["sequence_length"], stride=stride
+        )
+        val_dataset = WikiTextDataset(val_data, config["sequence_length"], stride=stride)
+        test_dataset = WikiTextDataset(test_data, config["sequence_length"], stride=stride)
 
     # CONSERVATIVE: Determine optimal number of workers for Supercloud
     if config.get("num_workers") == "auto":
@@ -732,9 +790,12 @@ def load_and_preprocess_data(
     print(f"  prefetch_factor: {prefetch_factor}")
 
     # Create optimized data loaders (single-GPU only)
+    # For streaming datasets, use batch_size=1 since dataset handles batching internally
+    dataloader_batch_size = 1 if use_streaming else config["batch_size"]
+    
     train_loader = DataLoader(
         train_dataset,
-        batch_size=config["batch_size"],
+        batch_size=dataloader_batch_size,
         shuffle=False,  # Must be False for stateful training
         num_workers=num_workers,
         pin_memory=pin_memory,
@@ -745,7 +806,7 @@ def load_and_preprocess_data(
 
     val_loader = DataLoader(
         val_dataset,
-        batch_size=config["batch_size"],
+        batch_size=dataloader_batch_size,
         shuffle=False,
         num_workers=num_workers,
         pin_memory=pin_memory,
@@ -755,7 +816,7 @@ def load_and_preprocess_data(
 
     test_loader = DataLoader(
         test_dataset,
-        batch_size=config["batch_size"],
+        batch_size=dataloader_batch_size,
         shuffle=False,
         num_workers=num_workers,
         pin_memory=pin_memory,
@@ -797,6 +858,12 @@ def evaluate_model(
     with torch.no_grad():
         for batch_idx, (inputs, targets) in enumerate(data_loader):
             inputs, targets = inputs.to(device), targets.to(device)
+            
+            # Handle tensor shapes - if 3D, squeeze first dimension (streaming mode)
+            if inputs.dim() == 3:
+                inputs = inputs.squeeze(0)
+                targets = targets.squeeze(0)
+            
             batch_size, sequence_length = inputs.size()
             tokens_in_batch = batch_size * sequence_length
 
@@ -845,6 +912,12 @@ def evaluate_model_amp(
     with torch.no_grad():
         for batch_idx, (inputs, targets) in enumerate(data_loader):
             inputs, targets = inputs.to(device), targets.to(device)
+            
+            # Handle tensor shapes - if 3D, squeeze first dimension (streaming mode)
+            if inputs.dim() == 3:
+                inputs = inputs.squeeze(0)
+                targets = targets.squeeze(0)
+            
             batch_size, sequence_length = inputs.size()
             tokens_in_batch = batch_size * sequence_length
 
@@ -1088,6 +1161,12 @@ def train_model(
 
     # Training loop
     optimizer_step_counter = 0
+    
+    # Initialize hidden state for streaming mode
+    use_streaming = config.get("use_streaming", False)
+    streaming_hidden = None
+    streaming_reset_prob = config.get("streaming_reset_prob", 0.01)  # 1% chance to reset
+    
     for epoch in range(config["num_epochs"]):
         # Single-GPU training - no reshuffling needed
         model.train()
@@ -1097,11 +1176,34 @@ def train_model(
         optimizer.zero_grad()  # Zero gradients at the start of epoch
 
         for batch_idx, (inputs, targets) in enumerate(train_loader):
+            # Handle tensor shapes for streaming vs non-streaming datasets
+            if use_streaming:
+                # Streaming dataset returns [B, seq_len], DataLoader adds [1, B, seq_len]
+                # So squeeze the first dimension
+                inputs = inputs.squeeze(0)  # [B, seq_len]
+                targets = targets.squeeze(0)  # [B, seq_len]
+            
             batch_size, sequence_length = inputs.size()
 
-            # Reset hidden state at the start of EVERY batch (non-streaming baseline)
-            # This ensures we don't carry hidden state across DataLoader batches
-            hidden = init_hidden(batch_size)
+            # Handle hidden state based on streaming mode
+            if use_streaming:
+                # Streaming mode: carry hidden state across batches, reset occasionally
+                if streaming_hidden is None:
+                    # Initialize hidden state at start
+                    hidden = init_hidden(batch_size)
+                    streaming_hidden = hidden
+                else:
+                    # Use carried-over hidden state
+                    hidden = streaming_hidden
+                    
+                    # Optional: randomly reset hidden state with small probability
+                    if torch.rand(1).item() < streaming_reset_prob:
+                        print(f"  Randomly resetting hidden state at batch {batch_idx}")
+                        hidden = init_hidden(batch_size)
+            else:
+                # Non-streaming baseline: reset hidden state at EVERY batch
+                # This ensures we don't carry hidden state across DataLoader batches
+                hidden = init_hidden(batch_size)
 
             # Profile only the very first batch of training
             if not flop_counter.profiled:
@@ -1154,6 +1256,10 @@ def train_model(
                     gradient_accumulation_steps,
                     get_vocab_size,
                 )
+                # Handle hidden state for streaming mode
+                if use_streaming:
+                    # In streaming mode, save the hidden state for next batch
+                    streaming_hidden = hidden
                 # Use per-token loss directly for logging (already properly scaled)
                 loss = torch.tensor(per_token_loss, device=device)
             else:
@@ -1165,8 +1271,14 @@ def train_model(
                 if use_amp:
                     with autocast():
                         outputs, hidden = model(inputs, hidden)
-                        # Detach hidden state to treat it as a new input, preventing BPTT through all time
-                        hidden = tuple(h.detach() for h in hidden)
+                        # Handle hidden state based on streaming mode
+                        if use_streaming:
+                            # Streaming: detach only for TBPTT (gradients within sequence)
+                            # but keep for cross-batch state continuation
+                            streaming_hidden = tuple(h.detach() for h in hidden)
+                        else:
+                            # Non-streaming: detach to prevent BPTT through all time
+                            hidden = tuple(h.detach() for h in hidden)
                         outputs = outputs.view(-1, get_vocab_size())
                         targets_reshaped = targets.view(-1)
                         # Compute sum loss and scale properly
@@ -1180,8 +1292,14 @@ def train_model(
                 else:
                     # Regular precision
                     outputs, hidden = model(inputs, hidden)
-                    # Detach hidden state to treat it as a new input, preventing BPTT through all time
-                    hidden = tuple(h.detach() for h in hidden)
+                    # Handle hidden state based on streaming mode
+                    if use_streaming:
+                        # Streaming: detach only for TBPTT (gradients within sequence)
+                        # but keep for cross-batch state continuation
+                        streaming_hidden = tuple(h.detach() for h in hidden)
+                    else:
+                        # Non-streaming: detach to prevent BPTT through all time
+                        hidden = tuple(h.detach() for h in hidden)
                     outputs = outputs.view(-1, get_vocab_size())
                     targets_reshaped = targets.view(-1)
                     # Compute sum loss and scale properly

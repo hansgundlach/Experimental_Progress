@@ -428,8 +428,22 @@ LSTM_VARIATIONS_SCALING = (
 # )
 
 
-GRAND_EXPERIMENT = create_multi_lr_experiments(LSTM_SCALING, NARROW_LR_SWEEP)
-
+GRAND_EXPERIMENT = gen_lstm_experim(
+    48,
+    label="48d_tbptt32ll",
+    folder_name="lstm_scaling_diagnostic",
+    learning_rate=0.01,
+    input_dropout=0.0,  # No input dropout
+    hidden_dropout=0.0,  # No hidden dropout
+    output_dropout=0.0,  # No output dropout
+    warmup_frac=0.02,
+    use_tbptt=True,
+    tbptt_length=32,  # Half the sequence length - this will make TBPTT actually work!
+    tbptt_stride=32,  # Match the length for non-overlapping windows
+    batch_size=128,
+    use_streaming=True,
+    streaming_reset_prob=0.01,
+)
 # GRAND_EXPERIMENT = (
 #     gen_lstm_experim(
 #         32,
