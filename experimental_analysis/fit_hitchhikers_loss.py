@@ -953,29 +953,37 @@ def get_dataset_configurations() -> dict:
         ]
 
     # 2. Vanilla scaling with optimal LR
-    vanilla_optimal_dir = data_folder / "vanilla_scaling_optimal_lr"
-    if vanilla_optimal_dir.exists():
-        vanilla_optimal_pairs = [
-            # (vanilla_optimal_dir / "vanilla_16d.csv", int(0.857e6)),
-            # (vanilla_optimal_dir / "vanilla_24d.csv", int(1.270e6)),
-            (vanilla_optimal_dir / "vanilla_32d.csv", int(1.672e6)),
-            (vanilla_optimal_dir / "vanilla_40d.csv", 2098000),
-            (vanilla_optimal_dir / "vanilla_48d.csv", 2545000),
-            (vanilla_optimal_dir / "vanilla_56d.csv", 3015000),
-            (vanilla_optimal_dir / "vanilla_64d.csv", 3463000),
-            # (vanilla_optimal_dir / "vanilla_72d.csv", int(3.917e6)),
-            (vanilla_optimal_dir / "vanilla_80d.csv", int(4.454e6)),
-            # (vanilla_optimal_dir / "vanilla_96d.csv", int(5.538e6)),
-            # (vanilla_optimal_dir / "vanilla_128d.csv", int(8.056e6)),
+    # vanilla_optimal_dir = data_folder / "vanilla_scaling_optimal_lr"
+    # if vanilla_optimal_dir.exists():
+    #     vanilla_optimal_pairs = [
+    #         # (vanilla_optimal_dir / "vanilla_16d.csv", int(0.857e6)),
+    #         # (vanilla_optimal_dir / "vanilla_24d.csv", int(1.270e6)),
+    #         (vanilla_optimal_dir / "vanilla_32d.csv", int(1.672e6)),
+    #         (vanilla_optimal_dir / "vanilla_40d.csv", 2098000),
+    #         (vanilla_optimal_dir / "vanilla_48d.csv", 2545000),
+    #         (vanilla_optimal_dir / "vanilla_56d.csv", 3015000),
+    #         (vanilla_optimal_dir / "vanilla_64d.csv", 3463000),
+    #         # (vanilla_optimal_dir / "vanilla_72d.csv", int(3.917e6)),
+    #         (vanilla_optimal_dir / "vanilla_80d.csv", int(4.454e6)),
+    #         # (vanilla_optimal_dir / "vanilla_96d.csv", int(5.538e6)),
+    #         # (vanilla_optimal_dir / "vanilla_128d.csv", int(8.056e6)),
+    #     ]
+    #     configurations["vanilla_scaling_optimal_lr"] = [
+    #         (str(p), n) for p, n in vanilla_optimal_pairs if p.exists()
+    #     ]
+
+    new_scaling_dir = data_folder / "new_scaling"
+    if new_scaling_dir.exists():
+        new_scaling_pairs = [
+            (new_scaling_dir / "32d_new_scaling.csv", 1683000),
+            (new_scaling_dir / "48d_new_scaling.csv", 2545000),
+            (new_scaling_dir / "64d_new_scaling.csv", 3463000),
         ]
-        configurations["vanilla_scaling_optimal_lr"] = [
-            (str(p), n) for p, n in vanilla_optimal_pairs if p.exists()
+        configurations["new_scaling"] = [
+            (str(p), n) for p, n in new_scaling_pairs if p.exists()
         ]
 
-
-
-
-    #no rotary scaling 
+    # no rotary scaling
     mup_dir = data_folder / "mup_scaling_experiments"
     if mup_dir.exists():
         mup_pairs = [
