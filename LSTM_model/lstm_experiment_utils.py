@@ -363,7 +363,7 @@ def get_lstm_base_config():
         "hidden_dropout": 0.1,
         "output_dropout": 0.2,
         "between_layers_dropout": 0.0,  # Standard dropout between LSTM layers (0.1-0.5 typical range)
-        "use_layer_norm": True,
+        "use_layer_norm": False,
         "layer_norm_position": "output",
         "use_mup": False,
         "mup_base_width": 16,
