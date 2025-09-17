@@ -464,6 +464,8 @@ if __name__ == "__main__":
             "marker": "s",
             "color": "tab:cyan",
             "include_in_in_frontier": False,  # Include in frontier analysis
+            "class": "sgd",
+            "hidden_dim": 32,
         },
         {
             "name": " best sgd 48d",
@@ -471,6 +473,8 @@ if __name__ == "__main__":
             "marker": "s",
             "color": "tab:cyan",
             "include_in_in_frontier": False,  # Include in frontier analysis
+            "class": "sgd",
+            "hidden_dim": 48,
         },
         {
             "name": " best sgd 64d",
@@ -478,6 +482,8 @@ if __name__ == "__main__":
             "marker": "s",
             "color": "tab:cyan",
             "include_in_in_frontier": False,  # Include in frontier analysis
+            "class": "sgd",
+            "hidden_dim": 64,
         },
         # melis scaling
         {
@@ -486,6 +492,8 @@ if __name__ == "__main__":
             "marker": "o",
             "color": "deeppink",
             "include_in_in_frontier": False,  # Include in frontier analysis
+            "class": "lstm",
+            "hidden_dim": 32,
         },
         {
             "name": "48d melis scaling experiments",
@@ -493,6 +501,8 @@ if __name__ == "__main__":
             "marker": "o",
             "color": "deeppink",
             "include_in_in_frontier": False,  # Include in frontier analysis
+            "class": "lstm",
+            "hidden_dim": 48,
         },
         {
             "name": "64d melis scaling experiments",
@@ -500,6 +510,8 @@ if __name__ == "__main__":
             "marker": "o",
             "color": "deeppink",
             "include_in_in_frontier": False,  # Include in frontier analysis
+            "class": "lstm",
+            "hidden_dim": 64,
         },
         # 80 and 96 melis
         {
@@ -508,6 +520,8 @@ if __name__ == "__main__":
             "marker": "o",
             "color": "deeppink",
             "include_in_in_frontier": False,  # Include in frontier analysis
+            "class": "lstm",
+            "hidden_dim": 80,
         },
         {
             "name": "96d melis scaling experiments",
@@ -515,6 +529,8 @@ if __name__ == "__main__":
             "marker": "o",
             "color": "deeppink",
             "include_in_in_frontier": False,  # Include in frontier analysis
+            "class": "lstm",
+            "hidden_dim": 96,
         },
         # new scaling
         {
@@ -523,6 +539,8 @@ if __name__ == "__main__":
             "marker": "o",
             "color": "tab:purple",
             "include_in_in_frontier": True,  # Include in frontier analysis
+            "class": "transformer",
+            "hidden_dim": 32,
         },
         {
             "name": "48d new scaling",
@@ -530,6 +548,8 @@ if __name__ == "__main__":
             "marker": "o",
             "color": "tab:purple",
             "include_in_in_frontier": True,  # Include in frontier analysis
+            "class": "transformer",
+            "hidden_dim": 48,
         },
         {
             "name": "64d new scaling",
@@ -537,14 +557,18 @@ if __name__ == "__main__":
             "marker": "o",
             "color": "tab:purple",
             "include_in_in_frontier": True,  # Include in frontier analysis
+            "class": "transformer",
+            "hidden_dim": 64,
         },
         # new scaling no rotary
         {
             "name": "32d new scaling no rotary",
-            "csv_path": "../experimental_data_folder/new_scaling/32d_new_scaling_no_rotary.csv",
+            "csv_path": "../experimental_data_folder/new_scaling/32d_new_scaling_no_rotarybs32.csv",
             "marker": "o",
             "color": "tab:blue",
             "include_in_in_frontier": False,  # Include in frontier analysis
+            "class": "transformer_no_rotary",
+            "hidden_dim": 32,
         },
         {
             "name": "48d new scaling no rotary",
@@ -552,6 +576,8 @@ if __name__ == "__main__":
             "marker": "o",
             "color": "tab:blue",
             "include_in_in_frontier": False,  # Include in frontier analysis
+            "class": "transformer_no_rotary",
+            "hidden_dim": 48,
         },
         {
             "name": "64d new scaling no rotary",
@@ -559,6 +585,8 @@ if __name__ == "__main__":
             "marker": "o",
             "color": "tab:blue",
             "include_in_in_frontier": False,  # Include in frontier analysis
+            "class": "transformer_no_rotary",
+            "hidden_dim": 64,
         },
     ]
 
