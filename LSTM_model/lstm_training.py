@@ -1126,7 +1126,7 @@ def train_model(
         optimizer = optim.SGD(
             model.parameters(),
             lr=config["learning_rate"],
-            momentum=config.get("momentum", 0.9),
+            momentum=config.get("sgd_momentum", config.get("momentum", 0.9)),
             weight_decay=config.get("weight_decay", 0.0),
         )
     else:

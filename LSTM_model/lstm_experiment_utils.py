@@ -323,15 +323,16 @@ def get_lstm_base_config():
         "tokenizer_path": "../gpt2_tokenizer",
         "max_characters": 5 * 1e7,  # Base character limit
         "sequence_length": 128,
-        "target_effective_batch_size": 256,  # Target effective batch size for optimization
+        "target_effective_batch_size": 128,  # Target effective batch size for optimization
         "batch_size": 32,  # Default per-step batch size (will be overridden by gen_lstm_experim)
         "hidden_size": 16,  # Base hidden dimension
-        "num_layers": 2,  # Base number of layers
+        "num_layers": 1,  # Base number of layers
         "dropout": 0.0,
         "learning_rate": 0.001 * math.sqrt(4),  # Scale by sqrt of accumulation steps
         "lr_schedule": "cosine_warmup",
-        "warmup_frac": 0.01,  # 10% warmup steps
-        "min_lr_multiplier": 0.1,  # Min LR as 1% of base LR
+        "warmup_frac": 0.05,  # 5% warmup steps
+        "min_lr_multiplier": 0.1,  # Min LR as 10% of base LR  
+        "min_lr": 0.0,  # Absolute minimum learning rate (alternative to min_lr_multiplier)
         # "scheduler_type": "step",
         "step_size": 10,
         "gamma": 0.1,
@@ -356,7 +357,7 @@ def get_lstm_base_config():
         "use_compile": False,
         "seed": 123,
         "optimizer": "adamw",
-        "weight_decay": 0.01,
+        "weight_decay": 1e-4,
         "adam_beta1": 0.9,
         "adam_beta2": 0.999,
         "adam_epsilon": 1e-8,
@@ -366,16 +367,21 @@ def get_lstm_base_config():
         "hidden_dropout": 0.1,
         "output_dropout": 0.2,
         "between_layers_dropout": 0.0,  # Standard dropout between LSTM layers (0.1-0.5 typical range)
+        "recurrent_dropout": 0.0,  # Dropout applied to hidden-to-hidden connections
         "use_layer_norm": False,
         "layer_norm_position": "output",
-        "use_mup": False,
-        "mup_base_width": 16,
         "tie_embeddings": True,  # Enable weight tying by default
         # Truncated BPTT parameters
         "use_tbptt": True,  # Enable truncated BPTT by default
         "tbptt_length": 128,  # Window length L (number of timesteps to backprop through)
         "tbptt_stride": 128,  # Stride S (usually equal to tbptt_length for non-overlapping windows)
         "tbptt_reset_hidden": False,  # Reset hidden state at sequence boundaries
+        # Streaming parameters
+        "use_streaming": True,  # Enable streaming dataset (Melis/Merity style)
+        "streaming_reset_prob": 0.01,  # Probability of randomly resetting hidden state in streaming mode
+        "eval_streaming_like_train": True,  # Whether evaluation should use streaming like training
+        # SGD parameters
+        "sgd_momentum": 0.9,  # Momentum for SGD optimizer
     }
 
 

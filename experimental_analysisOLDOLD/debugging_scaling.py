@@ -1,4 +1,5 @@
 # %%
+# %%
 import pandas as pd
 import numpy as np
 from scipy.optimize import curve_fit
@@ -9,12 +10,7 @@ from typing import List, Dict, Tuple, Optional
 import warnings
 
 
-IRREDUCIBLE_LOSS = 3.2
-
-# Toggle between theoretical_flops and total_flops_profiler
-USE_THEORETICAL_FLOPS = (
-    True  # Set to True for theoretical_flops, False for total_flops_profiler
-)
+IRREDUCIBLE_LOSS = 1.8
 
 
 class TrainingCurveAnalyzer:
@@ -23,23 +19,14 @@ class TrainingCurveAnalyzer:
     identifying frontier points and fitting power laws.
     """
 
-    def __init__(
-        self,
-        irreducible_loss: float = IRREDUCIBLE_LOSS,
-        use_theoretical_flops: bool = False,
-    ):
+    def __init__(self, irreducible_loss: float = IRREDUCIBLE_LOSS):
         """
         Initialize the analyzer.
 
         Args:
             irreducible_loss: The irreducible loss to subtract from validation losses
-            use_theoretical_flops: If True, use 'theoretical_flops' column; if False, use 'total_flops_profiler'
         """
         self.irreducible_loss = irreducible_loss
-        self.use_theoretical_flops = use_theoretical_flops
-        self.default_compute_col = (
-            "theoretical_flops" if use_theoretical_flops else "total_flops_profiler"
-        )
         self.experiments = {}
         self.frontier_points = []
         self.color_palette = list(mcolors.TABLEAU_COLORS.values())
@@ -48,7 +35,7 @@ class TrainingCurveAnalyzer:
         self,
         name: str,
         csv_path: str,
-        compute_col: Optional[str] = None,
+        compute_col: str = "total_flops_profiler",
         loss_col: str = "validation_loss",
         color: Optional[str] = None,
         marker: str = "o",
@@ -72,11 +59,6 @@ class TrainingCurveAnalyzer:
         """
         try:
             df = pd.read_csv(csv_path)
-
-            # Use default compute column if not specified
-            if compute_col is None:
-                compute_col = self.default_compute_col
-
             if compute_col not in df.columns:
                 raise ValueError(f"Column '{compute_col}' not found in {csv_path}")
             if loss_col not in df.columns:
@@ -428,185 +410,409 @@ class TrainingCurveAnalyzer:
 # Example usage and demonstration
 if __name__ == "__main__":
     # Initialize analyzer
-    analyzer = TrainingCurveAnalyzer(
-        irreducible_loss=IRREDUCIBLE_LOSS, use_theoretical_flops=USE_THEORETICAL_FLOPS
-    )
+    analyzer = TrainingCurveAnalyzer(irreducible_loss=IRREDUCIBLE_LOSS)
 
     # Add experiments - you can modify these paths and names as needed
     experiments_config = [
+        {
+            "name": "16d sgd",
+            "csv_path": "../experimental_data_folder/muP_scaling_experiments/16d_mup_sgd.csv",
+            "color": "tab:orange",
+            "marker": "o",
+            "include_in_frontier": True,  # Include in frontier analysis
+        },
+        {
+            "name": "24d sgd",
+            "csv_path": "../experimental_data_folder/muP_scaling_experiments/24d_mup_sgd.csv",
+            "color": "tab:blue",
+            "marker": "o",
+            "include_in_frontier": True,  # Include in frontier analysis
+        },
+        {
+            "name": "32d sgd",
+            "csv_path": "../experimental_data_folder/muP_scaling_experiments/32d_mup_sgd.csv",
+            "color": "tab:green",
+            "marker": "o",
+            "include_in_frontier": True,  # Include in frontier analysis
+        },
+        {
+            "name": "48d sgd",
+            "csv_path": "../experimental_data_folder/muP_scaling_experiments/48d_mup_sgd.csv",
+            "color": "tab:red",
+            "marker": "o",
+            "include_in_frontier": True,  # Include in frontier analysis
+        },
+        {
+            "name": "64d sgd",
+            "csv_path": "../experimental_data_folder/muP_scaling_experiments/64d_mup_sgd.csv",
+            "color": "cyan",
+            "marker": "o",
+            "include_in_frontier": True,  # Include in frontier analysis
+        },
+        {
+            "name": "80d sgd",
+            "csv_path": "../experimental_data_folder/muP_scaling_experiments/80d_2_mup_sgd.csv",
+            "color": "tab:orange",
+            "marker": "o",
+            "include_in_frontier": True,  # Include in frontier analysis
+        },
+        {
+            "name": "96d sgd",
+            "csv_path": "../experimental_data_folder/muP_scaling_experiments/96d_2_mup_sgd.csv",
+            "color": "tab:purple",
+            "marker": "o",
+            "include_in_frontier": True,  # Include in frontier analysis
+        },
+        {
+            "name": "128d sgd",
+            "csv_path": "../experimental_data_folder/muP_scaling_experiments/128d_2_mup_sgd.csv",
+            "color": "tab:purple",
+            "marker": "o",
+            "include_in_frontier": True,  # Include in frontier analysis
+        },
+        {
+            "name": "16d optimal lr scaling",
+            "csv_path": "../experimental_data_folder/transformer_standard_scaling_mup/16d_standard_optimal_lr.csv",
+            "color": "tab:cyan",
+            "marker": "o",
+            "include_in_frontier": True,  # Include in frontier analysis
+        },
+        {
+            "name": "32d optimal lr scaling",
+            "csv_path": "../experimental_data_folder/transformer_standard_scaling_mup/32d_standard_optimal_lr.csv",
+            "color": "tab:cyan",
+            "marker": "o",
+            "include_in_frontier": True,  # Include in frontier analysis
+        },
+        # 48d
+        {
+            "name": "48d optimal lr scaling",
+            "csv_path": "../experimental_data_folder/transformer_standard_scaling_mup/48d_standard_optimal_lr.csv",
+            "color": "tab:cyan",
+            "marker": "o",
+            "include_in_frontier": True,  # Include in frontier analysis
+        },
+        {
+            "name": "64d optimal lr scaling",
+            "csv_path": "../experimental_data_folder/transformer_standard_scaling_mup/64d_standard_optimal_lr.csv",
+            "color": "tab:cyan",
+            "marker": "o",
+            "include_in_frontier": True,  # Include in frontier analysis
+        },
         # {
-        #     "name": "32d non-rotary experiments",
-        #     "csv_path": "../experimental_data_folder/new_scaling/32d_new_scaling_no_rotary.csv",
+        #     "name": "adam 16d 123 original",
+        #     "csv_path": "../experimental_data_folder/Hidden_Dim_Scaling/16d_123.csv",
+        #     "color": "tab:purple",
         #     "marker": "o",
         #     "include_in_frontier": True,  # Include in frontier analysis
-        #     "class": "lstm",
-        #     "color": "tab:blue",
+        # },
+        # {
+        #     "name": "adam 24d 123 original",
+        #     "csv_path": "../experimental_data_folder/Hidden_Dim_Scaling/24d_123.csv",
+        #     "color": "tab:purple",
+        #     "marker": "o",
+        #     "include_in_frontier": True,  # Include in frontier analysis
+        # },
+        # {
+        #     "name": "adam 32d 123 original",
+        #     "csv_path": "../experimental_data_folder/Hidden_Dim_Scaling/32d_123.csv",
+        #     "color": "tab:purple",
+        #     "marker": "o",
+        #     "include_in_frontier": True,  # Include in frontier analysis
+        # },
+        # {
+        #     "name": "adam 64d 123 original",
+        #     "csv_path": "../experimental_data_folder/Hidden_Dim_Scaling/64d_123.csv",
+        #     "color": "tab:purple",
+        #     "marker": "o",
+        #     "include_in_frontier": True,  # Include in frontier analysis
+        # },
+        # {
+        #     "name": "adam 96d 123 original",
+        #     "csv_path": "../experimental_data_folder/Hidden_Dim_Scaling/96d_123.csv",
+        #     "color": "tab:purple",
+        #     "marker": "o",
+        #     "include_in_frontier": False,  # Include in frontier analysis
+        # },
+        # {
+        #     "name": "adam 128d 123 original",
+        #     "csv_path": "../experimental_data_folder/Hidden_Dim_Scaling/128d_123.csv",
+        #     "color": "tab:purple",
+        #     "marker": "o",
+        #     "include_in_frontier": True,  # Include in frontier analysis
+        # },
+        # {
+        #     "name": "32d no rotary",
+        #     "csv_path": "../experimental_data_folder/vanilla_scaling_no_rotary/vanilla_32d_no_rot.csv",
+        #     "marker": "o",
+        #     "include_in_frontier": True,  # Include in frontier analysis
+        #     "class": "vanilla_transformer_no_rotary",
         #     "hidden_dim": 32,
         # },
         # {
-        #     "name": "48d non-rotary experiments",
-        #     "csv_path": "../experimental_data_folder/new_scaling/48d_new_scaling_no_rotary.csv",
+        #     "name": "40d no rotary",
+        #     "csv_path": "../experimental_data_folder/vanilla_scaling_no_rotary/vanilla_40d_no_rot.csv",
         #     "marker": "o",
         #     "include_in_frontier": True,  # Include in frontier analysis
-        #     "class": "lstm",
-        #     "color": "tab:blue",
+        #     "class": "vanilla_transformer_no_rotary",
+        #     "hidden_dim": 40,
+        # },
+        # {
+        #     "name": "48d no rotary",
+        #     "csv_path": "../experimental_data_folder/vanilla_scaling_no_rotary/vanilla_48d_no_rot.csv",
+        #     "marker": "o",
+        #     "include_in_frontier": True,  # Include in frontier analysis
+        #     "class": "vanilla_transformer_no_rotary",
         #     "hidden_dim": 48,
         # },
-        # # look at non-rotary scaling
-        # {
-        #     "name": "64d non-rotary experiments",
-        #     "csv_path": "../experimental_data_folder/new_scaling/64d_new_scaling_no_rotary.csv",
-        #     "marker": "o",
-        #     "include_in_frontier": True,  # Include in frontier analysis
-        #     "class": "lstm",
-        #     "color": "tab:blue",
-        #     "hidden_dim": 64,
-        # },
-        # 32d new scaling
         {
-            "name": "32d new scaling",
-            "csv_path": "../experimental_data_folder/new_scaling/32d_new_scaling.csv",
+            "name": "56d no rotary",
+            "csv_path": "../experimental_data_folder/vanilla_scaling_no_rotary/vanilla_56d_no_rot.csv",
             "marker": "o",
             "include_in_frontier": True,  # Include in frontier analysis
-            "class": "lstm",
-            "color": "tab:blue",
-            "hidden_dim": 32,
+            "class": "vanilla_transformer_no_rotary",
+            "hidden_dim": 56,
         },
-        # 48d new scaling
         {
-            "name": "48d new scaling",
-            "csv_path": "../experimental_data_folder/new_scaling/48d_new_scaling.csv",
+            "name": "64d no rotary",
+            "csv_path": "../experimental_data_folder/vanilla_scaling_no_rotary/vanilla_64d_no_rot.csv",
             "marker": "o",
             "include_in_frontier": True,  # Include in frontier analysis
-            "class": "lstm",
-            "color": "tab:blue",
-            "hidden_dim": 48,
-        },
-        # 64d new scaling
-        {
-            "name": "64d new scaling",
-            "csv_path": "../experimental_data_folder/new_scaling/64d_new_scaling.csv",
-            "marker": "o",
-            "include_in_frontier": True,  # Include in frontier analysis
-            "class": "lstm",
-            "color": "tab:blue",
+            "class": "vanilla_transformer_no_rotary",
             "hidden_dim": 64,
         },
-        # 80d new scaling
+        # {
+        #     "name": "32d no rotary lower min lr",
+        #     "csv_path": "../experimental_data_folder/variation_experiments_no_rot/lower_min_lr.csv",
+        #     "marker": "o",
+        #     "include_in_frontier": True,  # Include in frontier analysis
+        #     "class": "vanilla_transformer_no_rotary",
+        #     "hidden_dim": 70,
+        # },
+        # {
+        #     "name": "32d no rotary longer warmup",
+        #     "csv_path": "../experimental_data_folder/variation_experiments_no_rot/longer_warmup.csv",
+        #     "marker": "o",
+        #     "include_in_frontier": True,  # Include in frontier analysis
+        #     "class": "vanilla_transformer_no_rotary",
+        #     "hidden_dim": 2,
+        # },
+        # {
+        #     "name": "cosine annealing simple",
+        #     "csv_path": "../experimental_data_folder/variation_experiments_no_rot/cosine_annealing_simple.csv",
+        #     "marker": "o",
+        #     "include_in_frontier": True,  # Include in frontier analysis
+        #     "class": "vanilla_transformer_no_rotary",
+        #     "hidden_dim": 200,
+        # },
+        # {
+        #     "name": "standard sin",
+        #     "csv_path": "../experimental_data_folder/variation_experiments_no_rot/standard_sin.csv",
+        #     "marker": "o",
+        #     "include_in_frontier": True,  # Include in frontier analysis
+        #     "class": "vanilla_transformer_no_rotary",
+        #     "hidden_dim": 200,
+        # },
+        # {
+        #     "name": "2 heads",
+        #     "csv_path": "../experimental_data_folder/variation_experiments_no_rot/2_heads.csv",
+        #     "marker": "o",
+        #     "include_in_frontier": True,  # Include in frontier analysis
+        #     "class": "vanilla_transformer_no_rotary",
+        #     "hidden_dim": 200,
+        # },
+        # {
+        #     "name": "4 heads",
+        #     "csv_path": "../experimental_data_folder/variation_experiments_no_rot/4_heads.csv",
+        #     "marker": "o",
+        #     "include_in_frontier": True,  # Include in frontier analysis
+        #     "class": "vanilla_transformer_no_rotary",
+        #     "hidden_dim": 200,
+        # },
         {
-            "name": "80 new scaling",
-            "csv_path": "../experimental_data_folder/new_scaling/80d_new_scaling.csv",
+            "name": "32 vanilla optimal lr",
+            "csv_path": "../experimental_data_folder/vanilla_scaling_optimal_lr/vanilla_32d.csv",
             "marker": "o",
             "include_in_frontier": True,  # Include in frontier analysis
-            "class": "lstm",
-            "color": "tab:blue",
-            "hidden_dim": 80,
-        },
-        # 32d new scaling no rotary
-        # sin_scaling
-        {
-            "name": "32d bs 128",
-            "csv_path": "../experimental_data_folder/sin_scaling/32d_sinbs128.csv",
-            "marker": "o",
-            "include_in_frontier": False,  # Include in frontier analysis
-            "class": "lstm",
-            "color": "tab:green",
+            "class": "vanilla_transformer",
             "hidden_dim": 32,
         },
-        # 48d sin scaling
+        # sgd scaling experiments
         {
-            "name": "48d bs 128",
-            "csv_path": "../experimental_data_folder/sin_scaling/48d_sinbs128lr2.csv",
+            "name": "32d sgd optimal lr",
+            "csv_path": "../experimental_data_folder/optimal_lr_sgd_scaling/optimal_lr_sgd_32d.csv",
             "marker": "o",
-            "include_in_frontier": False,  # Include in frontier analysis
-            "class": "lstm",
-            "color": "tab:green",
-            "hidden_dim": 48,
-        },
-        # 64d sin scaling
-        {
-            "name": "64d bs 128",
-            "csv_path": "../experimental_data_folder/sin_scaling/64d_sinbs128lr2.csv",
-            "marker": "o",
-            "include_in_frontier": False,  # Include in frontier analysis
-            "class": "lstm",
-            "color": "tab:green",
-            "hidden_dim": 64,
+            "include_in_in_frontier": True,  # Include in frontier analysis
         },
         {
-            "name": "80d bs 128",
-            "csv_path": "../experimental_data_folder/sin_scaling/80d_sinbs128lr25.csv",
+            "name": "48d sgd optimal lr",
+            "csv_path": "../experimental_data_folder/optimal_lr_sgd_scaling/optimal_lr_sgd_48d.csv",
             "marker": "o",
-            "include_in_frontier": False,  # Include in frontier analysis
-            "class": "lstm",
-            "color": "tab:green",
-            "hidden_dim": 80,
+            "include_in_in_frontier": True,  # Include in frontier analysis
         },
         {
-            "name": "80d bs 128",
-            "csv_path": "../experimental_data_folder/sin_scaling/80d_sinbs128lr2.csv",
+            "name": "56d sgd optimal lr",
+            "csv_path": "../experimental_data_folder/optimal_lr_sgd_scaling/optimal_lr_sgd_56d.csv",
             "marker": "o",
-            "include_in_frontier": False,  # Include in frontier analysis
-            "class": "lstm",
-            "color": "tab:green",
-            "hidden_dim": 80,
+            "include_in_in_frontier": True,  # Include in frontier analysis
         },
-        # 32 bs 64
         {
-            "name": "32d bs 64",
-            "csv_path": "../experimental_data_folder/sin_scaling/32d_sinbs64lr2.csv",
+            "name": "64d sgd optimal lr",
+            "csv_path": "../experimental_data_folder/optimal_lr_sgd_scaling/optimal_lr_sgd_64d.csv",
             "marker": "o",
-            "include_in_frontier": False,  # Include in frontier analysis
-            "class": "lstm",
-            "color": "tab:green",
-            "hidden_dim": 32,
+            "include_in_in_frontier": True,  # Include in frontier analysis
         },
-        # 48 bs 64
-        # 64 bs 64
         {
-            "name": "64d bs 64",
-            "csv_path": "../experimental_data_folder/sin_scaling/64d_sinbs64lr25.csv",
+            "name": "72d sgd optimal lr",
+            "csv_path": "../experimental_data_folder/optimal_lr_sgd_scaling/optimal_lr_sgd_72d.csv",
             "marker": "o",
-            "include_in_frontier": False,  # Include in frontier analysis
-            "class": "lstm",
-            "color": "cyan",
-            "hidden_dim": 64,
+            "include_in_in_frontier": True,  # Include in frontier analysis
         },
-        # 80 bs 64
         {
-            "name": "80d bs 64",
-            "csv_path": "../experimental_data_folder/sin_scaling/80d_sinbs64.csv",
+            "name": "80d sgd optimal lr",
+            "csv_path": "../experimental_data_folder/optimal_lr_sgd_scaling/optimal_lr_sgd_80d.csv",
             "marker": "o",
-            "include_in_frontier": False,  # Include in frontier analysis
-            "class": "lstm",
-            "color": "cyan",
-            "hidden_dim": 80,
+            "include_in_in_frontier": True,  # Include in frontier analysis
         },
-        # transformer scaling diagnostic
+        # 96
+        {
+            "name": "96d sgd optimal lr",
+            "csv_path": "../experimental_data_folder/optimal_lr_sgd_scaling/optimal_lr_sgd_96d.csv",
+            "marker": "o",
+            "include_in_in_frontier": True,  # Include in frontier analysis
+        },
+        # 128
+        {
+            "name": "128d sgd optimal lr",
+            "csv_path": "../experimental_data_folder/optimal_lr_sgd_scaling/optimal_lr_sgd_128d.csv",
+            "marker": "o",
+            "include_in_in_frontier": True,  # Include in frontier analysis
+        },
+        # plotting sgd variations
+        {
+            "name": "32d sgd cosine annealing",
+            "csv_path": "../experimental_data_folder/variation_experiments/sgd_cosine_annealing.csv",
+            "marker": "o",
+            "include_in_in_frontier": True,  # Include in frontier analysis
+        },
+        {
+            "name": "32d sgd cosine annealing small lr",
+            "csv_path": "../experimental_data_folder/variation_experiments/sgd_cosine_annealing_small_lr.csv",
+            "marker": "o",
+            "include_in_in_frontier": True,  # Include in frontier analysis
+        },
+        {
+            "name": "32d sgd longer warmup",
+            "csv_path": "../experimental_data_folder/variation_experiments/long_warmup.csv",
+            "marker": "o",
+            "include_in_in_frontier": True,  # Include in frontier analysis
+        },
+        # sgd smaller
+        {
+            "name": "32d sgd smaller",
+            "csv_path": "../experimental_data_folder/variation_experiments/sgd_smaller.csv",
+            "marker": "o",
+            "include_in_in_frontier": True,  # Include in frontier analysis
+        },
+        # sgd 64 10 1.5 lr
+        {
+            "name": "64d sgd 10 1.5 lr",
+            "csv_path": "../experimental_data_folder/variation_experiments/64d_10_15_lr.csv",
+            "marker": "o",
+            "include_in_in_frontier": True,  # Include in frontier analysis
+        },
+        # cosine annealing 64
+        {
+            "name": "64d sgd cosine annealing",
+            "csv_path": "../experimental_data_folder/variation_experiments/64d_sgd_cosine_annealing.csv",
+            "marker": "o",
+            "include_in_in_frontier": True,  # Include in frontier analysis
+        },
+        # cosine annealing 64 small lr
+        # trying variations of sgd
+        # 0.99 momentum
+        {
+            "name": "sgd 0.99 momentum",
+            "csv_path": "../experimental_data_folder/variation_experiments/sgd_099_momentum.csv",
+            "marker": "o",
+            "include_in_in_frontier": True,  # Include in frontier analysis
+        },
+        # 0.95 momentum
+        {
+            "name": "sgd nesterov 0.95 momentum",
+            "csv_path": "../experimental_data_folder/variation_experiments/sgd_nesterov_095_momentum.csv",
+            "marker": "o",
+            "include_in_in_frontier": True,  # Include in frontier analysis
+        },
+        # lr tune experiment
         # {
-        #     "name": "64d sin more heads",
-        #     "csv_path": "../experimental_data_folder/transformer_scaling_diagnostic/64d_sin_more_heads.csv",
+        #     "name": "lr tune experiment",
+        #     "csv_path": "../experimental_data_folder/variation_experiments_lr_sweep/best_sgd_lr_10e1.csv",
+        #     "marker": "s",
+        #     "color": "tab:red",
+        #     "include_in_in_frontier": True,  # Include in frontier analysis
+        # },
+
+        #best sgd 
+        {
+            "name": "32d best sgd",
+            "csv_path": "../experimental_data_folder/best_possible_sgd/32d_best_sgd.csv",
+            "marker": "s",
+            "color": "tab:red",
+            "include_in_in_frontier": True,  # Include in frontier analysis
+        },
+        {
+            "name": "48d best sgd",
+            "csv_path": "../experimental_data_folder/best_possible_sgd/48d_best_sgd.csv",
+            "marker": "s",
+            "color": "tab:red",
+            "include_in_in_frontier": True,  # Include in frontier analysis
+        },
+        {
+            "name": "64d best sgd",
+            "csv_path": "../experimental_data_folder/best_possible_sgd/64d_best_sgd.csv",
+            "marker": "s",
+            "color": "tab:red",
+            "include_in_in_frontier": True,  # Include in frontier analysis
+        },
+        # no momentum
+        # {
+        #     "name": "64d sgd no momentum",
+        #     "csv_path": "../experimental_data_folder/variation_experiments/64d_sgd_no_momentum.csv",
         #     "marker": "o",
-        #     "include_in_frontier": True,  # Include in frontier analysis
-        #     "class": "transformer",
-        #     "hidden_dim": 64,
+        #     "include_in_in_frontier": True,  # Include in frontier analysis
+        # },
+        # #lr 1e-2
+        # {
+        #     "name": "64d sgd lr 1e-2",
+        #     "csv_path": "../experimental_data_folder/variation_experiments/64d_sgd_lr_1e-2.csv",
+        #     "marker": "o",
+        #     "include_in_in_frontier": True,  # Include in frontier analysis
+        # }
+        # rms prop scaling experiments
+        # {
+        #     "name": "32d rms prop",
+        #     "csv_path": "../experimental_data_folder/vanilla_scaling_rmsprop/vanilla_32d_rmsprop.csv",
+        #     "marker": "o",
+        #     "include_in_in_frontier": True,  # Include in frontier analysis
         # },
         # {
-        #     "name": "64d resolve settings",
-        #     "csv_path": "../experimental_data_folder/transformer_scaling_diagnostic/64d_sin_resolve_settings.csv",
+        #     "name": "48d rms prop",
+        #     "csv_path": "../experimental_data_folder/vanilla_scaling_rmsprop/vanilla_48d_rmsprop.csv",
         #     "marker": "o",
-        #     "include_in_frontier": True,  # Include in frontier analysis
-        #     "class": "transformer",
-        #     "hidden_dim": 64,
+        #     "include_in_in_frontier": True,  # Include in frontier analysis
         # },
-        # #almost 0 min
         # {
-        #     "name": "64d almost 0 min",
-        #     "csv_path": "../experimental_data_folder/transformer_scaling_diagnostic/64d_almost0min.csv",
+        #     "name": "56d rms prop",
+        #     "csv_path": "../experimental_data_folder/vanilla_scaling_rmsprop/vanilla_56d_rmsprop.csv",
         #     "marker": "o",
-        #     "include_in_frontier": True,  # Include in frontier analysis
-        #     "class": "transformer",
-        #     "hidden_dim": 64,
+        #     "include_in_in_frontier": True,  # Include in frontier analysis
+        # },
+        # {
+        #     "name": "64d rms prop",
+        #     "csv_path": "../experimental_data_folder/vanilla_scaling_rmsprop/vanilla_64d_rmsprop.csv",
+        #     "marker": "o",
+        #     "include_in_in_frontier": True,  # Include in frontier analysis
         # },
     ]
 
@@ -643,5 +849,4 @@ if __name__ == "__main__":
         save_path="Figures/universal_scaling_law_study_full_model.png",
     )
 
-# %
 # %%

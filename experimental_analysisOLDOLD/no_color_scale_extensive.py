@@ -1250,15 +1250,6 @@ if __name__ == "__main__":
             "class": "transformer",
             "hidden_dim": 64,
         },
-        {
-            "name": "80d new scaling",
-            "csv_path": "../experimental_data_folder/new_scaling/80d_new_scaling.csv",
-            "marker": "o",
-            "color": "tab:purple",
-            "include_in_in_frontier": True,  # Include in frontier analysis
-            "class": "transformer",
-            "hidden_dim": 80,
-        },
         # new scaling no rotary
         {
             "name": "32d new scaling no rotary",

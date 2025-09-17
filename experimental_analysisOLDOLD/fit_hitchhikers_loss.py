@@ -978,7 +978,6 @@ def get_dataset_configurations() -> dict:
             (new_scaling_dir / "32d_new_scaling.csv", 1683000),
             (new_scaling_dir / "48d_new_scaling.csv", 2545000),
             (new_scaling_dir / "64d_new_scaling.csv", 3463000),
-            (new_scaling_dir / "80d_new_scaling.csv", 4454000),
         ]
         configurations["new_scaling"] = [
             (str(p), n) for p, n in new_scaling_pairs if p.exists()

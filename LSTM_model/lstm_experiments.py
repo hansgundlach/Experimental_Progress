@@ -9,12 +9,6 @@ import sys
 sys.path.append(os.path.dirname(os.path.abspath(__file__)))
 from lstm_training import train_model
 from lstm_experiment_definitions import (
-    TEST_EXPERIMENT,
-    LSTM_LR_TUNE_MUP_STANDARD,
-    LSTM_SCALING_EXPERIMENTS_OPTIMAL_LR,
-    LSTM_ALL_SCALE_LR_TUNE,
-    LSTM_SGD_SCALING_EXPERIMENTS_OPTIMAL_LR,
-    LSTM_SGD_ALL_SCALE_LR_TUNE,
     GRAND_EXPERIMENT,
 )
 import argparse

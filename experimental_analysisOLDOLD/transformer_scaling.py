@@ -1,29 +1,6 @@
 # %%
-"""
-Training Curve Analysis with Compute Column Toggle and Multiple Fit Options
-
-This script provides a TrainingCurveAnalyzer class that can analyze training curves
-and fit multiple types of scaling laws. You can easily toggle between using
-'theoretical_flops' and 'total_flops_profiler' as the compute column by setting the
-use_theoretical_flops parameter when initializing the analyzer.
-
-The analyzer supports two types of fits:
-1. Power law fit: y = a * x^b
-2. Sklearn-style fit: L = E + A * C^alpha
-
-Usage:
-    # To use theoretical_flops:
-    analyzer = TrainingCurveAnalyzer(use_theoretical_flops=True)
-
-    # To use total_flops_profiler (default):
-    analyzer = TrainingCurveAnalyzer(use_theoretical_flops=False)
-
-    # Or simply:
-    analyzer = TrainingCurveAnalyzer()  # defaults to total_flops_profiler
-
-    # To enable sklearn-style fitting:
-    analyzer.plot_training_curves_by_class(show_sklearn_fit=True)
-"""
+print("hello world")
+# %%
 import pandas as pd
 import numpy as np
 from scipy.optimize import curve_fit
@@ -33,11 +10,6 @@ import matplotlib.colors as mcolors
 from typing import List, Dict, Tuple, Optional
 import warnings
 
-# sklearn imports removed - not actually used in the code
-
-
-IRREDUCIBLE_LOSS = 1.9
-
 
 class TrainingCurveAnalyzer:
     """
@@ -45,23 +17,14 @@ class TrainingCurveAnalyzer:
     identifying frontier points and fitting power laws.
     """
 
-    def __init__(
-        self,
-        irreducible_loss: float = IRREDUCIBLE_LOSS,
-        use_theoretical_flops: bool = False,
-    ):
+    def __init__(self, irreducible_loss: float = 1.76):
         """
         Initialize the analyzer.
 
         Args:
             irreducible_loss: The irreducible loss to subtract from validation losses
-            use_theoretical_flops: If True, use 'theoretical_flops' column; if False, use 'total_flops_profiler'
         """
         self.irreducible_loss = irreducible_loss
-        self.use_theoretical_flops = use_theoretical_flops
-        self.default_compute_col = (
-            "theoretical_flops" if use_theoretical_flops else "total_flops_profiler"
-        )
         self.experiments = {}
         self.frontier_points = []
         self.color_palette = list(mcolors.TABLEAU_COLORS.values())
@@ -75,7 +38,7 @@ class TrainingCurveAnalyzer:
         self,
         name: str,
         csv_path: str,
-        compute_col: Optional[str] = None,
+        compute_col: str = "total_flops_profiler",
         loss_col: str = "validation_loss",
         color: Optional[str] = None,
         marker: str = "o",
@@ -91,7 +54,7 @@ class TrainingCurveAnalyzer:
         Args:
             name: Name for the experiment
             csv_path: Path to the CSV file
-            compute_col: Column name for compute values (uses default if None)
+            compute_col: Column name for compute values
             loss_col: Column name for loss values
             color: Color for plotting (auto-assigned if None)
             marker: Marker style for plotting
@@ -103,11 +66,6 @@ class TrainingCurveAnalyzer:
         """
         try:
             df = pd.read_csv(csv_path)
-
-            # Use default compute column if not specified
-            if compute_col is None:
-                compute_col = self.default_compute_col
-
             if compute_col not in df.columns:
                 raise ValueError(f"Column '{compute_col}' not found in {csv_path}")
             if loss_col not in df.columns:
@@ -438,23 +396,7 @@ class TrainingCurveAnalyzer:
                 continue
 
             try:
-                # Use better initial guesses and bounds for power law fitting
-                # Initial guess: a = mean(y) / mean(x)^(-0.1), b = -0.1 (typical scaling exponent)
-                initial_guess = [
-                    np.mean(y_data) / np.power(np.mean(x_data), -0.1),
-                    -0.1,
-                ]
-                # Bounds: a in [1e-10, 1e10], b in [-1, 0.5]
-                bounds = ([1e-10, -1], [1e10, 0.5])
-
-                params, _ = curve_fit(
-                    power_law,
-                    x_data,
-                    y_data,
-                    p0=initial_guess,
-                    bounds=bounds,
-                    maxfev=10000,
-                )
+                params, _ = curve_fit(power_law, x_data, y_data)
                 a, b = params
                 y_pred = power_law(x_data, a, b)
                 ss_res = np.sum((y_data - y_pred) ** 2)
@@ -470,190 +412,21 @@ class TrainingCurveAnalyzer:
 
         return results
 
-    def fit_sklearn_curve_by_class(
-        self,
-        class_names: Optional[List[str]] = None,
-        use_all_points: bool = True,
-    ) -> Dict[str, Optional[Tuple[float, float, float, float]]]:
-        """
-        Fit L = E + AC^(alpha) separately for each class using sklearn.
-
-        Args:
-            class_names: Which classes to fit. Defaults to all present in stored frontiers.
-            use_all_points: Whether to fit using all-point frontier or final-point frontier.
-
-        Returns:
-            Mapping from class name to (E, A, alpha, r_squared), or None if fit fails/insufficient points.
-        """
-        # Determine classes present
-        if class_names is None:
-            if use_all_points:
-                class_names = list(self.frontier_points_all_by_class.keys())
-            else:
-                class_names = list(self.frontier_points_by_class.keys())
-
-        results: Dict[str, Optional[Tuple[float, float, float, float]]] = {}
-
-        def sklearn_curve(x, E, A, alpha):
-            """L = E + A * C^(alpha)"""
-            return E + A * np.power(x, alpha)
-
-        for cls in class_names:
-            if use_all_points:
-                pts = self.frontier_points_all_by_class.get(cls, [])
-                x_data = np.array([float(c) for (_, c, _) in pts])
-                y_data = np.array([float(l) for (_, _, l) in pts])
-            else:
-                names = self.frontier_points_by_class.get(cls, [])
-                x_data = np.array(
-                    [float(self.experiments[n]["final_compute"]) for n in names]
-                )
-                y_data = np.array(
-                    [float(self.experiments[n]["final_loss"]) for n in names]
-                )
-
-            if x_data.size < 3:  # Need at least 3 points for 3 parameters
-                print(f"Need at least 3 points to fit sklearn curve for class '{cls}'")
-                results[cls] = None
-                continue
-
-            try:
-                # Use scipy curve_fit for the sklearn-style formula with better initial guesses
-                # Initial guess: E = min(y), A = 1, alpha = -0.1 (typical scaling exponent)
-                initial_guess = [np.min(y_data), 1.0, -0.1]
-                # Bounds: E in [0, max(y)], A in [1e-10, 1e10], alpha in [-1, 0.5]
-                bounds = ([0, 1e-10, -1], [np.max(y_data), 1e10, 0.5])
-
-                params, _ = curve_fit(
-                    sklearn_curve,
-                    x_data,
-                    y_data,
-                    p0=initial_guess,
-                    bounds=bounds,
-                    maxfev=10000,
-                )
-                E, A, alpha = params
-                y_pred = sklearn_curve(x_data, E, A, alpha)
-                ss_res = np.sum((y_data - y_pred) ** 2)
-                ss_tot = np.sum((y_data - np.mean(y_data)) ** 2)
-                r_squared = 1 - (ss_res / ss_tot)
-                print(
-                    f"Class '{cls}' sklearn curve fit: L = {E:.4f} + {A:.4e} * C^({alpha:.4f}), R² = {r_squared:.4f}"
-                )
-                results[cls] = (E, A, alpha, r_squared)
-            except Exception as e:
-                print(f"Error fitting sklearn curve for class '{cls}': {e}")
-                results[cls] = None
-
-        return results
-
-    def fit_sklearn_curve(
-        self,
-        experiment_names: Optional[List[str]] = None,
-        use_all_points: bool = True,
-    ) -> Optional[Tuple[float, float, float, float]]:
-        """
-        Fit L = E + AC^(alpha) to the specified experiments using sklearn-style fitting.
-
-        Args:
-            experiment_names: List of experiment names to fit (uses frontier if None)
-            use_all_points: Whether to fit using all-point frontier or final-point frontier
-
-        Returns:
-            Tuple of (E, A, alpha, r_squared) parameters for L = E + AC^(alpha), or None if fitting fails
-        """
-        # Collect data points from either the all-point frontier or final-point frontier
-        x_data: List[float] = []
-        y_data: List[float] = []
-        if use_all_points:
-            frontier_pts = getattr(self, "frontier_points_all", [])
-            for _, comp, loss in frontier_pts:
-                x_data.append(float(comp))
-                y_data.append(float(loss))
-        else:
-            if experiment_names is None:
-                experiment_names = self.frontier_points
-            if not experiment_names:
-                print("No experiments to fit sklearn curve to")
-                return None
-            for name in experiment_names:
-                if name in self.experiments:
-                    exp = self.experiments[name]
-                    if exp["include_in_frontier"]:
-                        x_data.append(exp["final_compute"])
-                        y_data.append(exp["final_loss"])
-
-        if len(x_data) < 3:
-            print("Need at least 3 points to fit sklearn curve")
-            return None
-
-        # Convert to numpy arrays
-        x_data = np.array(x_data)
-        y_data = np.array(y_data)
-
-        # Define the sklearn-style curve: L = E + A * C^(alpha)
-        def sklearn_curve(x, E, A, alpha):
-            return E + A * np.power(x, alpha)
-
-        try:
-            # Use better initial guesses and bounds for convergence
-            # Initial guess: E = min(y), A = 1, alpha = -0.1 (typical scaling exponent)
-            initial_guess = [np.min(y_data), 1.0, -0.1]
-            # Bounds: E in [0, max(y)], A in [1e-10, 1e10], alpha in [-1, 0.5]
-            bounds = ([0, 1e-10, -1], [np.max(y_data), 1e10, 0.5])
-
-            params, _ = curve_fit(
-                sklearn_curve,
-                x_data,
-                y_data,
-                p0=initial_guess,
-                bounds=bounds,
-                maxfev=10000,
-            )
-            E, A, alpha = params
-
-            # Calculate R-squared
-            y_pred = sklearn_curve(x_data, E, A, alpha)
-            ss_res = np.sum((y_data - y_pred) ** 2)
-            ss_tot = np.sum((y_data - np.mean(y_data)) ** 2)
-            r_squared = 1 - (ss_res / ss_tot)
-
-            print(
-                f"Sklearn curve fit: L = {E:.4f} + {A:.4e} * C^({alpha:.4f}), R² = {r_squared:.4f}"
-            )
-            return E, A, alpha, r_squared
-        except Exception as e:
-            print(f"Error fitting sklearn curve: {e}")
-            return None
-
     def plot_training_curves_by_class(
         self,
         show_all_curves: bool = True,
         show_power_law_fit: bool = True,
-        show_sklearn_fit: bool = False,
         flop_range: Optional[Tuple[float, float]] = None,
         figsize: Tuple[int, int] = (16, 10),
         save_path: Optional[str] = None,
         use_all_points: bool = True,
         classes_to_plot: Optional[List[str]] = None,
         flop_range_by_class: Optional[Dict[str, Tuple[float, float]]] = None,
-        extrapolation_factor: float = 2.0,
+        colormap: str = "viridis",
     ) -> None:
         """
         Plot training curves and per-class frontiers and fits.
-        Shows experiment names in legend with colors determined by the color parameter.
-
-        Args:
-            show_all_curves: Whether to show all training curves
-            show_power_law_fit: Whether to show power law fit (y = a * x^b)
-            show_sklearn_fit: Whether to show sklearn-style fit (L = E + A * C^alpha)
-            flop_range: Optional tuple of (min_flops, max_flops) to recalculate frontier for this plot
-            figsize: Figure size
-            save_path: Path to save the plot
-            use_all_points: Whether to use all training points or just final points
-            classes_to_plot: Which classes to plot
-            flop_range_by_class: Per-class FLOP ranges
-            extrapolation_factor: Factor to extend trend lines beyond data range (e.g., 2.0 = 2x range)
+        Colors experiments by hidden dimension and shows experiment classes in legend.
         """
         # Optionally recompute per-class frontier for this plot only if a range is provided
         original_frontier_by_class = self.frontier_points_by_class.copy()
@@ -672,26 +445,53 @@ class TrainingCurveAnalyzer:
         # Create figure and axis
         fig, ax = plt.subplots(figsize=figsize)
 
+        # Collect all hidden dimensions to set up colormap
+        hidden_dims = []
+        for exp in self.experiments.values():
+            hidden_dim = exp.get("hidden_dim")
+            if hidden_dim is not None:
+                hidden_dims.append(hidden_dim)
+
+        if hidden_dims:
+            min_dim = min(hidden_dims)
+            max_dim = max(hidden_dims)
+            # Create colormap normalizer
+            norm = plt.Normalize(vmin=min_dim, vmax=max_dim)
+            cmap = plt.cm.get_cmap(colormap)
+
         # Filter classes to plot
         if classes_to_plot is None:
             classes_to_plot = sorted(
                 {exp.get("class", "default") for exp in self.experiments.values()}
             )
 
-        # Optionally plot all training curves
+        # Track which classes have been added to legend
+        legend_classes = set()
+
+        # Optionally plot all training curves (colored by hidden dimension)
         if show_all_curves:
             for name, exp in self.experiments.items():
                 cls = exp.get("class", "default")
                 if cls not in classes_to_plot:
                     continue
 
-                # Use the color parameter directly
-                color = exp.get("color", "tab:blue")
+                # Get color based on hidden dimension
+                hidden_dim = exp.get("hidden_dim")
+                if hidden_dim is not None and hidden_dims:
+                    color = cmap(norm(hidden_dim))
+                else:
+                    # Fallback to default color if no hidden_dim
+                    color = exp.get("color", "tab:blue")
 
                 compute_vals = exp["data"][exp["compute_col"]].values
                 loss_vals = exp["data"][exp["loss_col"]].values - self.irreducible_loss
                 mask = loss_vals > 0
                 if np.any(mask):
+                    # Only add class to legend once per class
+                    label = cls if cls not in legend_classes else None
+                    if label:
+                        legend_classes.add(cls)
+
                     ax.plot(
                         compute_vals[mask],
                         loss_vals[mask],
@@ -699,18 +499,22 @@ class TrainingCurveAnalyzer:
                         linestyle=exp["linestyle"],
                         color=color,
                         alpha=exp["alpha"],
-                        label=name,  # Use experiment name as label
+                        label=label,
                         linewidth=2,
                         markersize=6,
                     )
 
-        # Plot class-specific frontier points as stars
+        # Plot class-specific frontier points as stars (colored by hidden dimension)
         if use_all_points:
             for cls in classes_to_plot:
                 pts = self.frontier_points_all_by_class.get(cls, [])
                 for name, comp, loss in pts:
                     if name in self.experiments:
-                        color = self.experiments[name].get("color", "tab:blue")
+                        hidden_dim = self.experiments[name].get("hidden_dim")
+                        if hidden_dim is not None and hidden_dims:
+                            color = cmap(norm(hidden_dim))
+                        else:
+                            color = self.experiments[name].get("color", "tab:blue")
                     else:
                         color = "k"
 
@@ -730,7 +534,11 @@ class TrainingCurveAnalyzer:
                 names = self.frontier_points_by_class.get(cls, [])
                 for name in names:
                     exp = self.experiments[name]
-                    color = exp.get("color", "tab:blue")
+                    hidden_dim = exp.get("hidden_dim")
+                    if hidden_dim is not None and hidden_dims:
+                        color = cmap(norm(hidden_dim))
+                    else:
+                        color = exp.get("color", "tab:blue")
 
                     ax.scatter(
                         exp["final_compute"],
@@ -769,70 +577,33 @@ class TrainingCurveAnalyzer:
                     continue
                 min_compute = min(xs)
                 max_compute = max(xs)
-                
-                # Extend the range using extrapolation_factor
-                compute_range = max_compute - min_compute
-                extended_min = min_compute / extrapolation_factor
-                extended_max = max_compute * extrapolation_factor
-                
-                x_fit = np.logspace(np.log10(extended_min), np.log10(extended_max), 200)
+                x_fit = np.logspace(np.log10(min_compute), np.log10(max_compute), 100)
                 y_fit = a * np.power(x_fit, b)
-                
                 # Use a unique linestyle per class for clarity; color black to overlay
                 linestyle = "--"
                 ax.plot(
                     x_fit,
                     y_fit,
                     linestyle,
-                    linewidth=4,
-                    alpha=0.95,
-                    label=f"{cls} power law: \n y = {a:.2e} * x^({b:.3f}) (R² = {r2:.3f})",
+                    linewidth=3,
+                    alpha=0.9,
+                    label=f"{cls} fit: \n y = {a:.2e} * x^({b:.3f})",
                     color="black",
                 )
 
-        # Plot per-class sklearn-style fits
-        if show_sklearn_fit:
-            sklearn_fit_results = self.fit_sklearn_curve_by_class(
-                class_names=classes_to_plot, use_all_points=use_all_points
-            )
-            for cls, params in sklearn_fit_results.items():
-                if params is None:
-                    continue
-                E, A, alpha, r2 = params
-                if use_all_points:
-                    xs = [
-                        comp
-                        for (_, comp, _) in self.frontier_points_all_by_class.get(
-                            cls, []
-                        )
-                    ]
-                else:
-                    xs = [
-                        self.experiments[n]["final_compute"]
-                        for n in self.frontier_points_by_class.get(cls, [])
-                    ]
-                if len(xs) < 2:
-                    continue
-                min_compute = min(xs)
-                max_compute = max(xs)
-                
-                # Extend the range using extrapolation_factor
-                extended_min = min_compute / extrapolation_factor
-                extended_max = max_compute * extrapolation_factor
-                
-                x_fit = np.logspace(np.log10(extended_min), np.log10(extended_max), 200)
-                y_fit = E + A * np.power(x_fit, alpha)
-                # Use a different linestyle for sklearn fit
-                linestyle = "-."
-                ax.plot(
-                    x_fit,
-                    y_fit,
-                    linestyle,
-                    linewidth=4,
-                    alpha=0.95,
-                    label=f"{cls} sklearn: \n L = {E:.3f} + {A:.2e} * C^({alpha:.3f}) (R² = {r2:.3f})",
-                    color="red",
-                )
+        # Add colorbar for hidden dimension scale
+        if hidden_dims:
+            sm = plt.cm.ScalarMappable(cmap=cmap, norm=norm)
+            sm.set_array([])
+            # Create colorbar with explicit positioning
+            cbar = fig.colorbar(sm, ax=ax, pad=0.02, shrink=0.8, aspect=20)
+            cbar.set_label("Hidden Dimension", fontsize=16, rotation=270, labelpad=25)
+            # Set the colorbar ticks to show actual hidden dimension values
+            tick_values = sorted(list(set(hidden_dims)))
+            cbar.set_ticks(tick_values)
+            cbar.set_ticklabels([str(int(dim)) for dim in tick_values])
+            # Increase colorbar tick label size
+            cbar.ax.tick_params(labelsize=14)
 
         ax.set_xlabel("Compute (FLOPS)", fontsize=18)
         ax.set_ylabel("Validation Loss (Irreducible)", fontsize=18)
@@ -848,11 +619,17 @@ class TrainingCurveAnalyzer:
         ax.tick_params(axis="both", which="major", labelsize=16)
         ax.tick_params(axis="both", which="minor", labelsize=14)
 
-        # Position legend
-        ax.legend(bbox_to_anchor=(1.05, 1), loc="upper left", fontsize=12)
+        # Position legend to avoid colorbar
+        if hidden_dims:
+            ax.legend(bbox_to_anchor=(1.2, 1), loc="upper left", fontsize=16)
+        else:
+            ax.legend(bbox_to_anchor=(1.05, 1), loc="upper left", fontsize=16)
 
-        # Adjust layout to accommodate legend
-        plt.tight_layout()
+        # Adjust layout to accommodate colorbar and legend
+        if hidden_dims:
+            plt.subplots_adjust(right=0.7)
+        else:
+            plt.tight_layout()
 
         if save_path:
             plt.savefig(save_path, dpi=300, bbox_inches="tight")
@@ -913,15 +690,7 @@ class TrainingCurveAnalyzer:
             return a * np.power(x, b)
 
         try:
-            # Use better initial guesses and bounds for power law fitting
-            # Initial guess: a = mean(y) / mean(x)^(-0.1), b = -0.1 (typical scaling exponent)
-            initial_guess = [np.mean(y_data) / np.power(np.mean(x_data), -0.1), -0.1]
-            # Bounds: a in [1e-10, 1e10], b in [-1, 0.5]
-            bounds = ([1e-10, -1], [1e10, 0.5])
-
-            params, covariance = curve_fit(
-                power_law, x_data, y_data, p0=initial_guess, bounds=bounds, maxfev=10000
-            )
+            params, covariance = curve_fit(power_law, x_data, y_data)
             a, b = params
 
             # Calculate R-squared
@@ -941,12 +710,10 @@ class TrainingCurveAnalyzer:
         show_all_curves: bool = True,
         show_frontier_only: bool = False,
         show_power_law_fit: bool = True,
-        show_sklearn_fit: bool = False,
         flop_range: Optional[Tuple[float, float]] = None,
         figsize: Tuple[int, int] = (12, 8),
         save_path: Optional[str] = None,
         use_all_points: bool = True,
-        extrapolation_factor: float = 2.0,
     ) -> None:
         """
         Plot training curves for all experiments.
@@ -954,13 +721,10 @@ class TrainingCurveAnalyzer:
         Args:
             show_all_curves: Whether to show all training curves
             show_frontier_only: Whether to only show frontier experiments
-            show_power_law_fit: Whether to show power law fit (y = a * x^b)
-            show_sklearn_fit: Whether to show sklearn-style fit (L = E + A * C^alpha)
+            show_power_law_fit: Whether to show power law fit
             flop_range: Optional tuple of (min_flops, max_flops) to recalculate frontier for this plot
             figsize: Figure size
             save_path: Path to save the plot
-            use_all_points: Whether to use all training points or just final points
-            extrapolation_factor: Factor to extend trend lines beyond data range (e.g., 2.0 = 2x range)
         """
         plt.figure(figsize=figsize)
 
@@ -1059,53 +823,16 @@ class TrainingCurveAnalyzer:
                     xs = [exp["final_compute"] for exp in experiments_to_plot.values()]
                 min_compute = min(xs)
                 max_compute = max(xs)
-                
-                # Extend the range using extrapolation_factor
-                extended_min = min_compute / extrapolation_factor
-                extended_max = max_compute * extrapolation_factor
-                
-                x_fit = np.logspace(np.log10(extended_min), np.log10(extended_max), 200)
+                x_fit = np.logspace(np.log10(min_compute), np.log10(max_compute), 100)
                 y_fit = a * np.power(x_fit, b)
 
                 plt.plot(
                     x_fit,
                     y_fit,
                     "k--",
-                    linewidth=4,
-                    alpha=0.95,
+                    linewidth=2,
+                    alpha=0.8,
                     label=f"Power law fit: y = {a:.2e} * x^({b:.3f}) (R² = {r_squared:.3f})",
-                )
-
-        # Plot sklearn-style fit if requested
-        if show_sklearn_fit and has_frontier:
-            sklearn_result = self.fit_sklearn_curve(use_all_points=use_all_points)
-            if sklearn_result is not None:
-                E, A, alpha, r_squared = sklearn_result
-                # Generate fit curve
-                if use_all_points:
-                    xs = [
-                        comp
-                        for (_, comp, _) in getattr(self, "frontier_points_all", [])
-                    ]
-                else:
-                    xs = [exp["final_compute"] for exp in experiments_to_plot.values()]
-                min_compute = min(xs)
-                max_compute = max(xs)
-                
-                # Extend the range using extrapolation_factor
-                extended_min = min_compute / extrapolation_factor
-                extended_max = max_compute * extrapolation_factor
-                
-                x_fit = np.logspace(np.log10(extended_min), np.log10(extended_max), 200)
-                y_fit = E + A * np.power(x_fit, alpha)
-
-                plt.plot(
-                    x_fit,
-                    y_fit,
-                    "r-.",
-                    linewidth=4,
-                    alpha=0.95,
-                    label=f"Sklearn fit: L = {E:.3f} + {A:.2e} * C^({alpha:.3f}) (R² = {r_squared:.3f})",
                 )
 
         # Customize plot
@@ -1138,155 +865,201 @@ class TrainingCurveAnalyzer:
 # Example usage and demonstration
 if __name__ == "__main__":
     # Initialize analyzer
-    # Toggle between theoretical_flops and total_flops_profiler by setting use_theoretical_flops
-    USE_THEORETICAL_FLOPS = (
-        False  # Set to True to use theoretical_flops, False for total_flops_profiler
-    )
-    analyzer = TrainingCurveAnalyzer(
-        irreducible_loss=IRREDUCIBLE_LOSS, use_theoretical_flops=USE_THEORETICAL_FLOPS
-    )
+    analyzer = TrainingCurveAnalyzer(irreducible_loss=1.76)
 
     # Add experiments - you can modify these paths and names as needed
     experiments_config = [
         {
-            "name": " best sgd 32d",
-            "csv_path": "../experimental_data_folder/best_possible_sgd/32d_best_sgd.csv",
-            "marker": "s",
-            "color": "tab:cyan",
-            "include_in_in_frontier": False,  # Include in frontier analysis
-            "class": "sgd",
+            "name": "adam 16d",
+            "csv_path": "../experimental_data_folder/transformer_standard_scaling_mup/16d_standard_mup.csv",
+            "color": "tab:purple",
+            "marker": "o",
+            "include_in_frontier": True,  # Include in frontier analysis
+            "class": "adam_transformer",
+            "hidden_dim": 16,
+        },
+        {
+            "name": "adam 24d",
+            "csv_path": "../experimental_data_folder/transformer_standard_scaling_mup/24d_standard_mup.csv",
+            "color": "tab:purple",
+            "marker": "o",
+            "include_in_frontier": True,  # Include in frontier analysis
+            "class": "adam_transformer",
+            "hidden_dim": 24,
+        },
+        {
+            "name": "adam 32d",
+            "csv_path": "../experimental_data_folder/transformer_standard_scaling_mup/32d_standard_mup.csv",
+            "color": "tab:purple",
+            "marker": "o",
+            "include_in_frontier": True,  # Include in frontier analysis
+            "class": "adam_transformer",
             "hidden_dim": 32,
         },
         {
-            "name": " best sgd 48d",
-            "csv_path": "../experimental_data_folder/best_possible_sgd/48d_best_sgd.csv",
-            "marker": "s",
-            "color": "tab:cyan",
-            "include_in_in_frontier": False,  # Include in frontier analysis
-            "class": "sgd",
+            "name": "adam 40d",
+            "csv_path": "../experimental_data_folder/transformer_standard_scaling_mup/40d_standard_mup.csv",
+            "color": "tab:purple",
+            "marker": "o",
+            "include_in_frontier": True,  # Include in frontier analysis
+            "class": "adam_transformer",
+            "hidden_dim": 40,
+        },
+        {
+            "name": "adam 48d",
+            "csv_path": "../experimental_data_folder/transformer_standard_scaling_mup/48d_standard_mup.csv",
+            "color": "tab:purple",
+            "marker": "o",
+            "include_in_frontier": True,  # Include in frontier analysis
+            "class": "adam_transformer",
             "hidden_dim": 48,
         },
         {
-            "name": " best sgd 64d",
-            "csv_path": "../experimental_data_folder/best_possible_sgd/64d_best_sgd.csv",
-            "marker": "s",
-            "color": "tab:cyan",
-            "include_in_in_frontier": False,  # Include in frontier analysis
-            "class": "sgd",
-            "hidden_dim": 64,
-        },
-        # melis scaling
-        {
-            "name": "32d melis scaling experiments",
-            "csv_path": "../experimental_data_folder/lstm_scaling_diagnostic/32melis_settings_low_dropout.csv",
+            "name": "adam 16d original ",
+            "csv_path": "../experimental_data_folder/Hidden_Dim_Scaling/16d_123_try2.csv.csv",
+            "color": "tab:purple",
             "marker": "o",
-            "color": "deeppink",
-            "include_in_in_frontier": False,  # Include in frontier analysis
-            "class": "lstm",
+            "include_in_frontier": True,  # Include in frontier analysis
+            "class": "adam_transfomer_original",
+            "hidden_dim": 16,
+        },
+        {
+            "name": "adam 24d original ",
+            "csv_path": "../experimental_data_folder/Hidden_Dim_Scaling/24d_123_try2.csv.csv",
+            "color": "tab:purple",
+            "marker": "o",
+            "include_in_frontier": True,  # Include in frontier analysis
+            "class": "adam_transfomer_original",
+            "hidden_dim": 24,
+        },
+        {
+            "name": "adam 32d original ",
+            "csv_path": "../experimental_data_folder/Hidden_Dim_Scaling/32d_123_try2.csv.csv",
+            "color": "tab:purple",
+            "marker": "o",
+            "include_in_frontier": True,  # Include in frontier analysis
+            "class": "adam_transfomer_original",
             "hidden_dim": 32,
         },
         {
-            "name": "48d melis scaling experiments",
-            "csv_path": "../experimental_data_folder/lstm_scaling_diagnostic/48melis_settings_low_dropout.csv",
+            "name": "adam 64d original ",
+            "csv_path": "../experimental_data_folder/Hidden_Dim_Scaling/64d_123_try2.csv.csv",
+            "color": "tab:purple",
             "marker": "o",
-            "color": "deeppink",
-            "include_in_in_frontier": False,  # Include in frontier analysis
-            "class": "lstm",
-            "hidden_dim": 48,
-        },
-        {
-            "name": "64d melis scaling experiments",
-            "csv_path": "../experimental_data_folder/lstm_scaling_diagnostic/64melis_settings_low_dropout.csv",
-            "marker": "o",
-            "color": "deeppink",
-            "include_in_in_frontier": False,  # Include in frontier analysis
-            "class": "lstm",
+            "include_in_frontier": True,  # Include in frontier analysis
+            "class": "adam_transfomer_original",
             "hidden_dim": 64,
         },
-        # 80 and 96 melis
         {
-            "name": "80d melis scaling experiments",
-            "csv_path": "../experimental_data_folder/lstm_scaling_diagnostic/80melis_settings_low_dropout.csv",
-            "marker": "o",
-            "color": "deeppink",
-            "include_in_in_frontier": False,  # Include in frontier analysis
-            "class": "lstm",
-            "hidden_dim": 80,
-        },
-        {
-            "name": "96d melis scaling experiments",
-            "csv_path": "../experimental_data_folder/lstm_scaling_diagnostic/96melis_settings_low_dropout.csv",
-            "marker": "o",
-            "color": "deeppink",
-            "include_in_in_frontier": False,  # Include in frontier analysis
-            "class": "lstm",
-            "hidden_dim": 96,
-        },
-        # new scaling
-        {
-            "name": "32d new scaling",
-            "csv_path": "../experimental_data_folder/new_scaling/32d_new_scaling.csv",
-            "marker": "o",
+            "name": "adam 16d original try 2",
+            "csv_path": "../experimental_data_folder/Hidden_Dim_Scaling/16d_123_try2.csv.csv",
             "color": "tab:purple",
-            "include_in_in_frontier": True,  # Include in frontier analysis
-            "class": "transformer",
+            "marker": "o",
+            "include_in_frontier": True,  # Include in frontier analysis
+            "class": "adam_transfomer_original",
+            "hidden_dim": 16,
+        },
+        {
+            "name": "adam 24d original try 2 ",
+            "csv_path": "../experimental_data_folder/Hidden_Dim_Scaling/24d_123_try2.csv.csv",
+            "color": "tab:purple",
+            "marker": "o",
+            "include_in_frontier": True,  # Include in frontier analysis
+            "class": "adam_transfomer_original",
+            "hidden_dim": 24,
+        },
+        {
+            "name": "adam 32d original try 2 ",
+            "csv_path": "../experimental_data_folder/Hidden_Dim_Scaling/32d_123_try2.csv.csv",
+            "color": "tab:purple",
+            "marker": "o",
+            "include_in_frontier": True,  # Include in frontier analysis
+            "class": "adam_transfomer_original",
             "hidden_dim": 32,
         },
         {
-            "name": "48d new scaling",
-            "csv_path": "../experimental_data_folder/new_scaling/48d_new_scaling.csv",
-            "marker": "o",
+            "name": "adam 64d original ",
+            "csv_path": "../experimental_data_folder/Hidden_Dim_Scaling/64d_123_try2.csv.csv",
             "color": "tab:purple",
-            "include_in_in_frontier": True,  # Include in frontier analysis
-            "class": "transformer",
-            "hidden_dim": 48,
-        },
-        {
-            "name": "64d new scaling",
-            "csv_path": "../experimental_data_folder/new_scaling/64d_new_scaling.csv",
             "marker": "o",
-            "color": "tab:purple",
-            "include_in_in_frontier": True,  # Include in frontier analysis
-            "class": "transformer",
+            "include_in_frontier": True,  # Include in frontier analysis
+            "class": "adam_transfomer_original",
             "hidden_dim": 64,
         },
         {
-            "name": "80d new scaling",
-            "csv_path": "../experimental_data_folder/new_scaling/80d_new_scaling.csv",
-            "marker": "o",
+            "name": "adam 16d original ",
+            "csv_path": "../experimental_data_folder/Hidden_Dim_Scaling/16d.csv.csv",
             "color": "tab:purple",
-            "include_in_in_frontier": True,  # Include in frontier analysis
-            "class": "transformer",
-            "hidden_dim": 80,
-        },
-        # new scaling no rotary
-        {
-            "name": "32d new scaling no rotary",
-            "csv_path": "../experimental_data_folder/new_scaling/32d_new_scaling_no_rotary.csv",
             "marker": "o",
-            "color": "tab:blue",
-            "include_in_in_frontier": False,  # Include in frontier analysis
-            "class": "transformer_no_rotary",
+            "include_in_frontier": True,  # Include in frontier analysis
+            "class": "adam_transfomer_original",
+            "hidden_dim": 16,
+        },
+        {
+            "name": "adam 24d original ",
+            "csv_path": "../experimental_data_folder/Hidden_Dim_Scaling/24d.csv.csv",
+            "color": "tab:purple",
+            "marker": "o",
+            "include_in_frontier": True,  # Include in frontier analysis
+            "class": "adam_transfomer_original",
+            "hidden_dim": 24,
+        },
+        {
+            "name": "adam 32d original ",
+            "csv_path": "../experimental_data_folder/Hidden_Dim_Scaling/32d.csv.csv",
+            "color": "tab:purple",
+            "marker": "o",
+            "include_in_frontier": True,  # Include in frontier analysis
+            "class": "adam_transfomer_original",
             "hidden_dim": 32,
         },
         {
-            "name": "48d new scaling no rotary",
-            "csv_path": "../experimental_data_folder/new_scaling/48d_new_scaling_no_rotary.csv",
+            "name": "adam 64d original ",
+            "csv_path": "../experimental_data_folder/Hidden_Dim_Scaling/64d.csv",
+            "color": "tab:purple",
             "marker": "o",
-            "color": "tab:blue",
-            "include_in_in_frontier": False,  # Include in frontier analysis
-            "class": "transformer_no_rotary",
-            "hidden_dim": 48,
-        },
-        {
-            "name": "64d new scaling no rotary",
-            "csv_path": "../experimental_data_folder/new_scaling/64d_new_scaling_no_rotary.csv",
-            "marker": "o",
-            "color": "tab:blue",
-            "include_in_in_frontier": False,  # Include in frontier analysis
-            "class": "transformer_no_rotary",
+            "include_in_frontier": True,  # Include in frontier analysis
+            "class": "adam_transfomer_original",
             "hidden_dim": 64,
         },
+        {
+            "name": "adam 16d original try 2",
+            "csv_path": "../experimental_data_folder/Hidden_Dim_Scaling/16d_123_try2.csv.csv",
+            "color": "tab:purple",
+            "marker": "o",
+            "include_in_frontier": True,  # Include in frontier analysis
+            "class": "adam_transfomer_original",
+            "hidden_dim": 16,
+        },
+        {
+            "name": "adam 24d original try 2 ",
+            "csv_path": "../experimental_data_folder/Hidden_Dim_Scaling/24d_123_try2.csv.csv",
+            "color": "tab:purple",
+            "marker": "o",
+            "include_in_frontier": True,  # Include in frontier analysis
+            "class": "adam_transfomer_original",
+            "hidden_dim": 24,
+        },
+        {
+            "name": "adam 32d original try 2 ",
+            "csv_path": "../experimental_data_folder/Hidden_Dim_Scaling/32d_123_try2.csv.csv",
+            "color": "tab:purple",
+            "marker": "o",
+            "include_in_frontier": True,  # Include in frontier analysis
+            "class": "adam_transfomer_original",
+            "hidden_dim": 32,
+        },
+        {
+            "name": "adam 64d original ",
+            "csv_path": "../experimental_data_folder/Hidden_Dim_Scaling/64d_123_try2.csv.csv",
+            "color": "tab:purple",
+            "marker": "o",
+            "include_in_frontier": True,  # Include in frontier analysis
+            "class": "adam_transfomer_original",
+            "hidden_dim": 64,
+        },
+
+
     ]
 
     #   {
@@ -1335,7 +1108,6 @@ if __name__ == "__main__":
         analyzer.add_experiment(
             name=config["name"],
             csv_path=config["csv_path"],
-            compute_col=config.get("compute_col"),  # Will use default if not specified
             color=config.get("color"),
             marker=config.get("marker", "o"),
             include_in_frontier=config.get("include_in_frontier", True),
@@ -1344,46 +1116,31 @@ if __name__ == "__main__":
         )
 
     # Identify per-class frontiers
-    # analyzer.identify_frontier_by_class(
-    #     method="pareto",
-    #     classes=[
-    #         # "optimal_lr_sgd_transformer",
-    #         "vanilla_transformer",
-    #         "optimal_lr_sgd_transformer",
-    #         "vanilla_transformer_no_rotary",
-    #         "vanilla_transformer_rmsprop",
-    #         "optimal_lr_sgd_transformer",
-    #     ],
-    #     flop_range_by_class={
-    #         # "optimal_lr_sgd_transformer": (1e14, 1e15),
-    #         "vanilla_transformer": (1e14, 1e15),
-    #         "optimal_lr_sgd_transformer": (1e14, 1e15),
-    #         "vanilla_transformer_no_rotary": (1e14, 1e15),
-    #         "vanilla_transformer_rmsprop": (1e14, 1e15),
-    #     },
-    # )
+    analyzer.identify_frontier_by_class(
+        method="pareto",
+        classes=["adam_transformer", "adam_transfomer_original"],
+        flop_range_by_class={
+            "adam_transformer": (1e12, 1e14),
+            "sgd_transformer": (1e13, 1e15),
+        },
+    )
 
     # Example 1: Plot all experiments with frontier analysis
     analyzer.plot_training_curves_by_class(
         show_all_curves=True,
         show_power_law_fit=True,
-        show_sklearn_fit=False,  # Enable sklearn-style fit: L = E + A * C^alpha
         save_path="Figures/universal_scaling_law_study_by_class.png",
         classes_to_plot=[
-            # "optimal_lr_sgd_transformer",
-            "transformer",
-            "transformer_no_rotary",
-            "lstm",
-            "sgd",
-            # "vanilla_transformer_rmsprop",
+            "adam_transformer",
+            "sgd_transformer",
+            "adam_transfomer_original",
         ],
         flop_range_by_class={
-            "transformer": (3 * 1e14, 1e15),
-            "transformer_no_rotary": (5 * 1e14, 1e15),
-            "lstm": (3 * 1e14, 1e15),
-            "sgd": (3 * 1e14, 1e15),
+            "lstm_standard": (1e14, 1e15),
+            "sgd_lstm": (1e14, 1e15),
+            "adam_transfomer_original": (1e12, 1e14),
         },
-        extrapolation_factor=1000.0,  # Extend trend lines 3x beyond data range
+        colormap="viridis",  # Color experiments by hidden dimension
     )
 
     # Example 2: Plot with specific FLOP range to focus on a region
@@ -1392,8 +1149,7 @@ if __name__ == "__main__":
     #     show_all_curves=True,
     #     show_frontier_only=False,
     #     show_power_law_fit=True,
-    #     flop_range=(1e14, 1e15),  # Example: focus on 10^16 to 10^18 FLOPs
-
+    #     flop_range=(1e16, 1e18),  # Example: focus on 10^16 to 10^18 FLOPs
     #     save_path="Figures/universal_scaling_law_study_range.png",
     # )
 

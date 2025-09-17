@@ -32,8 +32,9 @@ from pathlib import Path
 import matplotlib.colors as mcolors
 from typing import List, Dict, Tuple, Optional
 import warnings
-
-# sklearn imports removed - not actually used in the code
+from sklearn.linear_model import LinearRegression
+from sklearn.preprocessing import PolynomialFeatures
+from sklearn.pipeline import Pipeline
 
 
 IRREDUCIBLE_LOSS = 1.9
@@ -637,11 +638,11 @@ class TrainingCurveAnalyzer:
         use_all_points: bool = True,
         classes_to_plot: Optional[List[str]] = None,
         flop_range_by_class: Optional[Dict[str, Tuple[float, float]]] = None,
-        extrapolation_factor: float = 2.0,
+        colormap: str = "viridis",
     ) -> None:
         """
         Plot training curves and per-class frontiers and fits.
-        Shows experiment names in legend with colors determined by the color parameter.
+        Colors experiments by hidden dimension and shows experiment classes in legend.
 
         Args:
             show_all_curves: Whether to show all training curves
@@ -653,7 +654,7 @@ class TrainingCurveAnalyzer:
             use_all_points: Whether to use all training points or just final points
             classes_to_plot: Which classes to plot
             flop_range_by_class: Per-class FLOP ranges
-            extrapolation_factor: Factor to extend trend lines beyond data range (e.g., 2.0 = 2x range)
+            colormap: Colormap for hidden dimension coloring
         """
         # Optionally recompute per-class frontier for this plot only if a range is provided
         original_frontier_by_class = self.frontier_points_by_class.copy()
@@ -672,26 +673,53 @@ class TrainingCurveAnalyzer:
         # Create figure and axis
         fig, ax = plt.subplots(figsize=figsize)
 
+        # Collect all hidden dimensions to set up colormap
+        hidden_dims = []
+        for exp in self.experiments.values():
+            hidden_dim = exp.get("hidden_dim")
+            if hidden_dim is not None:
+                hidden_dims.append(hidden_dim)
+
+        if hidden_dims:
+            min_dim = min(hidden_dims)
+            max_dim = max(hidden_dims)
+            # Create colormap normalizer
+            norm = plt.Normalize(vmin=min_dim, vmax=max_dim)
+            cmap = plt.colormaps[colormap]
+
         # Filter classes to plot
         if classes_to_plot is None:
             classes_to_plot = sorted(
                 {exp.get("class", "default") for exp in self.experiments.values()}
             )
 
-        # Optionally plot all training curves
+        # Track which classes have been added to legend
+        legend_classes = set()
+
+        # Optionally plot all training curves (colored by hidden dimension)
         if show_all_curves:
             for name, exp in self.experiments.items():
                 cls = exp.get("class", "default")
                 if cls not in classes_to_plot:
                     continue
 
-                # Use the color parameter directly
-                color = exp.get("color", "tab:blue")
+                # Get color based on hidden dimension
+                hidden_dim = exp.get("hidden_dim")
+                if hidden_dim is not None and hidden_dims:
+                    color = cmap(norm(hidden_dim))
+                else:
+                    # Fallback to default color if no hidden_dim
+                    color = exp.get("color", "tab:blue")
 
                 compute_vals = exp["data"][exp["compute_col"]].values
                 loss_vals = exp["data"][exp["loss_col"]].values - self.irreducible_loss
                 mask = loss_vals > 0
                 if np.any(mask):
+                    # Only add class to legend once per class
+                    label = cls if cls not in legend_classes else None
+                    if label:
+                        legend_classes.add(cls)
+
                     ax.plot(
                         compute_vals[mask],
                         loss_vals[mask],
@@ -699,18 +727,22 @@ class TrainingCurveAnalyzer:
                         linestyle=exp["linestyle"],
                         color=color,
                         alpha=exp["alpha"],
-                        label=name,  # Use experiment name as label
+                        label=label,
                         linewidth=2,
                         markersize=6,
                     )
 
-        # Plot class-specific frontier points as stars
+        # Plot class-specific frontier points as stars (colored by hidden dimension)
         if use_all_points:
             for cls in classes_to_plot:
                 pts = self.frontier_points_all_by_class.get(cls, [])
                 for name, comp, loss in pts:
                     if name in self.experiments:
-                        color = self.experiments[name].get("color", "tab:blue")
+                        hidden_dim = self.experiments[name].get("hidden_dim")
+                        if hidden_dim is not None and hidden_dims:
+                            color = cmap(norm(hidden_dim))
+                        else:
+                            color = self.experiments[name].get("color", "tab:blue")
                     else:
                         color = "k"
 
@@ -730,7 +762,11 @@ class TrainingCurveAnalyzer:
                 names = self.frontier_points_by_class.get(cls, [])
                 for name in names:
                     exp = self.experiments[name]
-                    color = exp.get("color", "tab:blue")
+                    hidden_dim = exp.get("hidden_dim")
+                    if hidden_dim is not None and hidden_dims:
+                        color = cmap(norm(hidden_dim))
+                    else:
+                        color = exp.get("color", "tab:blue")
 
                     ax.scatter(
                         exp["final_compute"],
@@ -769,24 +805,17 @@ class TrainingCurveAnalyzer:
                     continue
                 min_compute = min(xs)
                 max_compute = max(xs)
-                
-                # Extend the range using extrapolation_factor
-                compute_range = max_compute - min_compute
-                extended_min = min_compute / extrapolation_factor
-                extended_max = max_compute * extrapolation_factor
-                
-                x_fit = np.logspace(np.log10(extended_min), np.log10(extended_max), 200)
+                x_fit = np.logspace(np.log10(min_compute), np.log10(max_compute), 100)
                 y_fit = a * np.power(x_fit, b)
-                
                 # Use a unique linestyle per class for clarity; color black to overlay
                 linestyle = "--"
                 ax.plot(
                     x_fit,
                     y_fit,
                     linestyle,
-                    linewidth=4,
-                    alpha=0.95,
-                    label=f"{cls} power law: \n y = {a:.2e} * x^({b:.3f}) (R² = {r2:.3f})",
+                    linewidth=3,
+                    alpha=0.9,
+                    label=f"{cls} power law: \n y = {a:.2e} * x^({b:.3f})",
                     color="black",
                 )
 
@@ -815,12 +844,7 @@ class TrainingCurveAnalyzer:
                     continue
                 min_compute = min(xs)
                 max_compute = max(xs)
-                
-                # Extend the range using extrapolation_factor
-                extended_min = min_compute / extrapolation_factor
-                extended_max = max_compute * extrapolation_factor
-                
-                x_fit = np.logspace(np.log10(extended_min), np.log10(extended_max), 200)
+                x_fit = np.logspace(np.log10(min_compute), np.log10(max_compute), 100)
                 y_fit = E + A * np.power(x_fit, alpha)
                 # Use a different linestyle for sklearn fit
                 linestyle = "-."
@@ -828,11 +852,25 @@ class TrainingCurveAnalyzer:
                     x_fit,
                     y_fit,
                     linestyle,
-                    linewidth=4,
-                    alpha=0.95,
-                    label=f"{cls} sklearn: \n L = {E:.3f} + {A:.2e} * C^({alpha:.3f}) (R² = {r2:.3f})",
+                    linewidth=3,
+                    alpha=0.9,
+                    label=f"{cls} sklearn: \n L = {E:.3f} + {A:.2e} * C^({alpha:.3f})",
                     color="red",
                 )
+
+        # Add colorbar for hidden dimension scale
+        if hidden_dims:
+            sm = plt.cm.ScalarMappable(cmap=cmap, norm=norm)
+            sm.set_array([])
+            # Create colorbar with explicit positioning
+            cbar = fig.colorbar(sm, ax=ax, pad=0.02, shrink=0.8, aspect=20)
+            cbar.set_label("Hidden Dimension", fontsize=16, rotation=270, labelpad=25)
+            # Set the colorbar ticks to show actual hidden dimension values
+            tick_values = sorted(list(set(hidden_dims)))
+            cbar.set_ticks(tick_values)
+            cbar.set_ticklabels([str(int(dim)) for dim in tick_values])
+            # Increase colorbar tick label size
+            cbar.ax.tick_params(labelsize=14)
 
         ax.set_xlabel("Compute (FLOPS)", fontsize=18)
         ax.set_ylabel("Validation Loss (Irreducible)", fontsize=18)
@@ -848,11 +886,17 @@ class TrainingCurveAnalyzer:
         ax.tick_params(axis="both", which="major", labelsize=16)
         ax.tick_params(axis="both", which="minor", labelsize=14)
 
-        # Position legend
-        ax.legend(bbox_to_anchor=(1.05, 1), loc="upper left", fontsize=12)
+        # Position legend to avoid colorbar
+        if hidden_dims:
+            ax.legend(bbox_to_anchor=(1.2, 1), loc="upper left", fontsize=16)
+        else:
+            ax.legend(bbox_to_anchor=(1.05, 1), loc="upper left", fontsize=16)
 
-        # Adjust layout to accommodate legend
-        plt.tight_layout()
+        # Adjust layout to accommodate colorbar and legend
+        if hidden_dims:
+            plt.subplots_adjust(right=0.7)
+        else:
+            plt.tight_layout()
 
         if save_path:
             plt.savefig(save_path, dpi=300, bbox_inches="tight")
@@ -946,7 +990,6 @@ class TrainingCurveAnalyzer:
         figsize: Tuple[int, int] = (12, 8),
         save_path: Optional[str] = None,
         use_all_points: bool = True,
-        extrapolation_factor: float = 2.0,
     ) -> None:
         """
         Plot training curves for all experiments.
@@ -960,7 +1003,6 @@ class TrainingCurveAnalyzer:
             figsize: Figure size
             save_path: Path to save the plot
             use_all_points: Whether to use all training points or just final points
-            extrapolation_factor: Factor to extend trend lines beyond data range (e.g., 2.0 = 2x range)
         """
         plt.figure(figsize=figsize)
 
@@ -1059,20 +1101,15 @@ class TrainingCurveAnalyzer:
                     xs = [exp["final_compute"] for exp in experiments_to_plot.values()]
                 min_compute = min(xs)
                 max_compute = max(xs)
-                
-                # Extend the range using extrapolation_factor
-                extended_min = min_compute / extrapolation_factor
-                extended_max = max_compute * extrapolation_factor
-                
-                x_fit = np.logspace(np.log10(extended_min), np.log10(extended_max), 200)
+                x_fit = np.logspace(np.log10(min_compute), np.log10(max_compute), 100)
                 y_fit = a * np.power(x_fit, b)
 
                 plt.plot(
                     x_fit,
                     y_fit,
                     "k--",
-                    linewidth=4,
-                    alpha=0.95,
+                    linewidth=2,
+                    alpha=0.8,
                     label=f"Power law fit: y = {a:.2e} * x^({b:.3f}) (R² = {r_squared:.3f})",
                 )
 
@@ -1091,20 +1128,15 @@ class TrainingCurveAnalyzer:
                     xs = [exp["final_compute"] for exp in experiments_to_plot.values()]
                 min_compute = min(xs)
                 max_compute = max(xs)
-                
-                # Extend the range using extrapolation_factor
-                extended_min = min_compute / extrapolation_factor
-                extended_max = max_compute * extrapolation_factor
-                
-                x_fit = np.logspace(np.log10(extended_min), np.log10(extended_max), 200)
+                x_fit = np.logspace(np.log10(min_compute), np.log10(max_compute), 100)
                 y_fit = E + A * np.power(x_fit, alpha)
 
                 plt.plot(
                     x_fit,
                     y_fit,
                     "r-.",
-                    linewidth=4,
-                    alpha=0.95,
+                    linewidth=2,
+                    alpha=0.8,
                     label=f"Sklearn fit: L = {E:.3f} + {A:.2e} * C^({alpha:.3f}) (R² = {r_squared:.3f})",
                 )
 
@@ -1148,7 +1180,7 @@ if __name__ == "__main__":
 
     # Add experiments - you can modify these paths and names as needed
     experiments_config = [
-        {
+         {
             "name": " best sgd 32d",
             "csv_path": "../experimental_data_folder/best_possible_sgd/32d_best_sgd.csv",
             "marker": "s",
@@ -1250,15 +1282,6 @@ if __name__ == "__main__":
             "class": "transformer",
             "hidden_dim": 64,
         },
-        {
-            "name": "80d new scaling",
-            "csv_path": "../experimental_data_folder/new_scaling/80d_new_scaling.csv",
-            "marker": "o",
-            "color": "tab:purple",
-            "include_in_in_frontier": True,  # Include in frontier analysis
-            "class": "transformer",
-            "hidden_dim": 80,
-        },
         # new scaling no rotary
         {
             "name": "32d new scaling no rotary",
@@ -1287,6 +1310,22 @@ if __name__ == "__main__":
             "class": "transformer_no_rotary",
             "hidden_dim": 64,
         },
+    
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
     ]
 
     #   {
@@ -1366,7 +1405,7 @@ if __name__ == "__main__":
     # Example 1: Plot all experiments with frontier analysis
     analyzer.plot_training_curves_by_class(
         show_all_curves=True,
-        show_power_law_fit=True,
+        show_power_law_fit=False,
         show_sklearn_fit=False,  # Enable sklearn-style fit: L = E + A * C^alpha
         save_path="Figures/universal_scaling_law_study_by_class.png",
         classes_to_plot=[
@@ -1378,12 +1417,12 @@ if __name__ == "__main__":
             # "vanilla_transformer_rmsprop",
         ],
         flop_range_by_class={
-            "transformer": (3 * 1e14, 1e15),
-            "transformer_no_rotary": (5 * 1e14, 1e15),
-            "lstm": (3 * 1e14, 1e15),
-            "sgd": (3 * 1e14, 1e15),
+            "transformer": (3*1e14, 1e15),
+            "transformer_no_rotary": (3*1e14, 1e15),
+            "lstm": (3*1e14, 1e15),
+            "sgd": (3*1e14, 1e15),
         },
-        extrapolation_factor=1000.0,  # Extend trend lines 3x beyond data range
+        colormap="viridis",  # Color experiments by hidden dimension
     )
 
     # Example 2: Plot with specific FLOP range to focus on a region
