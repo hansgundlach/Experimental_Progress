@@ -58,7 +58,7 @@ def create_multi_lr_experiments(
     Args:
         base_experiments: List of experiment dictionaries (e.g., LSTM_HIDDEN_DIM_EXPERIMENTS)
         learning_rates: List of learning rate values (e.g., [1e-4, 1e-3, 1e-2])
-        max_tokens: Maximum number of tokens to use for token_limit (default: 129e6 / 4)
+        max_tokens: Maximum number of tokens to use for max_tokens (default: 129e6 / 4)
 
     Returns:
         List of experiment dictionaries with learning rate variations
@@ -134,26 +134,26 @@ def create_multi_lr_experiments(
 
                 new_sub_exp["label"] = f"{original_label}_lr_{lr_str}"
 
-                # Add learning rate and token_limit to overrides, and update folder settings
+                # Add learning rate and max_tokens to overrides, and update folder settings
                 if "overrides" in new_sub_exp:
                     new_sub_exp["overrides"]["learning_rate"] = lr
-                    new_sub_exp["overrides"]["token_limit"] = max_tokens
+                    new_sub_exp["overrides"]["max_tokens"] = max_tokens
                     # Remove custom folder settings - let the experiment name handle the directory
                     if custom_folder:
                         new_sub_exp["overrides"].pop("folder_name", None)
                         new_sub_exp["overrides"].pop("results_folder", None)
                 elif "config" in new_sub_exp:
                     new_sub_exp["config"]["learning_rate"] = lr
-                    new_sub_exp["config"]["token_limit"] = max_tokens
+                    new_sub_exp["config"]["max_tokens"] = max_tokens
                     # Remove custom folder settings - let the experiment name handle the directory
                     if custom_folder:
                         new_sub_exp["config"].pop("folder_name", None)
                         new_sub_exp["config"].pop("results_folder", None)
                 else:
-                    # If neither exists, create overrides with learning rate and token_limit
+                    # If neither exists, create overrides with learning rate and max_tokens
                     overrides_dict = {
                         "learning_rate": lr,
-                        "token_limit": max_tokens,
+                        "max_tokens": max_tokens,
                     }
                     # Don't add custom folder for new overrides - let experiment name handle it
                     new_sub_exp["overrides"] = overrides_dict
@@ -425,14 +425,14 @@ def gen_experim(
     while hidden_dim % num_heads != 0 and num_heads > 1:
         num_heads -= 1
 
-    # 3. Calculate total parameters and scale token_limit to 20x parameters
+    # 3. Calculate total parameters and scale max_tokens to 20x parameters
     total_params = calculate_transformer_params(
         hidden_dim,
         num_layers,
         pos_encoding=base_config["pos_encoding"],
         tie_embeddings=base_config["tie_embeddings"],
     )
-    token_limit = int(20 * total_params)
+    max_tokens = int(20 * total_params)
 
     # 4. Estimate gradient accumulation based on GPU memory
     # Use target_effective_batch_size for optimization goals
@@ -461,7 +461,7 @@ def gen_experim(
         "hidden_dim": hidden_dim,
         "num_layers": num_layers,
         "num_heads": num_heads,
-        "token_limit": token_limit,
+        "max_tokens": max_tokens,
         "gradient_accumulation_steps": grad_accum_steps,
         "batch_size": per_step_batch_size,  # Override with safe per-step batch size
     }
@@ -503,7 +503,10 @@ def get_base_config():
         Dictionary containing base configuration parameters
     """
     return {
-        "dataset": "c4_subset",
+        "data_path": "Datasets/c4_subset.txt",  # Actual dataset file path
+        "max_tokens": int(
+            5 * 1e7 / 4
+        ),  # Maximum number of tokens to use from dataset (converted from old character limit)
         "target_effective_batch_size": 128,  # Target effective batch size for optimization
         "batch_size": 64,  # Default per-step batch size (will be overridden by gen_experim)
         "learning_rate": 0.001 * math.sqrt(4),
@@ -517,7 +520,6 @@ def get_base_config():
         "num_heads": 4,
         "dropout": 0.0,
         "seq_length": 128,
-        "token_limit": int(5 * 10**7 / 4),  # Convert from old char estimate to tokens
         "pos_encoding": "rotary",
         "init_scheme": "transformer_scaled",
         "stride": 128,

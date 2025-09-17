@@ -940,17 +940,17 @@ def get_dataset_configurations() -> dict:
     configurations = {}
 
     # 1. Optimal LR SGD scaling
-    optimal_lr_sgd_dir = data_folder / "best_possible_sgd"
-    if optimal_lr_sgd_dir.exists():
-        optimal_lr_sgd_pairs = [
-            (optimal_lr_sgd_dir / "32d_best_sgd.csv", 1683000),
-            # (optimal_lr_sgd_dir / "optimal_lr_sgd_40d.csv", 2098000),
-            (optimal_lr_sgd_dir / "48d_best_sgd.csv", 2545000),
-            (optimal_lr_sgd_dir / "64d_best_sgd.csv", 3463000),
-        ]
-        configurations["best_possible_sgd"] = [
-            (str(p), n) for p, n in optimal_lr_sgd_pairs if p.exists()
-        ]
+    # optimal_lr_sgd_dir = data_folder / "best_possible_sgd"
+    # if optimal_lr_sgd_dir.exists():
+    #     optimal_lr_sgd_pairs = [
+    #         (optimal_lr_sgd_dir / "32d_best_sgd.csv", 1683000),
+    #         # (optimal_lr_sgd_dir / "optimal_lr_sgd_40d.csv", 2098000),
+    #         (optimal_lr_sgd_dir / "48d_best_sgd.csv", 2545000),
+    #         (optimal_lr_sgd_dir / "64d_best_sgd.csv", 3463000),
+    #     ]
+    #     configurations["best_possible_sgd"] = [
+    #         (str(p), n) for p, n in optimal_lr_sgd_pairs if p.exists()
+    #     ]
 
     # 2. Vanilla scaling with optimal LR
     # vanilla_optimal_dir = data_folder / "vanilla_scaling_optimal_lr"
@@ -972,41 +972,54 @@ def get_dataset_configurations() -> dict:
     #         (str(p), n) for p, n in vanilla_optimal_pairs if p.exists()
     #     ]
 
-    new_scaling_dir = data_folder / "new_scaling"
+    new_scaling_dir = data_folder / "transformer_scaling"
     if new_scaling_dir.exists():
         new_scaling_pairs = [
-            (new_scaling_dir / "32d_new_scaling.csv", 1683000),
-            (new_scaling_dir / "48d_new_scaling.csv", 2545000),
-            (new_scaling_dir / "64d_new_scaling.csv", 3463000),
-            (new_scaling_dir / "80d_new_scaling.csv", 4454000),
+            (new_scaling_dir / "32d_bs128lr2.csv", 1683000),
+            (new_scaling_dir / "48d_bs128lr2.csv", 2545000),
+            (new_scaling_dir / "64d_bs128lr2.csv", 3463000),
+            (new_scaling_dir / "80d_bs128lr25.csv", 4454000),
         ]
-        configurations["new_scaling"] = [
+        configurations["transformer_scaling"] = [
             (str(p), n) for p, n in new_scaling_pairs if p.exists()
         ]
 
     # no rotary scaling
-    mup_dir = data_folder / "mup_scaling_experiments"
-    if mup_dir.exists():
-        mup_pairs = [
-            (mup_dir / "vanilla_32d_no_rot.csv", 1683000),
-            (mup_dir / "vanilla_40d_no_rot.csv", 2098000),
-            (mup_dir / "vanilla_48d_no_rot.csv", 2545000),
-            (mup_dir / "vanilla_56d_no_rot.csv", 3015000),
-            (mup_dir / "vanilla_64d_no_rot.csv", 3463000),
-        ]
-        configurations["mup_scaling_experiments"] = [
-            (str(p), n) for p, n in mup_pairs if p.exists()
-        ]
+    # mup_dir = data_folder / "mup_scaling_experiments"
+    # if mup_dir.exists():
+    #     mup_pairs = [
+    #         (mup_dir / "vanilla_32d_no_rot.csv", 1683000),
+    #         (mup_dir / "vanilla_40d_no_rot.csv", 2098000),
+    #         (mup_dir / "vanilla_48d_no_rot.csv", 2545000),
+    #         (mup_dir / "vanilla_56d_no_rot.csv", 3015000),
+    #         (mup_dir / "vanilla_64d_no_rot.csv", 3463000),
+    #     ]
+    #     configurations["mup_scaling_experiments"] = [
+    #         (str(p), n) for p, n in mup_pairs if p.exists()
+    #     ]
     # lstm scaling
     lstm_dir = data_folder / "lstm_scaling_diagnostic"
     if lstm_dir.exists():
         lstm_pairs = [
             (lstm_dir / "32melis_settings_low_dropout.csv", 1691761),
-            (lstm_dir / "48melis_settings_low_dropout.csv", 2574337),
-            (lstm_dir / "64melis_settings_low_dropout.csv", 3530897),
+            (lstm_dir / "48melis_steam.csv", 2574337),
+            (lstm_dir / "64melis_steam.csv", 3530897),
+            (lstm_dir / "80melis_steam.csv", 4586017),
         ]
         configurations["lstm_scaling_diagnostic"] = [
             (str(p), n) for p, n in lstm_pairs if p.exists()
+        ]
+    # sgd scaling
+    sgd_dir = data_folder / "best_possible_sgd"
+    if sgd_dir.exists():
+        sgd_pairs = [
+            # (sgd_dir / "32d_best_sgdbs128lr1.csv", 1683000),
+            (sgd_dir / "48d_best_sgdbs32.csv", 2545000),
+            (sgd_dir / "64d_best_sgdbs32.csv", 3463000),
+            (sgd_dir / "80d_best_sgdbs32.csv", 4454000),
+        ]
+        configurations["sgd_scaling"] = [
+            (str(p), n) for p, n in sgd_pairs if p.exists()
         ]
 
     return configurations

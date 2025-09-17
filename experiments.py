@@ -17,16 +17,8 @@ from experiment_utils import (
     get_base_config,
 )
 from experiment_definitions import (
-    TEST_EXPERIMENT,
-    # TRANSFORMER_SCALING_EXPERIMENTS_OPTIMAL_LR,
-    # TRANSFORMER_ALL_SCALE_LR_TUNE,
-    # TRANSFORMER_LR_TUNE_MUP_STANDARD,
-    # TRANSFORMER_SGD_SCALING_EXPERIMENTS_OPTIMAL_LR,
-    # TRANSFORMER_SGD_ALL_SCALE_LR_TUNE,
     GRAND_EXPERIMENT,
 )
-
-# "frog"
 
 
 def run_experiments_on_gpu(gpu_id, sub_experiments, project_name_base):
@@ -155,69 +147,7 @@ if __name__ == "__main__":
                 )
         return result
 
-    # wanted = {"32d_linear_warmup_123", "32d_transformer_123", "32d_cosine_standard_123"}
-    # wanted = {"128d"}
-    # EXPERIMENTS = subset_experiments(LR_SCHEDULE_EXPERIMENTS, wanted)
-    # EXPERIMENTS = (
-    #     HIDDEN_DIM_EXPERIMENTS_NO_ROTARY_123_EXTENSIONS
-    #     + POS_ENCODING_EXPERIMENTS
-    #     + subset_experiments(HIDDEN_DIM_EXPERIMENTS, wanted)
-    # )
-
-    # EXPERIMENTS = NEW_HYPER_PARAM_EXPERIMENTS
-    # EXPERIMENTS = LR_SCHEDULE_EXPERIMENTS + NORM_EXPERIMENTS
-
-    # ====================================================================
-    # MULTI-SEED EXPERIMENT SETUP
-    # ====================================================================
-
-    # Define seeds you want to test
-    SEEDS = [123, 789, 456, 910]  # Add more seeds as needed: [123, 456, 789]
-
-    # Choose which base experiment to run with multiple seeds
-    # Option 1: Hidden dimension experiments with multiple seeds
-    # EXPERIMENTS = create_multi_seed_experiments(HIDDEN_DIM_EXPERIMENTS_123, SEEDS)
-
-    # Option 2: LR schedule experiments with multiple seeds
-    # EXPERIMENTS = create_multi_seed_experiments(LR_SCHEDULE_EXPERIMENTS, SEEDS)
-
-    # Option 3: Subset of experiments with multiple seeds
-    # wanted = {"32d_cosine_warmup_123", "32d_inverse_sqrt_123"}
-    # subset_exp = subset_experiments(LR_SCHEDULE_EXPERIMENTS, wanted)
-    # EXPERIMENTS = create_multi_seed_experiments(subset_exp, SEEDS)
-
-    # Option 4: Multiple experiment types with multiple seeds
-    # all_base_experiments = LR_SCHEDULE_EXPERIMENTS + NORM_EXPERIMENTS
-    # EXPERIMENTS = create_multi_seed_experiments(all_base_experiments, SEEDS)
-
-    # For now, keep your existing single experiment
-    # EXPERIMENTS = BASIC_TEST_EXPERIMENT
-
-    # create multiple seed activation function experiments
-    # EXPERIMENTS = (
-    #     create_multi_seed_experiments(ACTIVATION_EXPERIMENTS, SEEDS)
-    #     + create_multi_seed_experiments(OPTIMIZER_EXPERIMENTS, SEEDS)
-    #     + create_multi_seed_experiments(INITIALIZATION_EXPERIMENTS, SEEDS)
-    #     + create_multi_seed_experiments(POS_ENCODING_EXPERIMENTS, SEEDS)
-    #     + create_multi_seed_experiments(LR_SCHEDULE_EXPERIMENTS, SEEDS)
-    # )
-
-    # wanted = {"56d_123_sgd", "80d_123_sgd", "96d_123_sgd"}
-    # EXPERIMENTS = subset_experiments(HIDDEN_DIM_EXPERIMENTS_123_SGD, wanted)
-    # EXPERIMENTS = LR_EXPERIMENTS
-    # wanted = {"80d_2_mup_sgd", "96d_2_mup_sgd", "112d_2_mup_sgd", "128d_2_mup_sgd"}
-    # EXPERIMENTS = subset_experiments(MUP_SCALING_EXPERIMENTS, wanted)
-
-    # EXPERIMENTS = OPTIMIZER_EXPERIMENTS
-
-    # ====================================================================
-    # EXPERIMENT PROCESSING
-    # ====================================================================
-
-    # EXPERIMENTS = TRANSFORMER_VARIATION_EXPERIMENTS_HEAD
-
-    #
-    # EXPERIMENTS = TRANSFORMER_LR_TUNE_MUP_STANDARD + TRANSFORMER_ALL_SCALE_LR_TUNE
+    # choose relevant experiments
     EXPERIMENTS = GRAND_EXPERIMENT
 
     # Initialize the list to store all sub-experiments

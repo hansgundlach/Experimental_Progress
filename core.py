@@ -109,50 +109,6 @@ def get_mup_learning_rates_transformer(
     return param_groups
 
 
-def get_wikitext_data(limit=100000):
-    """Load WikiText-2 dataset from local file"""
-    file_path = Path("Datasets/wikitext.txt")
-
-    if not file_path.exists():
-        raise FileNotFoundError(
-            "WikiText dataset file not found at Datasets/wikitext.txt. "
-            "Please ensure you have downloaded and copied the dataset file."
-        )
-
-    # Load the data
-    print("Loading WikiText from local file...")
-    text = file_path.read_text(encoding="utf-8")
-
-    # Ensure limit is an integer to avoid float issues with random.randint
-    limit = int(limit)
-
-    # Limit to a reasonable sample size for quick testing
-    sample_size = min(limit, len(text))  # Use at most limit characters
-
-    # Start from a random position for variety
-    if len(text) > sample_size:
-        start_idx = random.randint(0, len(text) - sample_size - 1)
-        sampled_text = text[start_idx : start_idx + sample_size]
-    else:
-        sampled_text = text
-
-    print(f"Loaded WikiText sample: {len(sampled_text)} characters")
-    return sampled_text
-
-
-def get_wikitext_data_by_tokens(token_limit, tokenizer):
-    """Load WikiText-2 dataset from local file, limiting by exact token count"""
-    # Always use character approximation for speed (same as the old system)
-    # Convert token limit to character limit using 4:1 ratio
-    char_limit = int(token_limit * 4)
-    print(
-        f"Loading WikiText data for {token_limit:,} tokens (~{char_limit:,} characters)..."
-    )
-
-    # Use the existing fast character-based loading
-    return get_wikitext_data(limit=char_limit)
-
-
 class TextDataset(Dataset):
     def __init__(self, text, seq_length, tokenizer, stride=1, random_offset=True):
         """
@@ -648,7 +604,7 @@ class SimpleTransformer(nn.Module):
     def forward(self, x):
         B, L = x.shape
         x = self.embedding(x)
-        
+
         # Apply √d scaling for sinusoidal PE (canonical Transformer approach)
         if self.pos_encoding == "sinusoidal":
             x = x * math.sqrt(self.hidden_dim)  # Scale embeddings to match PE variance
@@ -1050,14 +1006,20 @@ def train(gpu_id=None, csv_log_path=None):
         if opt_name == "adam":
             optimizer = optim.Adam(
                 groups,
-                betas=(getattr(config, "adam_beta1", 0.9), getattr(config, "adam_beta2", 0.999)),
-                eps=getattr(config, "adam_epsilon", 1e-8)
+                betas=(
+                    getattr(config, "adam_beta1", 0.9),
+                    getattr(config, "adam_beta2", 0.999),
+                ),
+                eps=getattr(config, "adam_epsilon", 1e-8),
             )
         elif opt_name == "adamw":
             optimizer = optim.AdamW(
                 groups,
-                betas=(getattr(config, "adam_beta1", 0.9), getattr(config, "adam_beta2", 0.999)),
-                eps=getattr(config, "adam_epsilon", 1e-8)
+                betas=(
+                    getattr(config, "adam_beta1", 0.9),
+                    getattr(config, "adam_beta2", 0.999),
+                ),
+                eps=getattr(config, "adam_epsilon", 1e-8),
             )
         elif opt_name == "sgd":
             optimizer = optim.SGD(
@@ -1095,15 +1057,21 @@ def train(gpu_id=None, csv_log_path=None):
             optimizer = optim.Adam(
                 param_groups,
                 weight_decay=config.weight_decay,
-                betas=(getattr(config, "adam_beta1", 0.9), getattr(config, "adam_beta2", 0.999)),
-                eps=getattr(config, "adam_epsilon", 1e-8)
+                betas=(
+                    getattr(config, "adam_beta1", 0.9),
+                    getattr(config, "adam_beta2", 0.999),
+                ),
+                eps=getattr(config, "adam_epsilon", 1e-8),
             )
         elif opt_name == "adamw":
             optimizer = optim.AdamW(
                 param_groups,
                 weight_decay=config.weight_decay,
-                betas=(getattr(config, "adam_beta1", 0.9), getattr(config, "adam_beta2", 0.999)),
-                eps=getattr(config, "adam_epsilon", 1e-8)
+                betas=(
+                    getattr(config, "adam_beta1", 0.9),
+                    getattr(config, "adam_beta2", 0.999),
+                ),
+                eps=getattr(config, "adam_epsilon", 1e-8),
             )
         elif opt_name == "sgd":
             optimizer = optim.SGD(
@@ -1134,18 +1102,24 @@ def train(gpu_id=None, csv_log_path=None):
     else:
         if config.optimizer == "adam":
             optimizer = optim.Adam(
-                model.parameters(), 
+                model.parameters(),
                 lr=config.learning_rate,
-                betas=(getattr(config, "adam_beta1", 0.9), getattr(config, "adam_beta2", 0.999)),
-                eps=getattr(config, "adam_epsilon", 1e-8)
+                betas=(
+                    getattr(config, "adam_beta1", 0.9),
+                    getattr(config, "adam_beta2", 0.999),
+                ),
+                eps=getattr(config, "adam_epsilon", 1e-8),
             )
         elif config.optimizer == "adamw":
             optimizer = optim.AdamW(
                 model.parameters(),
                 lr=config.learning_rate,
                 weight_decay=config.weight_decay,
-                betas=(getattr(config, "adam_beta1", 0.9), getattr(config, "adam_beta2", 0.999)),
-                eps=getattr(config, "adam_epsilon", 1e-8)
+                betas=(
+                    getattr(config, "adam_beta1", 0.9),
+                    getattr(config, "adam_beta2", 0.999),
+                ),
+                eps=getattr(config, "adam_epsilon", 1e-8),
             )
         elif config.optimizer == "sgd":
             optimizer = optim.SGD(
@@ -1334,10 +1308,12 @@ def train(gpu_id=None, csv_log_path=None):
     # initialize step counter before it's used below
     optimizer_step_counter = 0
     last_csv_logged_step = -1  # Track last step we logged to CSV
-    
-    # Initialize metrics counters  
+
+    # Initialize metrics counters
     tokens_cumulative = 0
-    effective_batch_tokens = config.batch_size * config.gradient_accumulation_steps * config.seq_length
+    effective_batch_tokens = (
+        config.batch_size * config.gradient_accumulation_steps * config.seq_length
+    )
     for epoch in range(config.max_epochs):
         model.train()
         total_loss = 0
@@ -1359,7 +1335,7 @@ def train(gpu_id=None, csv_log_path=None):
 
         for batch_idx, (data, target) in enumerate(train_dataloader):
             data, target = data.to(device), target.to(device)
-            
+
             # Track cumulative tokens processed
             batch_tokens = data.size(0) * data.size(1)  # batch_size * seq_length
             tokens_cumulative += batch_tokens
@@ -1411,7 +1387,7 @@ def train(gpu_id=None, csv_log_path=None):
                 grad_norm_preclip = 0.0
                 clipped_step = 0
                 clip_val = config.gradient_clip_val
-                
+
                 if use_amp:
                     scaler.unscale_(optimizer)
                 if config.use_gradient_clipping:
@@ -1431,7 +1407,7 @@ def train(gpu_id=None, csv_log_path=None):
                 # Update step-based scheduler after optimization step
                 if scheduler is not None and scheduler_type == "step":
                     scheduler.step(optimizer_step_counter)
-                    
+
                 # Log high-leverage metrics to wandb after each optimizer step
                 current_lr = optimizer.param_groups[0]["lr"]
                 step_log_dict = {
@@ -1441,7 +1417,9 @@ def train(gpu_id=None, csv_log_path=None):
                     "clipped_step": clipped_step,
                     "effective_batch_tokens": effective_batch_tokens,
                     "tokens_cumulative": tokens_cumulative,
-                    "flops_per_step": flops_per_step if 'flops_per_step' in locals() else 0,
+                    "flops_per_step": (
+                        flops_per_step if "flops_per_step" in locals() else 0
+                    ),
                     "optimizer_step": optimizer_step_counter,
                 }
                 wandb.log(step_log_dict, step=optimizer_step_counter)
@@ -1510,7 +1488,7 @@ def train(gpu_id=None, csv_log_path=None):
         metrics = {
             "epoch": epoch,
             "optimizer": config.optimizer,
-            "dataset": "wikitext",
+            "dataset": "c4",
             "train_loss": avg_train_loss,
         }
 
@@ -1548,11 +1526,13 @@ def train(gpu_id=None, csv_log_path=None):
                     model.load_state_dict(best_model_state)
                 break
 
-        metrics.update({
-            "val_loss": val_loss, 
-            "val_loss_per_token": val_loss,  # Same as val_loss for consistency with LSTM
-            "best_val_loss": best_val_loss
-        })
+        metrics.update(
+            {
+                "val_loss": val_loss,
+                "val_loss_per_token": val_loss,  # Same as val_loss for consistency with LSTM
+                "best_val_loss": best_val_loss,
+            }
+        )
         wandb.log(metrics)
 
         # Step epoch-based scheduler at the END of each epoch
@@ -1656,16 +1636,40 @@ def get_dataset(config):
             "Please download the tokenizer files first."
         )
 
-    # Get the text data - use token_limit if available, otherwise fall back to wikitext_limit
-    if hasattr(config, "token_limit") and config.token_limit:
-        text = get_wikitext_data_by_tokens(
-            token_limit=config.token_limit, tokenizer=tokenizer
+    # Get the text data from configurable path (like LSTM system)
+    data_path = getattr(config, "data_path", None)
+    if not data_path:
+        raise ValueError("data_path must be specified in config to load dataset")
+
+    if not Path(data_path).exists():
+        raise FileNotFoundError(
+            f"Dataset file not found at {data_path}. "
+            "Please ensure you have downloaded and copied the dataset file."
         )
-    elif hasattr(config, "wikitext_limit") and config.wikitext_limit:
-        text = get_wikitext_data(limit=config.wikitext_limit)
+
+    print(f"Loading dataset from: {data_path}")
+    text = Path(data_path).read_text(encoding="utf-8")
+
+    # Apply token-based limit if specified (convert to characters using 4:1 ratio)
+    max_tokens = getattr(config, "max_tokens", None)
+    if max_tokens:
+        # Convert token limit to character limit using 4:1 ratio (same as LSTM system)
+        max_characters = int(max_tokens * 4)
+        if len(text) > max_characters:
+            # Random sampling for variety in training data
+            start_idx = random.randint(0, max(0, len(text) - max_characters))
+            text = text[start_idx : start_idx + max_characters]
+            print(
+                f"Limited dataset to {max_tokens:,} tokens (~{max_characters:,} characters) from {len(Path(data_path).read_text(encoding='utf-8')):,} total characters"
+            )
+        else:
+            print(
+                f"Using full dataset: {len(text):,} characters (~{len(text)//4:,} tokens)"
+            )
     else:
-        # Default fallback
-        text = get_wikitext_data(limit=50000000)
+        print(
+            f"Using full dataset: {len(text):,} characters (~{len(text)//4:,} tokens)"
+        )
 
     # BETTER SPLIT: Random shuffle before splitting
 
