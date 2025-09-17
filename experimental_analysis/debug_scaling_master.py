@@ -9,7 +9,7 @@ from typing import List, Dict, Tuple, Optional
 import warnings
 
 
-IRREDUCIBLE_LOSS = 1.8
+IRREDUCIBLE_LOSS = 0
 
 
 class TrainingCurveAnalyzer:
@@ -458,49 +458,64 @@ if __name__ == "__main__":
 
     # Add experiments - you can modify these paths and names as needed
     experiments_config = [
-        # {
-        #     "name": " best sgd 32d",
-        #     "csv_path": "../experimental_data_folder/best_possible_sgd/32d_best_sgd.csv",
-        #     "marker": "s",
-        #     "color": "tab:cyan",
-        #     "include_in_in_frontier":False,  # Include in frontier analysis
-        # },
-        # {
-        #     "name": " best sgd 48d",
-        #     "csv_path": "../experimental_data_folder/best_possible_sgd/48d_best_sgd.csv",
-        #     "marker": "s",
-        #     "color": "tab:cyan",
-        #     "include_in_in_frontier":False,  # Include in frontier analysis
-        # },
-        # {
-        #     "name": " best sgd 64d",
-        #     "csv_path": "../experimental_data_folder/best_possible_sgd/64d_best_sgd.csv",
-        #     "marker": "s",
-        #     "color": "tab:cyan",
-        #     "include_in_in_frontier":False,  # Include in frontier analysis
-        # },
-        # # melis scaling
-        # {
-        #     "name": "32d melis scaling experiments",
-        #     "csv_path": "../experimental_data_folder/lstm_scaling_diagnostic/32melis_settings_low_dropout.csv",
-        #     "marker": "o",
-        #     "color": "deeppink",
-        #     "include_in_in_frontier":False,  # Include in frontier analysis
-        # },
-        # {
-        #     "name": "48d melis scaling experiments",
-        #     "csv_path": "../experimental_data_folder/lstm_scaling_diagnostic/48melis_settings_low_dropout.csv",
-        #     "marker": "o",
-        #     "color": "deeppink",
-        #     "include_in_in_frontier":False,  # Include in frontier analysis
-        # },
-        # {
-        #     "name": "64d melis scaling experiments",
-        #     "csv_path": "../experimental_data_folder/lstm_scaling_diagnostic/64melis_settings_low_dropout.csv",
-        #     "marker": "o",
-        #     "color": "deeppink",
-        #     "include_in_in_frontier":False,  # Include in frontier analysis
-        # },
+        {
+            "name": " best sgd 32d",
+            "csv_path": "../experimental_data_folder/best_possible_sgd/32d_best_sgd.csv",
+            "marker": "s",
+            "color": "tab:cyan",
+            "include_in_in_frontier": False,  # Include in frontier analysis
+        },
+        {
+            "name": " best sgd 48d",
+            "csv_path": "../experimental_data_folder/best_possible_sgd/48d_best_sgd.csv",
+            "marker": "s",
+            "color": "tab:cyan",
+            "include_in_in_frontier": False,  # Include in frontier analysis
+        },
+        {
+            "name": " best sgd 64d",
+            "csv_path": "../experimental_data_folder/best_possible_sgd/64d_best_sgd.csv",
+            "marker": "s",
+            "color": "tab:cyan",
+            "include_in_in_frontier": False,  # Include in frontier analysis
+        },
+        # melis scaling
+        {
+            "name": "32d melis scaling experiments",
+            "csv_path": "../experimental_data_folder/lstm_scaling_diagnostic/32melis_settings_low_dropout.csv",
+            "marker": "o",
+            "color": "deeppink",
+            "include_in_in_frontier": False,  # Include in frontier analysis
+        },
+        {
+            "name": "48d melis scaling experiments",
+            "csv_path": "../experimental_data_folder/lstm_scaling_diagnostic/48melis_settings_low_dropout.csv",
+            "marker": "o",
+            "color": "deeppink",
+            "include_in_in_frontier": False,  # Include in frontier analysis
+        },
+        {
+            "name": "64d melis scaling experiments",
+            "csv_path": "../experimental_data_folder/lstm_scaling_diagnostic/64melis_settings_low_dropout.csv",
+            "marker": "o",
+            "color": "deeppink",
+            "include_in_in_frontier": False,  # Include in frontier analysis
+        },
+        # 80 and 96 melis
+        {
+            "name": "80d melis scaling experiments",
+            "csv_path": "../experimental_data_folder/lstm_scaling_diagnostic/80melis_settings_low_dropout.csv",
+            "marker": "o",
+            "color": "deeppink",
+            "include_in_in_frontier": False,  # Include in frontier analysis
+        },
+        {
+            "name": "96d melis scaling experiments",
+            "csv_path": "../experimental_data_folder/lstm_scaling_diagnostic/96melis_settings_low_dropout.csv",
+            "marker": "o",
+            "color": "deeppink",
+            "include_in_in_frontier": False,  # Include in frontier analysis
+        },
         # new scaling
         {
             "name": "32d new scaling",
@@ -524,27 +539,27 @@ if __name__ == "__main__":
             "include_in_in_frontier": True,  # Include in frontier analysis
         },
         # new scaling no rotary
-        # {
-        #     "name": "32d new scaling no rotary",
-        #     "csv_path": "../experimental_data_folder/new_scaling/32d_new_scaling_no_rotary.csv",
-        #     "marker": "o",
-        #     "color": "tab:blue",
-        #     "include_in_in_frontier":False,  # Include in frontier analysis
-        # },
-        # {
-        #     "name": "48d new scaling no rotary",
-        #     "csv_path": "../experimental_data_folder/new_scaling/48d_new_scaling_no_rotary.csv",
-        #     "marker": "o",
-        #     "color": "tab:blue",
-        #     "include_in_in_frontier":False,  # Include in frontier analysis
-        # },
-        # {
-        #     "name": "64d new scaling no rotary",
-        #     "csv_path": "../experimental_data_folder/new_scaling/64d_new_scaling_no_rotary.csv",
-        #     "marker": "o",
-        #     "color": "tab:blue",
-        #     "include_in_in_frontier":False,  # Include in frontier analysis
-        # },
+        {
+            "name": "32d new scaling no rotary",
+            "csv_path": "../experimental_data_folder/new_scaling/32d_new_scaling_no_rotary.csv",
+            "marker": "o",
+            "color": "tab:blue",
+            "include_in_in_frontier": False,  # Include in frontier analysis
+        },
+        {
+            "name": "48d new scaling no rotary",
+            "csv_path": "../experimental_data_folder/new_scaling/48d_new_scaling_no_rotary.csv",
+            "marker": "o",
+            "color": "tab:blue",
+            "include_in_in_frontier": False,  # Include in frontier analysis
+        },
+        {
+            "name": "64d new scaling no rotary",
+            "csv_path": "../experimental_data_folder/new_scaling/64d_new_scaling_no_rotary.csv",
+            "marker": "o",
+            "color": "tab:blue",
+            "include_in_in_frontier": False,  # Include in frontier analysis
+        },
     ]
 
     # Add experiments

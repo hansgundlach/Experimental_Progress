@@ -47,7 +47,10 @@ def create_multi_seed_experiments(base_experiments, seeds):
     return multi_seed_experiments
 
 
-def create_multi_lr_experiments(base_experiments, learning_rates):
+# reducing lr expeirment max tokens to 129e6 / 8 to save time
+def create_multi_lr_experiments(
+    base_experiments, learning_rates, max_tokens=int(129e6 / 8)
+):
     """
     Create multiple versions of experiments with different learning rates.
     Similar to create_multi_seed_experiments but for learning rates.
@@ -55,10 +58,14 @@ def create_multi_lr_experiments(base_experiments, learning_rates):
     Args:
         base_experiments: List of experiment dictionaries (e.g., LSTM_HIDDEN_DIM_EXPERIMENTS)
         learning_rates: List of learning rate values (e.g., [1e-4, 1e-3, 1e-2])
+        max_tokens: Maximum number of tokens to use for token_limit (default: 129e6 / 4)
 
     Returns:
         List of experiment dictionaries with learning rate variations
     """
+    if max_tokens is None:
+        max_tokens = int(129e6 / 4)
+
     multi_lr_experiments = []
 
     for experiment in base_experiments:
@@ -130,18 +137,14 @@ def create_multi_lr_experiments(base_experiments, learning_rates):
                 # Add learning rate and token_limit to overrides, and update folder settings
                 if "overrides" in new_sub_exp:
                     new_sub_exp["overrides"]["learning_rate"] = lr
-                    new_sub_exp["overrides"]["token_limit"] = int(
-                        129e6 / 4
-                    )  # Convert from old char estimate
+                    new_sub_exp["overrides"]["token_limit"] = max_tokens
                     # Remove custom folder settings - let the experiment name handle the directory
                     if custom_folder:
                         new_sub_exp["overrides"].pop("folder_name", None)
                         new_sub_exp["overrides"].pop("results_folder", None)
                 elif "config" in new_sub_exp:
                     new_sub_exp["config"]["learning_rate"] = lr
-                    new_sub_exp["config"]["token_limit"] = int(
-                        129e6 / 4
-                    )  # Convert from old char estimate
+                    new_sub_exp["config"]["token_limit"] = max_tokens
                     # Remove custom folder settings - let the experiment name handle the directory
                     if custom_folder:
                         new_sub_exp["config"].pop("folder_name", None)
@@ -150,7 +153,7 @@ def create_multi_lr_experiments(base_experiments, learning_rates):
                     # If neither exists, create overrides with learning rate and token_limit
                     overrides_dict = {
                         "learning_rate": lr,
-                        "token_limit": int(129e6 / 4),  # Convert from old char estimate
+                        "token_limit": max_tokens,
                     }
                     # Don't add custom folder for new overrides - let experiment name handle it
                     new_sub_exp["overrides"] = overrides_dict
@@ -528,6 +531,9 @@ def get_base_config():
         "label_smoothing": 0.0,
         "gradient_accumulation_steps": 16,
         "optimizer": "adamw",
+        "adam_beta1": 0.9,
+        "adam_beta2": 0.999,
+        "adam_epsilon": 1e-8,
         "activation": "gelu",
         "norm_type": "layer",
         "norm_placement": "pre",

@@ -413,11 +413,25 @@ if __name__ == "__main__":
 
     # Add experiments - you can modify these paths and names as needed
     experiments_config = [
-       
-
-
-
-        #look at non-rotary scaling 
+        {
+            "name": "32d non-rotary experiments",
+            "csv_path": "../experimental_data_folder/new_scaling/32d_new_scaling_no_rotary.csv",
+            "marker": "o",
+            "include_in_frontier": True,  # Include in frontier analysis
+            "class": "lstm",
+            "color": "tab:blue",
+            "hidden_dim": 32,
+        },
+        {
+            "name": "48d non-rotary experiments",
+            "csv_path": "../experimental_data_folder/new_scaling/48d_new_scaling_no_rotary.csv",
+            "marker": "o",
+            "include_in_frontier": True,  # Include in frontier analysis
+            "class": "lstm",
+            "color": "tab:blue",
+            "hidden_dim": 48,
+        },
+        # look at non-rotary scaling
         {
             "name": "64d non-rotary experiments",
             "csv_path": "../experimental_data_folder/new_scaling/64d_new_scaling_no_rotary.csv",
@@ -427,14 +441,32 @@ if __name__ == "__main__":
             "color": "tab:blue",
             "hidden_dim": 64,
         },
-        
-
-
-
-
-
-
-
+        # transformer scaling diagnostic
+        {
+            "name": "64d sin more heads",
+            "csv_path": "../experimental_data_folder/transformer_scaling_diagnostic/64d_sin_more_heads.csv",
+            "marker": "o",
+            "include_in_frontier": True,  # Include in frontier analysis
+            "class": "transformer",
+            "hidden_dim": 64,
+        },
+        {
+            "name": "64d resolve settings",
+            "csv_path": "../experimental_data_folder/transformer_scaling_diagnostic/64d_sin_resolve_settings.csv",
+            "marker": "o",
+            "include_in_frontier": True,  # Include in frontier analysis
+            "class": "transformer",
+            "hidden_dim": 64,
+        },
+        #almost 0 min
+        {
+            "name": "64d almost 0 min",
+            "csv_path": "../experimental_data_folder/transformer_scaling_diagnostic/64d_almost0min.csv",
+            "marker": "o",
+            "include_in_frontier": True,  # Include in frontier analysis
+            "class": "transformer",
+            "hidden_dim": 64,
+        },
     ]
 
     # Add experiments

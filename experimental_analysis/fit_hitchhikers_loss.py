@@ -996,6 +996,17 @@ def get_dataset_configurations() -> dict:
         configurations["mup_scaling_experiments"] = [
             (str(p), n) for p, n in mup_pairs if p.exists()
         ]
+    # lstm scaling
+    lstm_dir = data_folder / "lstm_scaling_diagnostic"
+    if lstm_dir.exists():
+        lstm_pairs = [
+            (lstm_dir / "32melis_settings_low_dropout.csv", 1691761),
+            (lstm_dir / "48melis_settings_low_dropout.csv", 2574337),
+            (lstm_dir / "64melis_settings_low_dropout.csv", 3530897),
+        ]
+        configurations["lstm_scaling_diagnostic"] = [
+            (str(p), n) for p, n in lstm_pairs if p.exists()
+        ]
 
     return configurations
 

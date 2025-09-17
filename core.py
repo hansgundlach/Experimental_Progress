@@ -648,9 +648,10 @@ class SimpleTransformer(nn.Module):
     def forward(self, x):
         B, L = x.shape
         x = self.embedding(x)
-
-        # MODIFY THIS SECTION - Apply positional encoding if configured
+        
+        # Apply √d scaling for sinusoidal PE (canonical Transformer approach)
         if self.pos_encoding == "sinusoidal":
+            x = x * math.sqrt(self.hidden_dim)  # Scale embeddings to match PE variance
             x = self.pos_emb(x)
         elif self.pos_encoding == "learned":
             x = x + self.pos_emb[:, :L, :]
@@ -1047,9 +1048,17 @@ def train(gpu_id=None, csv_log_path=None):
         )
         opt_name = getattr(config, "optimizer", "adamw").lower()
         if opt_name == "adam":
-            optimizer = optim.Adam(groups)
+            optimizer = optim.Adam(
+                groups,
+                betas=(getattr(config, "adam_beta1", 0.9), getattr(config, "adam_beta2", 0.999)),
+                eps=getattr(config, "adam_epsilon", 1e-8)
+            )
         elif opt_name == "adamw":
-            optimizer = optim.AdamW(groups)
+            optimizer = optim.AdamW(
+                groups,
+                betas=(getattr(config, "adam_beta1", 0.9), getattr(config, "adam_beta2", 0.999)),
+                eps=getattr(config, "adam_epsilon", 1e-8)
+            )
         elif opt_name == "sgd":
             optimizer = optim.SGD(
                 groups,
@@ -1086,11 +1095,15 @@ def train(gpu_id=None, csv_log_path=None):
             optimizer = optim.Adam(
                 param_groups,
                 weight_decay=config.weight_decay,
+                betas=(getattr(config, "adam_beta1", 0.9), getattr(config, "adam_beta2", 0.999)),
+                eps=getattr(config, "adam_epsilon", 1e-8)
             )
         elif opt_name == "adamw":
             optimizer = optim.AdamW(
                 param_groups,
                 weight_decay=config.weight_decay,
+                betas=(getattr(config, "adam_beta1", 0.9), getattr(config, "adam_beta2", 0.999)),
+                eps=getattr(config, "adam_epsilon", 1e-8)
             )
         elif opt_name == "sgd":
             optimizer = optim.SGD(
@@ -1120,12 +1133,19 @@ def train(gpu_id=None, csv_log_path=None):
             raise ValueError(f"Unsupported optimizer: {config.optimizer}")
     else:
         if config.optimizer == "adam":
-            optimizer = optim.Adam(model.parameters(), lr=config.learning_rate)
+            optimizer = optim.Adam(
+                model.parameters(), 
+                lr=config.learning_rate,
+                betas=(getattr(config, "adam_beta1", 0.9), getattr(config, "adam_beta2", 0.999)),
+                eps=getattr(config, "adam_epsilon", 1e-8)
+            )
         elif config.optimizer == "adamw":
             optimizer = optim.AdamW(
                 model.parameters(),
                 lr=config.learning_rate,
                 weight_decay=config.weight_decay,
+                betas=(getattr(config, "adam_beta1", 0.9), getattr(config, "adam_beta2", 0.999)),
+                eps=getattr(config, "adam_epsilon", 1e-8)
             )
         elif config.optimizer == "sgd":
             optimizer = optim.SGD(
@@ -1314,6 +1334,10 @@ def train(gpu_id=None, csv_log_path=None):
     # initialize step counter before it's used below
     optimizer_step_counter = 0
     last_csv_logged_step = -1  # Track last step we logged to CSV
+    
+    # Initialize metrics counters  
+    tokens_cumulative = 0
+    effective_batch_tokens = config.batch_size * config.gradient_accumulation_steps * config.seq_length
     for epoch in range(config.max_epochs):
         model.train()
         total_loss = 0
@@ -1335,6 +1359,10 @@ def train(gpu_id=None, csv_log_path=None):
 
         for batch_idx, (data, target) in enumerate(train_dataloader):
             data, target = data.to(device), target.to(device)
+            
+            # Track cumulative tokens processed
+            batch_tokens = data.size(0) * data.size(1)  # batch_size * seq_length
+            tokens_cumulative += batch_tokens
 
             if epoch == 0 and batch_idx == 0:
                 with profiler:
@@ -1379,12 +1407,18 @@ def train(gpu_id=None, csv_log_path=None):
 
             # Only update weights after accumulating gradients
             if (batch_idx + 1) % config.gradient_accumulation_steps == 0:
+                # Capture gradient norm before clipping
+                grad_norm_preclip = 0.0
+                clipped_step = 0
+                clip_val = config.gradient_clip_val
+                
                 if use_amp:
                     scaler.unscale_(optimizer)
                 if config.use_gradient_clipping:
-                    torch.nn.utils.clip_grad_norm_(
-                        model.parameters(), config.gradient_clip_val
+                    grad_norm_preclip = torch.nn.utils.clip_grad_norm_(
+                        model.parameters(), clip_val
                     )
+                    clipped_step = int(grad_norm_preclip > clip_val)
                 if use_amp:
                     scaler.step(optimizer)
                     scaler.update()
@@ -1397,12 +1431,20 @@ def train(gpu_id=None, csv_log_path=None):
                 # Update step-based scheduler after optimization step
                 if scheduler is not None and scheduler_type == "step":
                     scheduler.step(optimizer_step_counter)
-                    current_lr = optimizer.param_groups[0]["lr"]
-                    step_metrics = {
-                        "learning_rate": current_lr,
-                        "optimizer_step": optimizer_step_counter,
-                    }
-                    wandb.log(step_metrics)
+                    
+                # Log high-leverage metrics to wandb after each optimizer step
+                current_lr = optimizer.param_groups[0]["lr"]
+                step_log_dict = {
+                    "learning_rate": current_lr,
+                    "train_loss_per_token": raw_loss.item(),
+                    "grad_norm_preclip": float(grad_norm_preclip),
+                    "clipped_step": clipped_step,
+                    "effective_batch_tokens": effective_batch_tokens,
+                    "tokens_cumulative": tokens_cumulative,
+                    "flops_per_step": flops_per_step if 'flops_per_step' in locals() else 0,
+                    "optimizer_step": optimizer_step_counter,
+                }
+                wandb.log(step_log_dict, step=optimizer_step_counter)
 
                 # Log to CSV if enabled (uses optimizer steps) - only once per step
                 if csv_writer and (optimizer_step_counter % csv_log_interval == 0):
@@ -1506,7 +1548,11 @@ def train(gpu_id=None, csv_log_path=None):
                     model.load_state_dict(best_model_state)
                 break
 
-        metrics.update({"val_loss": val_loss, "best_val_loss": best_val_loss})
+        metrics.update({
+            "val_loss": val_loss, 
+            "val_loss_per_token": val_loss,  # Same as val_loss for consistency with LSTM
+            "best_val_loss": best_val_loss
+        })
         wandb.log(metrics)
 
         # Step epoch-based scheduler at the END of each epoch

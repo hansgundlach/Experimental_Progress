@@ -15,7 +15,7 @@ def main():
     print("=" * 60)
 
     # Test different hidden sizes
-    test_hidden_sizes = [16, 32, 48, 64]
+    test_hidden_sizes = [16, 32, 48, 64, 80, 96, 128]
 
     for hidden_size in test_hidden_sizes:
         print(f"\n--- Testing hidden_size = {hidden_size} ---")

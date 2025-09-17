@@ -90,6 +90,15 @@ TRANSFORMER_SCALING = (
     # )
 )
 
+
+
+
+
+
+
+
+
+
 # ROTARY EXPERIMENTS
 
 
@@ -164,44 +173,44 @@ TRANSFORMER_SCALING_NO_ROTARY = (
 # )
 
 
-TRANSFORMER_SCALING_EXPERIMENTS_OTHER_SCALES = (
-    gen_experim(
-        16,
-        label="vanilla_16d",
-        folder_name="vanilla_scaling_optimal_lr",
-        learning_rate=10 ** (-2.5),
-    )
-    + gen_experim(
-        24,
-        label="vanilla_24d",
-        folder_name="vanilla_scaling_optimal_lr",
-        learning_rate=10 ** (-2),
-    )
-    + gen_experim(
-        72,
-        label="vanilla_72d",
-        folder_name="vanilla_scaling_optimal_lr",
-        learning_rate=10 ** (-2.5),
-    )
-    + gen_experim(
-        80,
-        label="vanilla_80d",
-        folder_name="vanilla_scaling_optimal_lr",
-        learning_rate=10 ** (-2.5),
-    )
-    + gen_experim(
-        96,
-        label="vanilla_96d",
-        folder_name="vanilla_scaling_optimal_lr",
-        learning_rate=10 ** (-3),
-    )
-    + gen_experim(
-        128,
-        label="vanilla_128d",
-        folder_name="vanilla_scaling_optimal_lr",
-        learning_rate=10 ** (-3),
-    )
-)
+# TRANSFORMER_SCALING_EXPERIMENTS_OTHER_SCALES = (
+#     gen_experim(
+#         16,
+#         label="vanilla_16d",
+#         folder_name="vanilla_scaling_optimal_lr",
+#         learning_rate=10 ** (-2.5),
+#     )
+#     + gen_experim(
+#         24,
+#         label="vanilla_24d",
+#         folder_name="vanilla_scaling_optimal_lr",
+#         learning_rate=10 ** (-2),
+#     )
+#     + gen_experim(
+#         72,
+#         label="vanilla_72d",
+#         folder_name="vanilla_scaling_optimal_lr",
+#         learning_rate=10 ** (-2.5),
+#     )
+#     + gen_experim(
+#         80,
+#         label="vanilla_80d",
+#         folder_name="vanilla_scaling_optimal_lr",
+#         learning_rate=10 ** (-2.5),
+#     )
+#     + gen_experim(
+#         96,
+#         label="vanilla_96d",
+#         folder_name="vanilla_scaling_optimal_lr",
+#         learning_rate=10 ** (-3),
+#     )
+#     + gen_experim(
+#         128,
+#         label="vanilla_128d",
+#         folder_name="vanilla_scaling_optimal_lr",
+#         learning_rate=10 ** (-3),
+#     )
+# )
 
 
 TRANSFORMER_SGD_SCALING_EXPERIMENTS_OPTIMAL_LR = (
@@ -717,31 +726,215 @@ BEST_POSSIBLE_SGD_SCALING = (
 # )
 
 
-GRAND_EXPERIMENT = gen_experim(
-    48,
-    label="transformer_48_diagnostic_lr_10e15bs64",
-    folder_name="transformer_scaling_diagnostic",
-    learning_rate=10 ** (-1.5),
-    batch_size=64,
+DIAGNOSTICS = (
+    gen_experim(
+        48,
+        label="transformer_48_diagnostic_lr_10e15bs64",
+        folder_name="transformer_scaling_diagnostic",
+        learning_rate=10 ** (-1.5),
+        effective_batch_size=64,
+    )
+    + gen_experim(
+        48,
+        label="transformer_48_diagnostic_lr_10e15bs32",
+        folder_name="transformer_scaling_diagnostic",
+        learning_rate=10 ** (-1.5),
+        effective_batch_size=32,
+    )
+    + gen_experim(
+        48,
+        label="transformer_48_diagnostic_lr_10e2bs64",
+        folder_name="transformer_scaling_diagnostic",
+        learning_rate=10 ** (-2),
+        effective_batch_size=64,
+    )
+    + gen_experim(
+        48,
+        label="transformer_48_diagnostic_lr_10e12bs64",
+        folder_name="transformer_scaling_diagnostic",
+        learning_rate=10 ** (-1),
+        effective_batch_size=64,
+    )
+    + gen_experim(
+        48,
+        label="transformer_48_lr_10e12bs64_warmup005",
+        folder_name="transformer_scaling_diagnostic",
+        learning_rate=10 ** (-1),
+        effective_batch_size=64,
+        warmup_frac=0.05,
+    )
+    + gen_experim(
+        48,
+        label="transformer_48_lr_10e12bs64_warmup005_more_layers",
+        folder_name="transformer_scaling_diagnostic",
+        learning_rate=10 ** (-1),
+        effective_batch_size=64,
+        warmup_frac=0.05,
+        num_layers=4,
+    )
 )
-+gen_experim(
-    48,
-    label="transformer_48_diagnostic_lr_10e15bs32",
-    folder_name="transformer_scaling_diagnostic",
-    learning_rate=10 ** (-1.5),
-    batch_size=32,
+
+
+NEW_SCALING = (
+    gen_experim(
+        32,
+        label="32d_new_scaling",
+        folder_name="new_scaling",
+        learning_rate=10 ** (-2),
+        effective_batch_size=64,
+        warmup_frac=0.05,
+        weight_decay=0.0,
+        min_lr_multiplier=1e-1,
+    )
+    + gen_experim(
+        48,
+        label="48d_new_scaling",
+        folder_name="new_scaling",
+        learning_rate=10 ** (-2),
+        effective_batch_size=64,
+        warmup_frac=0.05,
+        weight_decay=0.0,
+        min_lr_multiplier=1e-1,
+    )
+    + gen_experim(
+        64,
+        label="64d_new_scaling",
+        folder_name="new_scaling",
+        learning_rate=10 ** (-2.5),
+        effective_batch_size=64,
+        warmup_frac=0.05,
+        weight_decay=0.0,
+        min_lr_multiplier=1e-1,
+    )
 )
-+gen_experim(
-    48,
-    label="transformer_48_diagnostic_lr_10e2bs64",
-    folder_name="transformer_scaling_diagnostic",
-    learning_rate=10 ** (-2),
-    batch_size=64,
+
+
+NEW_SCALING_NO_ROTARY = (
+    gen_experim(
+        32,
+        label="32d_new_scaling_no_rotary",
+        folder_name="new_scaling",
+        learning_rate=10 ** (-2),
+        effective_batch_size=64,
+        warmup_frac=0.05,
+        weight_decay=1e-4,
+        min_lr_multiplier=1e-1,
+        pos_encoding="sinusoidal",
+        num_heads=4,
+    )
+    + gen_experim(
+        48,
+        label="48d_new_scaling_no_rotary",
+        folder_name="new_scaling",
+        learning_rate=10 ** (-2),
+        effective_batch_size=64,
+        warmup_frac=0.05,
+        weight_decay=1e-4,
+        min_lr_multiplier=1e-1,
+        pos_encoding="sinusoidal",
+        num_heads=6,
+    )
+    + gen_experim(
+        64,
+        label="64d_new_scaling_no_rotary",
+        folder_name="new_scaling",
+        learning_rate=10 ** (-2.5),
+        effective_batch_size=64,
+        warmup_frac=0.05,
+        weight_decay=1e-4,
+        min_lr_multiplier=1e-1,
+        pos_encoding="sinusoidal",
+        num_heads=8,
+    )
 )
-+gen_experim(
-    48,
-    label="transformer_48_diagnostic_lr_10e12bs64",
-    folder_name="transformer_scaling_diagnostic",
-    learning_rate=10 ** (-1),
-    batch_size=64,
+
+
+VARIATION_EXPERIMENTS_SIN = (
+    gen_experim(
+        64,
+        label="64d_almost0min",
+        folder_name="transformer_scaling_diagnostic",
+        learning_rate=10 ** (-2),
+        effective_batch_size=64,
+        warmup_frac=0.05,
+        weight_decay=0.0,
+        min_lr_multiplier=1e-5,
+        pos_encoding="sinusoidal",
+    )
+    + gen_experim(
+        64,
+        label="64d_sin_more_heads",
+        folder_name="transformer_scaling_diagnostic",
+        learning_rate=10 ** (-2.5),
+        effective_batch_size=64,
+        warmup_frac=0.05,
+        weight_decay=0.0,
+        min_lr_multiplier=1e-1,
+        pos_encoding="sinusoidal",
+        num_heads=8,
+    )
+    + gen_experim(
+        64,
+        label="64d_sin_resolve_settings",
+        folder_name="transformer_scaling_diagnostic",
+        learning_rate=10 ** (-2.5),
+        warmup_frac=0.05,
+        weight_decay=1e-4,
+        min_lr_multiplier=1e-1,
+        pos_encoding="sinusoidal",
+        effective_batch_size=20,
+        adam_beta2=0.99,
+    )
 )
+
+
+
+TRANSFORMER_SCALING_NO_ROTARY = (
+    gen_experim(
+        32,
+        label="vanilla_32d_no_rot",
+        folder_name="vanilla_scaling_no_rotary",
+        learning_rate=1e-2,
+        pos_encoding="sinusoidal",
+    )
+    # + gen_experim(
+    #     40,
+    #     label="vanilla_40d_no_rot",
+    #     folder_name="vanilla_scaling_no_rotary",
+    #     learning_rate=10 ** (-2),
+    #     pos_encoding="sinusoidal",
+    # )
+    + gen_experim(
+        48,
+        label="vanilla_48d_no_rot",
+        folder_name="vanilla_scaling_no_rotary",
+        learning_rate=10 ** (-2),
+        pos_encoding="sinusoidal",
+    )
+    # + gen_experim(
+    #     56,
+    #     label="vanilla_56d_no_rot",
+    #     folder_name="vanilla_scaling_no_rotary",
+    #     learning_rate=10 ** (-2),
+    #     pos_encoding="sinusoidal",
+    # )
+    + gen_experim(
+        64,
+        label="vanilla_64d_no_rot",
+        folder_name="vanilla_scaling_no_rotary",
+        learning_rate=10 ** (-2),
+        pos_encoding="sinusoidal",
+    )
+)
+
+
+
+
+
+
+
+
+# GRAND_EXPERIMENT = create_multi_lr_experiments(
+#     NEW_SCALING, NARROW_LR_SWEEP
+# ) + create_multi_lr_experiments(NEW_SCALING_NO_ROTARY, NARROW_LR_SWEEP)
+GRAND_EXPERIMENT = NEW_SCALING_NO_ROTARY
