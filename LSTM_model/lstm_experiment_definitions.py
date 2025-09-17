@@ -306,4 +306,127 @@ MELIS_SCALING = (
 )
 
 
-GRAND_EXPERIMENT = MELIS_SCALING
+SGD_TUNE_LR_SWEEP = [
+    10 ** (-2),
+    10 ** (-1.5),
+    1e-1,
+    1,
+]
+
+MELIS_SCALING_SGD = (
+    gen_lstm_experim(
+        32,
+        label="32melis_steam_sgd",
+        folder_name="lstm_sgd",
+        learning_rate=1,
+        input_dropout=0.0,
+        hidden_dropout=0.0,
+        output_dropout=0.0,
+        between_layers_dropout=0.0,
+        optimizer="sgd",
+        sgd_momentum=0.0,
+        weight_decay=0,
+        use_tbptt=True,
+        tbptt_length=32,
+        tbptt_stride=32,
+        tbptt_reset_hidden=False,
+        use_streaming=True,
+        streaming_reset_prob=0.01,
+        target_effective_batch_size=32,
+        num_layers=2,
+        grad_clip=5.0,
+    )
+    + gen_lstm_experim(
+        48,
+        label="48melis_steam_sgd",
+        folder_name="lstm_sgd",
+        learning_rate=1,
+        input_dropout=0.0,
+        hidden_dropout=0.0,
+        output_dropout=0.0,
+        between_layers_dropout=0.0,
+        optimizer="sgd",
+        sgd_momentum=0.0,
+        weight_decay=0,
+        use_tbptt=True,
+        tbptt_length=32,
+        tbptt_stride=32,
+        tbptt_reset_hidden=False,
+        use_streaming=True,
+        streaming_reset_prob=0.01,
+        target_effective_batch_size=32,
+        num_layers=2,
+        grad_clip=5.0,
+    )
+    + gen_lstm_experim(
+        64,
+        label="64melis_steam_sgd",
+        folder_name="lstm_sgd",
+        learning_rate=1,
+        input_dropout=0.0,
+        hidden_dropout=0.0,
+        output_dropout=0.0,
+        between_layers_dropout=0.0,
+        optimizer="sgd",
+        sgd_momentum=0.0,
+        weight_decay=0,
+        use_tbptt=True,
+        tbptt_length=32,
+        tbptt_stride=32,
+        tbptt_reset_hidden=False,
+        use_streaming=True,
+        streaming_reset_prob=0.01,
+        target_effective_batch_size=32,
+        num_layers=2,
+        grad_clip=5.0,
+    )
+    + gen_lstm_experim(
+        80,
+        label="80melis_steam_sgd",
+        folder_name="lstm_sgd",
+        learning_rate=1,
+        input_dropout=0.2,
+        hidden_dropout=0.05,
+        output_dropout=0.2,
+        between_layers_dropout=0.0,
+        optimizer="sgd",
+        sgd_momentum=0.0,
+        weight_decay=0,
+        use_tbptt=True,
+        tbptt_length=32,
+        tbptt_stride=32,
+        tbptt_reset_hidden=False,
+        use_streaming=True,
+        streaming_reset_prob=0.01,
+        target_effective_batch_size=32,
+        num_layers=2,
+        grad_clip=5.0,
+        # Removed num_layers override - let it use base config value for fair comparison
+    )
+    + gen_lstm_experim(
+        128,
+        label="128melis_stream_sgd",
+        folder_name="lstm_sgd",
+        learning_rate=1,
+        input_dropout=0,
+        hidden_dropout=0,
+        output_dropout=0,
+        between_layers_dropout=0.0,
+        optimizer="sgd",
+        sgd_momentum=0.0,
+        weight_decay=0,
+        use_tbptt=True,
+        tbptt_length=32,
+        tbptt_stride=32,
+        tbptt_reset_hidden=False,
+        use_streaming=True,
+        streaming_reset_prob=0.01,
+        target_effective_batch_size=32,
+        num_layers=2,
+        grad_clip=5.0,
+        # Removed num_layers override - let it use base config value for fair comparison
+    )
+)
+
+
+GRAND_EXPERIMENT = create_multi_lr_experiments(MELIS_SCALING_SGD, SGD_TUNE_LR_SWEEP)

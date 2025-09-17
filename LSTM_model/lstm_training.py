@@ -19,7 +19,6 @@ import copy
 import csv
 
 
-
 cudnn.benchmark = True
 
 
@@ -57,7 +56,7 @@ def tbptt_forward_backward(
     batch_size, full_sequence_length = inputs.size()
     tokens_mb = batch_size * full_sequence_length  # Total tokens in microbatch
     total_loss_sum = 0.0
-    
+
     # Per-token loss scaling for gradient accumulation
     scale = 1.0 / (tokens_mb * gradient_accumulation_steps)
 
@@ -135,23 +134,27 @@ class WikiTextStreamingDataset(Dataset):
     def __init__(self, text_data: List[int], sequence_length: int, batch_size: int):
         self.sequence_length = sequence_length
         self.batch_size = batch_size
-        
+
         # Calculate how many tokens we can use (must be divisible by batch_size)
         total_tokens = len(text_data)
         tokens_per_stream = total_tokens // batch_size
         usable_tokens = tokens_per_stream * batch_size
-        
+
         if usable_tokens < batch_size * sequence_length:
-            raise ValueError(f"Dataset too small: need at least {batch_size * sequence_length} tokens, got {usable_tokens}")
-        
+            raise ValueError(
+                f"Dataset too small: need at least {batch_size * sequence_length} tokens, got {usable_tokens}"
+            )
+
         # Reshape into [B, T_stream] where T_stream = tokens_per_stream
         data_tensor = torch.tensor(text_data[:usable_tokens], dtype=torch.long)
         self.streams = data_tensor.view(batch_size, tokens_per_stream)
-        
+
         # Number of sequence-length windows we can extract from each stream
         self.num_batches = (tokens_per_stream - 1) // sequence_length
-        
-        print(f"Streaming dataset: {batch_size} streams, {tokens_per_stream} tokens per stream, {self.num_batches} batches")
+
+        print(
+            f"Streaming dataset: {batch_size} streams, {tokens_per_stream} tokens per stream, {self.num_batches} batches"
+        )
 
     def __len__(self):
         return self.num_batches
@@ -160,11 +163,11 @@ class WikiTextStreamingDataset(Dataset):
         # Extract sequence starting at position idx * sequence_length from all streams
         start_pos = idx * self.sequence_length
         end_pos = start_pos + self.sequence_length
-        
+
         # Get inputs and targets for all streams at this time step
         inputs = self.streams[:, start_pos:end_pos]  # [B, seq_len]
-        targets = self.streams[:, start_pos + 1:end_pos + 1]  # [B, seq_len]
-        
+        targets = self.streams[:, start_pos + 1 : end_pos + 1]  # [B, seq_len]
+
         return inputs, targets
 
 
@@ -492,7 +495,6 @@ class VanillaLSTMLanguageModel(nn.Module):
             nn.init.xavier_uniform_(self.linear.weight)
         nn.init.zeros_(self.linear.bias)
 
-
     def forward(self, x, hidden=None):
         embedded = self.embedding(x)
 
@@ -510,7 +512,7 @@ class VanillaLSTMLanguageModel(nn.Module):
         if self.use_custom_lstm:
             # Use custom LSTM with recurrent dropout
             lstm_out, (h_n, c_n) = self.lstm(lstm_input, hidden)
-            
+
             # FIXED: Apply the same regularization as standard LSTM path
             # Note: Custom LSTM already handles layer-by-layer processing, so we need
             # to simulate the per-layer regularization that standard LSTM does
@@ -518,11 +520,11 @@ class VanillaLSTMLanguageModel(nn.Module):
             if self.use_layer_norm and self.layer_norm_position in ["output", "both"]:
                 # Apply layer norm from the last layer
                 lstm_out = self.output_layer_norms[-1](lstm_out)
-            
+
             # Apply between-layers dropout (equivalent to what happens between layers)
             if self.num_layers > 1:
                 lstm_out = self.between_layers_dropout(lstm_out)
-            
+
             # Apply hidden dropout (equivalent to what happens between layers)
             if self.num_layers > 1:
                 lstm_out = self.hidden_dropouts[-1](lstm_out)
@@ -761,7 +763,7 @@ def load_and_preprocess_data(
 
     # Choose dataset type based on streaming config
     use_streaming = config.get("use_streaming", False)
-    
+
     if use_streaming:
         print("Using streaming (Melis/Merity style) datasets")
         train_dataset = WikiTextStreamingDataset(
@@ -779,8 +781,12 @@ def load_and_preprocess_data(
         train_dataset = WikiTextDataset(
             train_data, config["sequence_length"], stride=stride
         )
-        val_dataset = WikiTextDataset(val_data, config["sequence_length"], stride=stride)
-        test_dataset = WikiTextDataset(test_data, config["sequence_length"], stride=stride)
+        val_dataset = WikiTextDataset(
+            val_data, config["sequence_length"], stride=stride
+        )
+        test_dataset = WikiTextDataset(
+            test_data, config["sequence_length"], stride=stride
+        )
 
     # CONSERVATIVE: Determine optimal number of workers for Supercloud
     if config.get("num_workers") == "auto":
@@ -810,7 +816,7 @@ def load_and_preprocess_data(
     # Create optimized data loaders (single-GPU only)
     # For streaming datasets, use batch_size=1 since dataset handles batching internally
     dataloader_batch_size = 1 if use_streaming else config["batch_size"]
-    
+
     train_loader = DataLoader(
         train_dataset,
         batch_size=dataloader_batch_size,
@@ -872,23 +878,25 @@ def evaluate_model(
     def get_vocab_size():
         return model.vocab_size
 
-    # Handle streaming evaluation policy  
+    # Handle streaming evaluation policy
     use_streaming = config.get("use_streaming", False) if config else False
-    eval_streaming_like_train = config.get("eval_streaming_like_train", True) if config else True
+    eval_streaming_like_train = (
+        config.get("eval_streaming_like_train", True) if config else True
+    )
     use_eval_streaming = use_streaming and eval_streaming_like_train
-    
+
     eval_hidden = None
     total_tokens = 0
-    
+
     with torch.no_grad():
         for batch_idx, (inputs, targets) in enumerate(data_loader):
             inputs, targets = inputs.to(device), targets.to(device)
-            
+
             # Handle tensor shapes - if 3D, squeeze first dimension (streaming mode)
             if inputs.dim() == 3:
                 inputs = inputs.squeeze(0)
                 targets = targets.squeeze(0)
-            
+
             batch_size, sequence_length = inputs.size()
             tokens_in_batch = batch_size * sequence_length
 
@@ -904,7 +912,7 @@ def evaluate_model(
                 # Non-streaming evaluation: reset hidden state for each batch
                 hidden = get_hidden(batch_size)
             outputs, new_hidden = model(inputs, hidden)
-            
+
             # Update hidden state for streaming evaluation
             if use_eval_streaming:
                 # Detach hidden state to prevent gradient flow but keep for next batch
@@ -949,21 +957,23 @@ def evaluate_model_amp(
 
     # Handle streaming evaluation policy
     use_streaming = config.get("use_streaming", False) if config else False
-    eval_streaming_like_train = config.get("eval_streaming_like_train", True) if config else True
+    eval_streaming_like_train = (
+        config.get("eval_streaming_like_train", True) if config else True
+    )
     use_eval_streaming = use_streaming and eval_streaming_like_train
-    
+
     eval_hidden = None
     total_tokens = 0
-    
+
     with torch.no_grad():
         for batch_idx, (inputs, targets) in enumerate(data_loader):
             inputs, targets = inputs.to(device), targets.to(device)
-            
+
             # Handle tensor shapes - if 3D, squeeze first dimension (streaming mode)
             if inputs.dim() == 3:
                 inputs = inputs.squeeze(0)
                 targets = targets.squeeze(0)
-            
+
             batch_size, sequence_length = inputs.size()
             tokens_in_batch = batch_size * sequence_length
 
@@ -990,7 +1000,7 @@ def evaluate_model_amp(
                 outputs = outputs.view(-1, get_vocab_size())
                 targets = targets.view(-1)
                 loss_sum = criterion(outputs, targets)
-            
+
             # Update hidden state for streaming evaluation
             if use_eval_streaming:
                 # Detach hidden state to prevent gradient flow but keep for next batch
@@ -1006,9 +1016,7 @@ def evaluate_model_amp(
     return total_loss / total_tokens
 
 
-def train_model(
-    config: Dict, run_name: str = None, csv_log_path: str = None
-):
+def train_model(config: Dict, run_name: str = None, csv_log_path: str = None):
     """Main training function with mixed precision and gradient accumulation"""
     # Initialize wandb
     if config["wandb_offline"]:
@@ -1103,16 +1111,16 @@ def train_model(
     flop_counter = FLOPCounter(model, config, preprocessor.tokenizer)
 
     # Loss and optimizer - use reduction='sum' for proper per-token scaling
-    criterion = nn.CrossEntropyLoss(reduction='sum')
+    criterion = nn.CrossEntropyLoss(reduction="sum")
 
     # Select optimizer based on config
     opt_name = config.get("optimizer", "adam").lower()
     if opt_name == "adam":
         optimizer = optim.Adam(
-            model.parameters(), 
+            model.parameters(),
             lr=config["learning_rate"],
             betas=(config.get("adam_beta1", 0.9), config.get("adam_beta2", 0.999)),
-            eps=config.get("adam_epsilon", 1e-8)
+            eps=config.get("adam_epsilon", 1e-8),
         )
     elif opt_name == "adamw":
         optimizer = optim.AdamW(
@@ -1120,7 +1128,7 @@ def train_model(
             lr=config["learning_rate"],
             weight_decay=config.get("weight_decay", 0.0),
             betas=(config.get("adam_beta1", 0.9), config.get("adam_beta2", 0.999)),
-            eps=config.get("adam_epsilon", 1e-8)
+            eps=config.get("adam_epsilon", 1e-8),
         )
     elif opt_name == "sgd":
         optimizer = optim.SGD(
@@ -1228,17 +1236,21 @@ def train_model(
 
     # Training loop
     optimizer_step_counter = 0
-    
+
     # Initialize metrics counters
     tokens_cumulative = 0
     streaming_reset_count = 0
-    effective_batch_tokens = config["batch_size"] * gradient_accumulation_steps * config["sequence_length"]
-    
+    effective_batch_tokens = (
+        config["batch_size"] * gradient_accumulation_steps * config["sequence_length"]
+    )
+
     # Initialize hidden state for streaming mode
     use_streaming = config.get("use_streaming", False)
     streaming_hidden = None
-    streaming_reset_prob = config.get("streaming_reset_prob", 0.01)  # 1% chance to reset
-    
+    streaming_reset_prob = config.get(
+        "streaming_reset_prob", 0.01
+    )  # 1% chance to reset
+
     for epoch in range(config["num_epochs"]):
         # Single-GPU training - no reshuffling needed
         model.train()
@@ -1254,9 +1266,9 @@ def train_model(
                 # So squeeze the first dimension
                 inputs = inputs.squeeze(0)  # [B, seq_len]
                 targets = targets.squeeze(0)  # [B, seq_len]
-            
+
             batch_size, sequence_length = inputs.size()
-            
+
             # Track cumulative tokens processed
             tokens_cumulative += batch_size * sequence_length
 
@@ -1270,7 +1282,7 @@ def train_model(
                 else:
                     # Use carried-over hidden state
                     hidden = streaming_hidden
-                    
+
                     # Optional: randomly reset hidden state with small probability
                     if torch.rand(1).item() < streaming_reset_prob:
                         print(f"  Randomly resetting hidden state at batch {batch_idx}")
@@ -1343,7 +1355,7 @@ def train_model(
                 batch_size, sequence_length = inputs.size()
                 tokens_mb = batch_size * sequence_length
                 scale = 1.0 / (tokens_mb * gradient_accumulation_steps)
-                
+
                 if use_amp:
                     with autocast():
                         outputs, hidden = model(inputs, hidden)
@@ -1397,7 +1409,7 @@ def train_model(
                 grad_norm_preclip = 0.0
                 clipped_step = 0
                 clip_val = config.get("gradient_clip_val", 1.0)
-                
+
                 if use_amp:
                     if config.get("use_gradient_clipping", False):
                         scaler.unscale_(optimizer)
@@ -1422,12 +1434,14 @@ def train_model(
                 optimizer_step_counter += 1
                 if scheduler is not None and scheduler_type == "step":
                     scheduler.step(optimizer_step_counter)
-                
+
                 # Log high-leverage metrics to wandb after each optimizer step
                 current_lr = optimizer.param_groups[0]["lr"]
-                flops_per_batch = flop_counter.flops_per_batch if flop_counter.profiled else 0
+                flops_per_batch = (
+                    flop_counter.flops_per_batch if flop_counter.profiled else 0
+                )
                 total_flops = flop_counter.total_flops
-                
+
                 step_log_dict = {
                     "learning_rate": current_lr,
                     "train_loss_per_token": loss.item(),
@@ -1440,7 +1454,7 @@ def train_model(
                     "streaming_reset_count": streaming_reset_count,
                     "optimizer_step": optimizer_step_counter,
                 }
-                
+
                 if not config.get("wandb_offline", False):
                     wandb.log(step_log_dict, step=optimizer_step_counter)
 
@@ -1516,7 +1530,9 @@ def train_model(
         epoch_time = time.time() - epoch_start_time
 
         # Evaluate on validation set (no gradient accumulation needed here)
-        val_loss = evaluate_model_amp(model, val_loader, criterion, device, use_amp, config)
+        val_loss = evaluate_model_amp(
+            model, val_loader, criterion, device, use_amp, config
+        )
 
         # Calculate perplexity
         train_perplexity = np.exp(avg_train_loss)
@@ -1574,7 +1590,9 @@ def train_model(
 
     # Final evaluation
     print("\nEvaluating on test set...")
-    test_loss = evaluate_model_amp(model, test_loader, criterion, device, use_amp, config)
+    test_loss = evaluate_model_amp(
+        model, test_loader, criterion, device, use_amp, config
+    )
     test_perplexity = np.exp(test_loss)
     print(f"Test Loss: {test_loss:.4f} (Perplexity: {test_perplexity:.2f})")
 
