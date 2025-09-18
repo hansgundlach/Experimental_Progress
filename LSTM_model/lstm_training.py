@@ -8,7 +8,7 @@ import wandb
 import os
 from collections import Counter
 from typing import Dict, List, Tuple
-from transformers import GPT2Tokenizer
+from transformers import GPT2Tokenizer, PreTrainedTokenizer
 from torch.profiler import profile, record_function, ProfilerActivity
 import multiprocessing as mp
 from torch.cuda.amp import autocast, GradScaler
@@ -103,7 +103,7 @@ def tbptt_forward_backward(
     return per_token_loss, hidden
 
 
-class WikiTextDataset(Dataset):
+class TextDataset(Dataset):
     """Dataset of fixed‐length sequences with configurable stride."""
 
     def __init__(self, text_data: List[int], sequence_length: int, stride: int = 1):
@@ -124,7 +124,7 @@ class WikiTextDataset(Dataset):
         return seq, tgt
 
 
-class WikiTextStreamingDataset(Dataset):
+class TextStreamingDataset(Dataset):
     """
     Streaming dataset that reshapes data into B contiguous streams.
     Follows Melis/Merity style: data is reshaped into [B, T_total] where
@@ -184,11 +184,11 @@ class TextPreprocessor:
             self.tokenizer.pad_token = self.tokenizer.eos_token
         self.vocab_size = len(self.tokenizer)
         print(
-            f"Loaded GPT-2 tokenizer from local path with vocabulary size: {self.vocab_size}"
+            f"Loaded tokenizer from local path with vocabulary size: {self.vocab_size}"
         )
 
     def text_to_indices(self, text: str) -> List[int]:
-        # Tokenize the text using GPT2 tokenizer
+        # Tokenize the text using the configured tokenizer
         # FIXED: Use tokenizer directly to avoid sequence length validation
         # The encode() method can trigger model max_length validation
         tokens = self.tokenizer(
@@ -575,7 +575,7 @@ class VanillaLSTMLanguageModel(nn.Module):
 
 
 class FLOPCounter:
-    def __init__(self, model: nn.Module, config: Dict, tokenizer: GPT2Tokenizer):
+    def __init__(self, model: nn.Module, config: Dict, tokenizer: PreTrainedTokenizer):
         self.model = model
         self.config = config
         self.tokenizer = tokenizer
@@ -734,7 +734,7 @@ class FLOPCounter:
 def load_and_preprocess_data(
     config: Dict,
 ) -> Tuple[DataLoader, DataLoader, DataLoader, TextPreprocessor]:
-    """Load and preprocess the WikiText data with optimized DataLoaders"""
+    """Load and preprocess text data with optimized DataLoaders"""
     print("Loading and preprocessing data...")
 
     # Load raw text
@@ -766,27 +766,23 @@ def load_and_preprocess_data(
 
     if use_streaming:
         print("Using streaming (Melis/Merity style) datasets")
-        train_dataset = WikiTextStreamingDataset(
+        train_dataset = TextStreamingDataset(
             train_data, config["sequence_length"], config["batch_size"]
         )
-        val_dataset = WikiTextStreamingDataset(
+        val_dataset = TextStreamingDataset(
             val_data, config["sequence_length"], config["batch_size"]
         )
-        test_dataset = WikiTextStreamingDataset(
+        test_dataset = TextStreamingDataset(
             test_data, config["sequence_length"], config["batch_size"]
         )
     else:
         print("Using non-streaming (sliding window) datasets")
         stride = config.get("stride", 1)
-        train_dataset = WikiTextDataset(
+        train_dataset = TextDataset(
             train_data, config["sequence_length"], stride=stride
         )
-        val_dataset = WikiTextDataset(
-            val_data, config["sequence_length"], stride=stride
-        )
-        test_dataset = WikiTextDataset(
-            test_data, config["sequence_length"], stride=stride
-        )
+        val_dataset = TextDataset(val_data, config["sequence_length"], stride=stride)
+        test_dataset = TextDataset(test_data, config["sequence_length"], stride=stride)
 
     # CONSERVATIVE: Determine optimal number of workers for Supercloud
     if config.get("num_workers") == "auto":
@@ -1676,7 +1672,7 @@ def train_model(config: Dict, run_name: str = None, csv_log_path: str = None):
     return model, results
 
 
-def benchmark_model(model: nn.Module, config: Dict, tokenizer: GPT2Tokenizer):
+def benchmark_model(model: nn.Module, config: Dict, tokenizer: PreTrainedTokenizer):
     """Benchmark model inference speed"""
     device = torch.device(config["device"])
     model.eval()

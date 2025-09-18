@@ -16,7 +16,7 @@ def calculate_lstm_params(
     Args:
         hidden_size: Hidden dimension size
         num_layers: Number of LSTM layers
-        vocab_size: Vocabulary size (default GPT-2 vocab size)
+        vocab_size: Vocabulary size (default 50257)
         tie_embeddings: Whether input and output embeddings are tied (default True)
 
     Returns:
@@ -98,7 +98,7 @@ def estimate_lstm_gpu_memory_and_grad_accum(
     # Calculate LSTM parameters with weight tying
     param_info = calculate_lstm_params(hidden_size, num_layers, tie_embeddings=True)
     params = param_info["trainable_params"]
-    vocab_size = 50257  # GPT-2 vocab size
+    vocab_size = 50257  # Default vocab size
 
     # Model memory (4 bytes per param for fp32, but we use mixed precision in practice)
     model_memory = params * 4  # fp32 model weights
@@ -341,13 +341,13 @@ def get_lstm_base_config():
         "val_split": 0.1,
         "test_split": 0.1,
         "device": "cuda" if torch.cuda.is_available() else "cpu",
-        "wandb_project": "lstm-wikitext",
+        "wandb_project": "lstm-language-modeling",
         "wandb_offline": True,
         "print_every": 100,
         "use_gradient_clipping": True,
         "gradient_clip_val": 1.0,
         "results_folder": "../new_experiments_folder_1",
-        "csv_log_interval": 20,
+        "csv_log_interval": 10,
         "num_workers": "auto",
         "pin_memory": True,
         "persistent_workers": True,

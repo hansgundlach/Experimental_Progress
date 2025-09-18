@@ -20,45 +20,12 @@ VERY_NARROW_LR_SWEEP = [
 ]
 
 
-# activation variation experiments
-ACTIVATION_EXPERIMENTS = (
-    gen_experim(
-        16, label="16d_activation_experiment", learning_rate=0.01, activation="gelu"
-    )
-    + gen_experim(
-        16, label="16d_activation_experiment", learning_rate=0.01, activation="relu"
-    )
-    + gen_experim(
-        16, label="16d_activation_experiment", learning_rate=0.01, activation="swiglu"
-    )
-)
 
 # optimizer variation experiments ?
 # positional encoding experiments
 # norm experiments
 # lr_schedule expeiremtns
 # initalizaiton experiments
-INITIALIZATION_EXPERIMENTS = (
-    gen_experim(
-        16,
-        label="16d_initialization_experiment",
-        learning_rate=0.01,
-        init_scheme="xavier_normal",
-    )
-    + gen_experim(
-        16,
-        label="16d_initialization_experiment",
-        learning_rate=0.01,
-        init_scheme="kaiming_normal",
-    )
-    + gen_experim(
-        16,
-        label="16d_initialization_experiment",
-        learning_rate=0.01,
-        init_scheme="transformer",
-    )
-)
-# experiment without rotary + sgd
 
 
 SGD_SCALING = (
@@ -106,7 +73,7 @@ SGD_SCALING = (
 LARGE_SCALE_EXPERIMENTS = (
     gen_experim(
         128,
-        label="80d_best_sgdbs64",
+        label="128d_best_sgdbs64",
         folder_name="best_possible_sgd",
         learning_rate=1e-1,
         optimizer="sgd",
@@ -129,14 +96,14 @@ LARGE_SCALE_EXPERIMENTS = (
         128,
         label="128d_sinbs128",
         folder_name="sin_scaling",
-        learning_rate=1e-1,
+        learning_rate=10 ** (-2.5),
         target_effective_batch_size=128,
     )
     + gen_experim(
         256,
         label="256d_sinbs128",
         folder_name="sin_scaling",
-        learning_rate=1e-1,
+        learning_rate=10 ** (-3),
         target_effective_batch_size=128,
     )
 )
@@ -383,7 +350,7 @@ BATCH_SIZE_TEST = (
     )
 )
 
-GRAND_EXPERIMENT = create_multi_lr_experiments(LARGE_SCALE_EXPERIMENTS, NARROW_LR_SWEEP)
+GRAND_EXPERIMENT = LARGE_SCALE_EXPERIMENTS
 
 # GRAND_EXPERIMENT = create_multi_lr_experiments(
 #     NEW_SCALING, NARROW_LR_SWEEP

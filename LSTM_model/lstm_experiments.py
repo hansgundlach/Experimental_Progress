@@ -43,7 +43,7 @@ from lstm_experiment_utils import (
 #     "val_split": 0.1,
 #     "test_split": 0.1,
 #     "device": "cuda" if torch.cuda.is_available() else "cpu",
-#     "wandb_project": "lstm-wikitext",
+#     "wandb_project": "lstm-language-modeling",
 #     "wandb_offline": True,
 #     "print_every": 100,  # Print loss every N batches
 #     # Gradient clipping settings
@@ -97,10 +97,6 @@ CONFIG = get_lstm_base_config()
 # ====================================================================
 # UTILITY FUNCTIONS
 # ====================================================================
-
-
-
-
 
 
 EXPERIMENTS = GRAND_EXPERIMENT

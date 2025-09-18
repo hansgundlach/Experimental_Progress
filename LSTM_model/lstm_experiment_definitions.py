@@ -318,7 +318,7 @@ MELIS_SCALING_SGD = (
         32,
         label="32melis_steam_sgd",
         folder_name="lstm_sgd",
-        learning_rate=1,
+        learning_rate=10 ** (-0.5),
         input_dropout=0.0,
         hidden_dropout=0.0,
         output_dropout=0.0,
@@ -340,7 +340,7 @@ MELIS_SCALING_SGD = (
         48,
         label="48melis_steam_sgd",
         folder_name="lstm_sgd",
-        learning_rate=1,
+        learning_rate=10 ** (-0.5),
         input_dropout=0.0,
         hidden_dropout=0.0,
         output_dropout=0.0,
@@ -362,7 +362,7 @@ MELIS_SCALING_SGD = (
         64,
         label="64melis_steam_sgd",
         folder_name="lstm_sgd",
-        learning_rate=1,
+        learning_rate=10 ** (-0.5),
         input_dropout=0.0,
         hidden_dropout=0.0,
         output_dropout=0.0,
@@ -384,7 +384,7 @@ MELIS_SCALING_SGD = (
         80,
         label="80melis_steam_sgd",
         folder_name="lstm_sgd",
-        learning_rate=1,
+        learning_rate=10 ** (-0.5),
         input_dropout=0.2,
         hidden_dropout=0.05,
         output_dropout=0.2,
@@ -407,7 +407,7 @@ MELIS_SCALING_SGD = (
         128,
         label="128melis_stream_sgd",
         folder_name="lstm_sgd",
-        learning_rate=1,
+        learning_rate=10 ** (-0.5),
         input_dropout=0,
         hidden_dropout=0,
         output_dropout=0,
@@ -429,4 +429,4 @@ MELIS_SCALING_SGD = (
 )
 
 
-GRAND_EXPERIMENT = create_multi_lr_experiments(MELIS_SCALING_SGD, SGD_TUNE_LR_SWEEP)
+GRAND_EXPERIMENT = MELIS_SCALING_SGD

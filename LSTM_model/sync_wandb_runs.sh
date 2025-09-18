@@ -49,9 +49,9 @@ echo
 
 # Show project mapping info
 echo "📊 LSTM Project Mapping Information:"
-echo "   - Each run will be synced to the 'lstm-wikitext' project"
+echo "   - Each run will be synced to the 'lstm-language-modeling' project"
 echo "   - Run names will include experiment labels and timestamps"
-echo "   - LSTM scaling experiments from lstm_experiments.py → 'lstm-wikitext'"
+echo "   - LSTM scaling experiments from lstm_experiments.py → 'lstm-language-modeling'"
 echo "   - Run names typically include model size (e.g., '32d', '48d', '64d')"
 echo
 
@@ -110,7 +110,7 @@ echo "   ✅ Successfully synced: $success_count/$count runs"
 echo
 
 echo "💡 Tips for LSTM experiments:"
-echo "   - All runs should appear in the 'lstm-wikitext' project on wandb.ai"
+echo "   - All runs should appear in the 'lstm-language-modeling' project on wandb.ai"
 echo "   - Look for experiments with labels like '32d', '48d', '64d' (hidden sizes)"
 echo "   - Streaming vs non-streaming experiments are now tracked separately"
 echo "   - Check for dropout variations and TBPTT configurations"
@@ -120,4 +120,4 @@ echo "📝 Usage: $0 [number_of_runs]"
 echo "   Example: $0 10    # Sync the 10 most recent runs"
 echo "   Example: $0        # Sync the 5 most recent runs (default)"
 echo
-echo "🔗 View your synced runs at: https://wandb.ai/[your-username]/lstm-wikitext"
+echo "🔗 View your synced runs at: https://wandb.ai/[your-username]/lstm-language-modeling"
