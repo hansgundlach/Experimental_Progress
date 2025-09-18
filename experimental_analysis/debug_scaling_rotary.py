@@ -582,6 +582,35 @@ if __name__ == "__main__":
             "color": "cyan",
             "hidden_dim": 80,
         },
+
+        #batch size variation sgd
+        # 32d_best_sgd_bs16_lr1
+        {
+            "name": "32d best sgd bs 16 lr 1",
+            "csv_path": "../experimental_data_folder/sgd_scaling/32d_best_sgd_bs16_lr1.csv",
+            "marker": "o",
+            "include_in_frontier": False,  # Include in frontier analysis
+            "class": "lstm",
+            "color": "tab:purple",
+            "hidden_dim": 32,
+        },
+        # 32d_best_sgd_bs32_lr1
+        {
+            "name": "32d best sgd bs 32 lr 1",
+            "csv_path": "../experimental_data_folder/sgd_scaling/32d_best_sgd_bs32_lr1.csv",
+            "marker": "o",
+            "include_in_frontier": False,  # Include in frontier analysis
+            "class": "lstm",
+            "color": "tab:pink",
+            "hidden_dim": 32,
+        },
+
+
+
+
+
+
+
         # transformer scaling diagnostic
         # {
         #     "name": "64d sin more heads",

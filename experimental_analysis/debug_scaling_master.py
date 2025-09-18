@@ -588,6 +588,7 @@ if __name__ == "__main__":
             "class": "transformer_no_rotary",
             "hidden_dim": 64,
         },
+        
     ]
 
     # Add experiments

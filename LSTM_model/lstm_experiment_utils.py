@@ -331,7 +331,7 @@ def get_lstm_base_config():
         "learning_rate": 0.001 * math.sqrt(4),  # Scale by sqrt of accumulation steps
         "lr_schedule": "cosine_warmup",
         "warmup_frac": 0.05,  # 5% warmup steps
-        "min_lr_multiplier": 0.1,  # Min LR as 10% of base LR  
+        "min_lr_multiplier": 0.1,  # Min LR as 10% of base LR
         "min_lr": 0.0,  # Absolute minimum learning rate (alternative to min_lr_multiplier)
         # "scheduler_type": "step",
         "step_size": 10,
@@ -503,6 +503,23 @@ def create_multi_lr_lstm_experiments(base_experiments, learning_rates):
         multi_lr_experiments.append(new_experiment)
 
     return multi_lr_experiments
+
+
+def subset_experiments(experiment_list, wanted_labels):
+    """Return only the sub-experiments whose 'label' is in wanted_labels,
+    keeping each group's original name unchanged."""
+    result = []
+    for exp in experiment_list:
+        picked = [se for se in exp["subexperiments"] if se["label"] in wanted_labels]
+        if picked:
+            # keep exp['name'] exactly as-is
+            result.append(
+                {
+                    "name": exp["name"],
+                    "subexperiments": picked,
+                }
+            )
+    return result
 
 
 def create_multi_lr_experiments(base_experiments, learning_rates):

@@ -103,6 +103,43 @@ SGD_SCALING = (
         target_effective_batch_size=32,
     )
 )
+LARGE_SCALE_EXPERIMENTS = (
+    gen_experim(
+        128,
+        label="80d_best_sgdbs64",
+        folder_name="best_possible_sgd",
+        learning_rate=1e-1,
+        optimizer="sgd",
+        sgd_momentum=0.98,
+        weight_decay=0.0,
+        target_effective_batch_size=64,
+    )
+    + gen_experim(
+        256,
+        label="256d_best_sgdbs64",
+        folder_name="best_possible_sgd",
+        learning_rate=1e-1,
+        optimizer="sgd",
+        sgd_momentum=0.98,
+        weight_decay=0.0,
+        target_effective_batch_size=64,
+    )
+    # sinusoidal experiments
+    + gen_experim(
+        128,
+        label="128d_sinbs128",
+        folder_name="sin_scaling",
+        learning_rate=1e-1,
+        target_effective_batch_size=128,
+    )
+    + gen_experim(
+        256,
+        label="256d_sinbs128",
+        folder_name="sin_scaling",
+        learning_rate=1e-1,
+        target_effective_batch_size=128,
+    )
+)
 
 
 SGD_SCALING_LARGE_BATCH = (
@@ -346,7 +383,7 @@ BATCH_SIZE_TEST = (
     )
 )
 
-GRAND_EXPERIMENT = NEW_SCALING
+GRAND_EXPERIMENT = create_multi_lr_experiments(LARGE_SCALE_EXPERIMENTS, NARROW_LR_SWEEP)
 
 # GRAND_EXPERIMENT = create_multi_lr_experiments(
 #     NEW_SCALING, NARROW_LR_SWEEP

@@ -310,7 +310,7 @@ SGD_TUNE_LR_SWEEP = [
     10 ** (-2),
     10 ** (-1.5),
     1e-1,
-    1,
+    10 ** (-0.5),
 ]
 
 MELIS_SCALING_SGD = (
