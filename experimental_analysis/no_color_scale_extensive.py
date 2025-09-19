@@ -1205,6 +1205,42 @@ if __name__ == "__main__":
             "hidden_dim": 256,
         },
 
+        {
+            "name": "best sgd 48d bs64lr1",
+            "csv_path": "../experimental_data_folder/best_possible_sgd/48d_best_sgdbs64lr1.csv",
+            "marker": "s",
+            "color": "tab:blue",
+            "include_in_in_frontier": False,  # Include in frontier analysis
+            "class": "sgd",
+            "hidden_dim": 48,
+        },
+        {
+            "name": "best sgd 64d bs64lr1",
+            "csv_path": "../experimental_data_folder/best_possible_sgd/64d_best_sgdbs64lr1.csv",
+            "marker": "s",
+            "color": "tab:blue",
+            "include_in_in_frontier": False,  # Include in frontier analysis
+            "class": "sgd",
+            "hidden_dim": 64,
+        },
+        {
+            "name": "best sgd 80d bs64lr1",
+            "csv_path": "../experimental_data_folder/best_possible_sgd/80d_best_sgdbs64lr1.csv",
+            "marker": "s",
+            "color": "tab:blue",
+            "include_in_in_frontier": False,  # Include in frontier analysis
+            "class": "sgd",
+            "hidden_dim": 80,
+        },
+
+
+
+
+
+
+
+
+
         #sinscaling     
 
         #128d sin scaling
@@ -1416,6 +1452,7 @@ if __name__ == "__main__":
             "color": "tab:orange",
             "hidden_dim": 128,
         },
+       
 
 
 
@@ -1539,14 +1576,14 @@ if __name__ == "__main__":
         classes_to_plot=[
             # "optimal_lr_sgd_transformer",
             "transformer",
-            "lstm",
+            # "lstm",
             "sgd",
             # "vanilla_transformer_rmsprop",
         ],
         flop_range_by_class={
-            "transformer": (3 * 1e14, 1e15),
+            "transformer": (8* 1e14, 2*1e15),
             "lstm": (1e14*7, 1e15*3),
-            "sgd": (4 * 1e14, 1e15),
+            "sgd": (3 * 1e14, 1e15),
         },
         extrapolation_factor=50.0,  # Extend trend lines 3x beyond data range
     )
