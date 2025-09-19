@@ -1184,6 +1184,52 @@ if __name__ == "__main__":
             "class": "sgd",
             "hidden_dim": 80,
         },
+        #best sgd 128 and 256
+        {
+            "name": " best sgd 128d bs64",
+            "csv_path": "../experimental_data_folder/best_possible_sgd/128d_best_sgdbs64.csv",
+            "marker": "s",
+            "color": "tab:cyan",
+            "include_in_in_frontier": False,  # Include in frontier analysis
+            "class": "sgd",
+            "hidden_dim": 128,
+        },
+        #256d best sgd bs128
+        {
+            "name": "best sgd 256d bs64",
+            "csv_path": "../experimental_data_folder/best_possible_sgd/256d_best_sgdbs64.csv",
+            "marker": "s",
+            "color": "tab:cyan",
+            "include_in_in_frontier": False,  # Include in frontier analysis
+            "class": "sgd",
+            "hidden_dim": 256,
+        },
+
+        #sinscaling     
+
+        #128d sin scaling
+        {
+            "name": "128d sin scaling",
+            "csv_path": "../experimental_data_folder/sin_scaling/128d_sinbs128.csv",
+            "marker": "o",
+            "color": "tab:green",
+            "include_in_in_frontier": False,  # Include in frontier analysis
+            "class": "lstm",
+            "hidden_dim": 128,
+        },
+        #256d sin scaling
+        {
+            "name": "128d sin scaling bs 128",
+            "csv_path": "../experimental_data_folder/sin_scaling/128d_sinbs128.csv",
+            "marker": "o",
+            "color": "tab:green",
+            "include_in_in_frontier": False,  # Include in frontier analysis
+            "class": "lstm",
+            "hidden_dim": 256,
+        },
+        
+
+        
         
         # melis scaling
         # {
@@ -1339,7 +1385,45 @@ if __name__ == "__main__":
             "class": "transformer",
             "hidden_dim": 80,
         },
+
+        #lstm sgd
+         {
+            "name": "48d melis sgd",
+            "csv_path": "../experimental_data_folder/lstm_sgd/48melis_steam_sgd.csv",
+            "marker": "o",
+            "include_in_frontier": False,  # Include in frontier analysis
+            "class": "lstm_sgd",
+            "color": "tab:orange",
+            "hidden_dim": 48,
+        },
+        # 64melis scaling
+        {
+            "name": "64d melis sgd",
+            "csv_path": "../experimental_data_folder/lstm_sgd/64melis_steam_sgd.csv",
+            "marker": "o",
+            "include_in_frontier": False,  # Include in frontier analysis
+            "class": "lstm_sgd",
+            "color": "tab:orange",
+            "hidden_dim": 64,
+        },
+        # 128 melis scaling
+        {
+            "name": "128d melis sgd",
+            "csv_path": "../experimental_data_folder/lstm_sgd/128melis_stream_sgd.csv",
+            "marker": "o",
+            "include_in_frontier": False,  # Include in frontier analysis
+            "class": "lstm_sgd",
+            "color": "tab:orange",
+            "hidden_dim": 128,
+        },
+
+
+
     
+
+
+
+
 
 
         # new scaling no rotary
