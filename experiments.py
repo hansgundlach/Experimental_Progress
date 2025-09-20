@@ -19,6 +19,9 @@ from experiment_utils import (
 from experiment_definitions import (
     GRAND_EXPERIMENT,
 )
+from non_scaling_experim_def import (
+    GRAND_VARIATION_EXPERIMENTS,
+)
 
 
 def run_experiments_on_gpu(gpu_id, sub_experiments, project_name_base):
@@ -33,7 +36,9 @@ def run_experiments_on_gpu(gpu_id, sub_experiments, project_name_base):
             exp_name = sub_exp["exp_name"]
             sub_label = sub_exp["sub_label"]
             csv_log_path = sub_exp["csv_log_path"]
-            project_name = f"{project_name_base}-{exp_name}"
+            folder_name = sub_exp["folder_name"]
+            # Use folder name as the wandb project name instead of timestamp-based naming
+            project_name = folder_name
 
             print(f"\nRunning sub-experiment: {exp_name} -> {sub_label}")
 
@@ -149,6 +154,7 @@ if __name__ == "__main__":
 
     # choose relevant experiments
     EXPERIMENTS = GRAND_EXPERIMENT
+    # EXPERIMENTS = GRAND_VARIATION_EXPERIMENTS
 
     # Initialize the list to store all sub-experiments
     all_sub_experiments = []
@@ -180,12 +186,16 @@ if __name__ == "__main__":
             csv_filename = f"{sanitized_label.replace(' ', '_')}.csv"
             csv_log_path = os.path.join(exp_folder_path, csv_filename)
 
+            # Store the folder name (exp_name) for wandb project naming
+            folder_name = exp_name
+
             all_sub_experiments.append(
                 {
                     "exp_name": exp_name,
                     "sub_label": sub_label,
                     "config": current_config,
                     "csv_log_path": csv_log_path,
+                    "folder_name": folder_name,
                 }
             )
 

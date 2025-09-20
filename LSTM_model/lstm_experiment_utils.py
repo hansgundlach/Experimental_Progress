@@ -165,16 +165,12 @@ def estimate_lstm_gpu_memory_and_grad_accum(
             + lstm_gradients
         )
 
-        # DDP overhead: additional memory for gradient synchronization
-        ddp_overhead = model_memory * 0.1 if world_size > 1 else 0
-
         # 5% overhead for misc tensors and CUDA overhead
         overhead = 0.05 * (
             model_memory
             + optimizer_memory
             + total_lstm_activation_memory
             + final_layer_memory
-            + ddp_overhead
         )
 
         total_estimated_memory = (
@@ -182,7 +178,6 @@ def estimate_lstm_gpu_memory_and_grad_accum(
             + optimizer_memory
             + total_lstm_activation_memory
             + final_layer_memory
-            + ddp_overhead
             + overhead
         )
 
@@ -347,7 +342,7 @@ def get_lstm_base_config():
         "use_gradient_clipping": True,
         "gradient_clip_val": 1.0,
         "results_folder": "../new_experiments_folder_1",
-        "csv_log_interval": 10,
+        "csv_log_interval": 50,
         "num_workers": "auto",
         "pin_memory": True,
         "persistent_workers": True,
@@ -380,6 +375,7 @@ def get_lstm_base_config():
         "use_streaming": True,  # Enable streaming dataset (Melis/Merity style)
         "streaming_reset_prob": 0.01,  # Probability of randomly resetting hidden state in streaming mode
         "eval_streaming_like_train": True,  # Whether evaluation should use streaming like training
+        "joint_evaluations": True,  # Enable both streaming and non-streaming evaluation
         # SGD parameters
         "sgd_momentum": 0.9,  # Momentum for SGD optimizer
     }

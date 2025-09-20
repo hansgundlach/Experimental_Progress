@@ -62,7 +62,7 @@ def analyze_experiment(hidden_dim, label_suffix=""):
         f"- Non-embedding parameters: {non_embedding_params:,} (Kaplan et al. definition)"
     )
     print(
-        f"- Token limit: {config['token_limit']:,} tokens (20x parameters = {20 * num_params:,})"
+        f"- Token limit: {config['max_tokens']:,} tokens (20x parameters = {20 * num_params:,})"
     )
     print(f"- Gradient accumulation: {config['gradient_accumulation_steps']} steps")
 

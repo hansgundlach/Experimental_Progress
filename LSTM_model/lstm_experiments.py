@@ -12,8 +12,6 @@ from lstm_experiment_definitions import (
     GRAND_EXPERIMENT,
 )
 import argparse
-import torch.multiprocessing as mp
-from socket import socket
 from typing import List, Union, Sequence
 from lstm_experiment_utils import (
     get_lstm_base_config,
@@ -102,51 +100,6 @@ CONFIG = get_lstm_base_config()
 EXPERIMENTS = GRAND_EXPERIMENT
 
 
-def find_free_port():
-    """Finds a free port on the host."""
-    with socket() as s:
-        s.bind(("", 0))
-        return s.getsockname()[1]
-
-
-def run_ddp_worker(
-    local_rank, world_size, master_addr, master_port, config, run_name, csv_log_path
-):
-    """
-    This function is spawned for each DDP process.
-    """
-    # 1. --- Set up DDP environment ---
-    os.environ["MASTER_ADDR"] = master_addr
-    os.environ["MASTER_PORT"] = str(master_port)
-    os.environ["WORLD_SIZE"] = str(world_size)
-    os.environ["RANK"] = str(local_rank)
-
-    dist.init_process_group(backend="nccl", init_method="env://")
-    torch.cuda.set_device(local_rank)
-
-    # Update config with device for this rank
-    config["device"] = f"cuda:{local_rank}"
-
-    if local_rank == 0:
-        print(f"\n--- Starting DDP run for: {run_name} ---")
-        print(f"  - World Size: {world_size}")
-        print(f"  - Master: {master_addr}:{master_port}")
-
-    # 2. --- Run the actual training ---
-    # The csv_log_path is passed, but only rank 0 will write to it.
-    train_model(
-        config=config,
-        run_name=run_name,
-        csv_log_path=csv_log_path,
-    )
-
-    # 3. --- Clean up ---
-    dist.destroy_process_group()
-
-    if local_rank == 0:
-        print(f"--- Completed DDP run for: {run_name} ---")
-
-
 if __name__ == "__main__":
     print("Starting LSTM experiments...")
     parser = argparse.ArgumentParser(description="Run LSTM Experiments")
@@ -193,12 +146,16 @@ if __name__ == "__main__":
             csv_filename = f"{sanitized_label.replace(' ', '_')}.csv"
             csv_log_path = os.path.join(exp_folder_path, csv_filename)
 
+            # Store the folder name (exp_name) for wandb project naming
+            folder_name = exp_name
+
             all_sub_experiments.append(
                 {
                     "exp_name": exp_name,
                     "sub_label": sub_label,
                     "config": current_config,
                     "csv_log_path": csv_log_path,
+                    "folder_name": folder_name,
                 }
             )
 
@@ -235,6 +192,7 @@ if __name__ == "__main__":
             config=config,
             run_name=run_name,
             csv_log_path=csv_path,
+            folder_name=sub_exp_details["folder_name"],
         )
 
         training_elapsed = time.time() - training_start_time

@@ -463,205 +463,215 @@ if __name__ == "__main__":
         #     "hidden_dim": 64,
         # },
         # 32d new scaling
+        # {
+        #     "name": "32d new scaling",
+        #     "csv_path": "../experimental_data_folder/new_scaling/32d_new_scaling.csv",
+        #     "marker": "o",
+        #     "include_in_frontier": True,  # Include in frontier analysis
+        #     "class": "lstm",
+        #     "color": "tab:blue",
+        #     "hidden_dim": 32,
+        # },
+        # # 48d new scaling
+        # {
+        #     "name": "48d new scaling",
+        #     "csv_path": "../experimental_data_folder/new_scaling/48d_new_scaling.csv",
+        #     "marker": "o",
+        #     "include_in_frontier": True,  # Include in frontier analysis
+        #     "class": "lstm",
+        #     "color": "tab:blue",
+        #     "hidden_dim": 48,
+        # },
+        # # 64d new scaling
+        # {
+        #     "name": "64d new scaling",
+        #     "csv_path": "../experimental_data_folder/new_scaling/64d_new_scaling.csv",
+        #     "marker": "o",
+        #     "include_in_frontier": True,  # Include in frontier analysis
+        #     "class": "lstm",
+        #     "color": "tab:blue",
+        #     "hidden_dim": 64,
+        # },
+        # # 80d new scaling
+        # {
+        #     "name": "80 new scaling",
+        #     "csv_path": "../experimental_data_folder/new_scaling/80d_new_scaling.csv",
+        #     "marker": "o",
+        #     "include_in_frontier": True,  # Include in frontier analysis
+        #     "class": "lstm",
+        #     "color": "tab:blue",
+        #     "hidden_dim": 80,
+        # },
+        # # 32d new scaling no rotary
+        # # sin_scaling
+        # {
+        #     "name": "32d bs 128",
+        #     "csv_path": "../experimental_data_folder/sin_scaling/32d_sinbs128.csv",
+        #     "marker": "o",
+        #     "include_in_frontier": False,  # Include in frontier analysis
+        #     "class": "lstm",
+        #     "color": "tab:green",
+        #     "hidden_dim": 32,
+        # },
+        # # 48d sin scaling
+        # {
+        #     "name": "48d bs 128",
+        #     "csv_path": "../experimental_data_folder/sin_scaling/48d_sinbs128lr2.csv",
+        #     "marker": "o",
+        #     "include_in_frontier": False,  # Include in frontier analysis
+        #     "class": "lstm",
+        #     "color": "tab:green",
+        #     "hidden_dim": 48,
+        # },
+        # # 64d sin scaling
+        # {
+        #     "name": "64d bs 128",
+        #     "csv_path": "../experimental_data_folder/sin_scaling/64d_sinbs128lr2.csv",
+        #     "marker": "o",
+        #     "include_in_frontier": False,  # Include in frontier analysis
+        #     "class": "lstm",
+        #     "color": "tab:green",
+        #     "hidden_dim": 64,
+        # },
+        # {
+        #     "name": "80d bs 128",
+        #     "csv_path": "../experimental_data_folder/sin_scaling/80d_sinbs128lr25.csv",
+        #     "marker": "o",
+        #     "include_in_frontier": False,  # Include in frontier analysis
+        #     "class": "lstm",
+        #     "color": "tab:green",
+        #     "hidden_dim": 80,
+        # },
+        # {
+        #     "name": "80d bs 128",
+        #     "csv_path": "../experimental_data_folder/sin_scaling/80d_sinbs128lr2.csv",
+        #     "marker": "o",
+        #     "include_in_frontier": False,  # Include in frontier analysis
+        #     "class": "lstm",
+        #     "color": "tab:green",
+        #     "hidden_dim": 80,
+        # },
+        # # 32 bs 64
+        # {
+        #     "name": "32d bs 64",
+        #     "csv_path": "../experimental_data_folder/sin_scaling/32d_sinbs64lr2.csv",
+        #     "marker": "o",
+        #     "include_in_frontier": False,  # Include in frontier analysis
+        #     "class": "lstm",
+        #     "color": "tab:green",
+        #     "hidden_dim": 32,
+        # },
+        # # 48 bs 64
+        # # 64 bs 64
+        # {
+        #     "name": "64d bs 64",
+        #     "csv_path": "../experimental_data_folder/sin_scaling/64d_sinbs64lr25.csv",
+        #     "marker": "o",
+        #     "include_in_frontier": False,  # Include in frontier analysis
+        #     "class": "lstm",
+        #     "color": "cyan",
+        #     "hidden_dim": 64,
+        # },
+        # # 80 bs 64
+        # {
+        #     "name": "80d bs 64",
+        #     "csv_path": "../experimental_data_folder/sin_scaling/80d_sinbs64.csv",
+        #     "marker": "o",
+        #     "include_in_frontier": False,  # Include in frontier analysis
+        #     "class": "lstm",
+        #     "color": "cyan",
+        #     "hidden_dim": 80,
+        # },
+        # # batch size variation sgd
+        # # 32d_best_sgd_bs16_lr1
+        # {
+        #     "name": "32d best sgd bs 16 lr 1",
+        #     "csv_path": "../experimental_data_folder/sgd_scaling/32d_best_sgd_bs16_lr1.csv",
+        #     "marker": "o",
+        #     "include_in_frontier": False,  # Include in frontier analysis
+        #     "class": "lstm",
+        #     "color": "tab:purple",
+        #     "hidden_dim": 32,
+        # },
+        # # 32d_best_sgd_bs32_lr1
+        # {
+        #     "name": "32d best sgd bs 32 lr 1",
+        #     "csv_path": "../experimental_data_folder/sgd_scaling/32d_best_sgd_bs32_lr1.csv",
+        #     "marker": "o",
+        #     "include_in_frontier": False,  # Include in frontier analysis
+        #     "class": "lstm",
+        #     "color": "tab:pink",
+        #     "hidden_dim": 32,
+        # },
+        # # look at sgd lstm  scaling
+        # # 32melis scaling
+        # {
+        #     "name": "32d melis sgd",
+        #     "csv_path": "../experimental_data_folder/lstm_sgd/32melis_steam_sgd.csv",
+        #     "marker": "o",
+        #     "include_in_frontier": False,  # Include in frontier analysis
+        #     "class": "lstm_sgd",
+        #     "color": "tab:orange",
+        #     "hidden_dim": 32,
+        # },
+        # {
+        #     "name": "32d melis sgd",
+        #     "csv_path": "../experimental_data_folder/lstm_sgd/32melis_steam_sgd.csv",
+        #     "marker": "o",
+        #     "include_in_frontier": False,  # Include in frontier analysis
+        #     "class": "lstm_sgd",
+        #     "color": "tab:orange",
+        #     "hidden_dim": 32,
+        # },
+        # # 48melis scaling
+        # {
+        #     "name": "48d melis sgd",
+        #     "csv_path": "../experimental_data_folder/lstm_sgd/48melis_steam_sgd.csv",
+        #     "marker": "o",
+        #     "include_in_frontier": False,  # Include in frontier analysis
+        #     "class": "lstm_sgd",
+        #     "color": "tab:orange",
+        #     "hidden_dim": 48,
+        # },
+        # {
+        #     "name": "48d melis sgd",
+        #     "csv_path": "../experimental_data_folder/lstm_sgd/48melis_steam_sgd.csv",
+        #     "marker": "o",
+        #     "include_in_frontier": False,  # Include in frontier analysis
+        #     "class": "lstm_sgd",
+        #     "color": "tab:orange",
+        #     "hidden_dim": 48,
+        # },
+        # # 64melis scaling
+        # {
+        #     "name": "64d melis sgd",
+        #     "csv_path": "../experimental_data_folder/lstm_sgd/64melis_steam_sgd.csv",
+        #     "marker": "o",
+        #     "include_in_frontier": False,  # Include in frontier analysis
+        #     "class": "lstm_sgd",
+        #     "color": "tab:orange",
+        #     "hidden_dim": 64,
+        # },
+        # # 128 melis scaling
+        # {
+        #     "name": "128d melis sgd",
+        #     "csv_path": "../experimental_data_folder/lstm_sgd/128melis_stream_sgd.csv",
+        #     "marker": "o",
+        #     "include_in_frontier": False,  # Include in frontier analysis
+        #     "class": "lstm_sgd",
+        #     "color": "tab:orange",
+        #     "hidden_dim": 128,
+        # },
+        # plot alg mult 64_sinusoidal
         {
-            "name": "32d new scaling",
-            "csv_path": "../experimental_data_folder/new_scaling/32d_new_scaling.csv",
+            "name": "64d sinusoidal",
+            "csv_path": "../experimental_data_folder/alg_mult/64d_sinusoidal.csv",
             "marker": "o",
-            "include_in_frontier": True,  # Include in frontier analysis
-            "class": "lstm",
-            "color": "tab:blue",
-            "hidden_dim": 32,
-        },
-        # 48d new scaling
-        {
-            "name": "48d new scaling",
-            "csv_path": "../experimental_data_folder/new_scaling/48d_new_scaling.csv",
-            "marker": "o",
-            "include_in_frontier": True,  # Include in frontier analysis
-            "class": "lstm",
-            "color": "tab:blue",
-            "hidden_dim": 48,
-        },
-        # 64d new scaling
-        {
-            "name": "64d new scaling",
-            "csv_path": "../experimental_data_folder/new_scaling/64d_new_scaling.csv",
-            "marker": "o",
-            "include_in_frontier": True,  # Include in frontier analysis
-            "class": "lstm",
-            "color": "tab:blue",
+            "include_in_frontier": False,  # Include in frontier analysis
+            "class": "transformer",
+            "color": "tab:orange",
             "hidden_dim": 64,
-        },
-        # 80d new scaling
-        {
-            "name": "80 new scaling",
-            "csv_path": "../experimental_data_folder/new_scaling/80d_new_scaling.csv",
-            "marker": "o",
-            "include_in_frontier": True,  # Include in frontier analysis
-            "class": "lstm",
-            "color": "tab:blue",
-            "hidden_dim": 80,
-        },
-        # 32d new scaling no rotary
-        # sin_scaling
-        {
-            "name": "32d bs 128",
-            "csv_path": "../experimental_data_folder/sin_scaling/32d_sinbs128.csv",
-            "marker": "o",
-            "include_in_frontier": False,  # Include in frontier analysis
-            "class": "lstm",
-            "color": "tab:green",
-            "hidden_dim": 32,
-        },
-        # 48d sin scaling
-        {
-            "name": "48d bs 128",
-            "csv_path": "../experimental_data_folder/sin_scaling/48d_sinbs128lr2.csv",
-            "marker": "o",
-            "include_in_frontier": False,  # Include in frontier analysis
-            "class": "lstm",
-            "color": "tab:green",
-            "hidden_dim": 48,
-        },
-        # 64d sin scaling
-        {
-            "name": "64d bs 128",
-            "csv_path": "../experimental_data_folder/sin_scaling/64d_sinbs128lr2.csv",
-            "marker": "o",
-            "include_in_frontier": False,  # Include in frontier analysis
-            "class": "lstm",
-            "color": "tab:green",
-            "hidden_dim": 64,
-        },
-        {
-            "name": "80d bs 128",
-            "csv_path": "../experimental_data_folder/sin_scaling/80d_sinbs128lr25.csv",
-            "marker": "o",
-            "include_in_frontier": False,  # Include in frontier analysis
-            "class": "lstm",
-            "color": "tab:green",
-            "hidden_dim": 80,
-        },
-        {
-            "name": "80d bs 128",
-            "csv_path": "../experimental_data_folder/sin_scaling/80d_sinbs128lr2.csv",
-            "marker": "o",
-            "include_in_frontier": False,  # Include in frontier analysis
-            "class": "lstm",
-            "color": "tab:green",
-            "hidden_dim": 80,
-        },
-        # 32 bs 64
-        {
-            "name": "32d bs 64",
-            "csv_path": "../experimental_data_folder/sin_scaling/32d_sinbs64lr2.csv",
-            "marker": "o",
-            "include_in_frontier": False,  # Include in frontier analysis
-            "class": "lstm",
-            "color": "tab:green",
-            "hidden_dim": 32,
-        },
-        # 48 bs 64
-        # 64 bs 64
-        {
-            "name": "64d bs 64",
-            "csv_path": "../experimental_data_folder/sin_scaling/64d_sinbs64lr25.csv",
-            "marker": "o",
-            "include_in_frontier": False,  # Include in frontier analysis
-            "class": "lstm",
-            "color": "cyan",
-            "hidden_dim": 64,
-        },
-        # 80 bs 64
-        {
-            "name": "80d bs 64",
-            "csv_path": "../experimental_data_folder/sin_scaling/80d_sinbs64.csv",
-            "marker": "o",
-            "include_in_frontier": False,  # Include in frontier analysis
-            "class": "lstm",
-            "color": "cyan",
-            "hidden_dim": 80,
-        },
-        # batch size variation sgd
-        # 32d_best_sgd_bs16_lr1
-        {
-            "name": "32d best sgd bs 16 lr 1",
-            "csv_path": "../experimental_data_folder/sgd_scaling/32d_best_sgd_bs16_lr1.csv",
-            "marker": "o",
-            "include_in_frontier": False,  # Include in frontier analysis
-            "class": "lstm",
-            "color": "tab:purple",
-            "hidden_dim": 32,
-        },
-        # 32d_best_sgd_bs32_lr1
-        {
-            "name": "32d best sgd bs 32 lr 1",
-            "csv_path": "../experimental_data_folder/sgd_scaling/32d_best_sgd_bs32_lr1.csv",
-            "marker": "o",
-            "include_in_frontier": False,  # Include in frontier analysis
-            "class": "lstm",
-            "color": "tab:pink",
-            "hidden_dim": 32,
-        },
-        # look at sgd lstm  scaling
-        # 32melis scaling
-        {
-            "name": "32d melis sgd",
-            "csv_path": "../experimental_data_folder/lstm_sgd/32melis_steam_sgd.csv",
-            "marker": "o",
-            "include_in_frontier": False,  # Include in frontier analysis
-            "class": "lstm_sgd",
-            "color": "tab:orange",
-            "hidden_dim": 32,
-        },
-        {
-            "name": "32d melis sgd",
-            "csv_path": "../experimental_data_folder/lstm_sgd/32melis_steam_sgd.csv",
-            "marker": "o",
-            "include_in_frontier": False,  # Include in frontier analysis
-            "class": "lstm_sgd",
-            "color": "tab:orange",
-            "hidden_dim": 32,
-        },
-        # 48melis scaling
-        {
-            "name": "48d melis sgd",
-            "csv_path": "../experimental_data_folder/lstm_sgd/48melis_steam_sgd.csv",
-            "marker": "o",
-            "include_in_frontier": False,  # Include in frontier analysis
-            "class": "lstm_sgd",
-            "color": "tab:orange",
-            "hidden_dim": 48,
-        },
-        {
-            "name": "48d melis sgd",
-            "csv_path": "../experimental_data_folder/lstm_sgd/48melis_steam_sgd.csv",
-            "marker": "o",
-            "include_in_frontier": False,  # Include in frontier analysis
-            "class": "lstm_sgd",
-            "color": "tab:orange",
-            "hidden_dim": 48,
-        },
-        # 64melis scaling
-        {
-            "name": "64d melis sgd",
-            "csv_path": "../experimental_data_folder/lstm_sgd/64melis_steam_sgd.csv",
-            "marker": "o",
-            "include_in_frontier": False,  # Include in frontier analysis
-            "class": "lstm_sgd",
-            "color": "tab:orange",
-            "hidden_dim": 64,
-        },
-        # 128 melis scaling
-        {
-            "name": "128d melis sgd",
-            "csv_path": "../experimental_data_folder/lstm_sgd/128melis_stream_sgd.csv",
-            "marker": "o",
-            "include_in_frontier": False,  # Include in frontier analysis
-            "class": "lstm_sgd",
-            "color": "tab:orange",
-            "hidden_dim": 128,
-        },
+        }
         # transformer scaling diagnostic
         # {
         #     "name": "64d sin more heads",

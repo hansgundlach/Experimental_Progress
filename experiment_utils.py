@@ -49,7 +49,10 @@ def create_multi_seed_experiments(base_experiments, seeds):
 
 # reducing lr expeirment max tokens to 129e6 / 8 to save time
 def create_multi_lr_experiments(
-    base_experiments, learning_rates, max_tokens=int(129e6 / 8)
+    base_experiments,
+    learning_rates,
+    max_tokens=int(129e6 / 8),
+    csv_log_interval_lr_sweep=200,
 ):
     """
     Create multiple versions of experiments with different learning rates.
@@ -134,10 +137,13 @@ def create_multi_lr_experiments(
 
                 new_sub_exp["label"] = f"{original_label}_lr_{lr_str}"
 
-                # Add learning rate and max_tokens to overrides, and update folder settings
+                # Add learning rate, max_tokens, and csv_log_interval to overrides, and update folder settings
                 if "overrides" in new_sub_exp:
                     new_sub_exp["overrides"]["learning_rate"] = lr
                     new_sub_exp["overrides"]["max_tokens"] = max_tokens
+                    new_sub_exp["overrides"][
+                        "csv_log_interval"
+                    ] = csv_log_interval_lr_sweep
                     # Remove custom folder settings - let the experiment name handle the directory
                     if custom_folder:
                         new_sub_exp["overrides"].pop("folder_name", None)
@@ -145,15 +151,19 @@ def create_multi_lr_experiments(
                 elif "config" in new_sub_exp:
                     new_sub_exp["config"]["learning_rate"] = lr
                     new_sub_exp["config"]["max_tokens"] = max_tokens
+                    new_sub_exp["config"][
+                        "csv_log_interval"
+                    ] = csv_log_interval_lr_sweep
                     # Remove custom folder settings - let the experiment name handle the directory
                     if custom_folder:
                         new_sub_exp["config"].pop("folder_name", None)
                         new_sub_exp["config"].pop("results_folder", None)
                 else:
-                    # If neither exists, create overrides with learning rate and max_tokens
+                    # If neither exists, create overrides with learning rate, max_tokens, and csv_log_interval
                     overrides_dict = {
                         "learning_rate": lr,
                         "max_tokens": max_tokens,
+                        "csv_log_interval": 200,
                     }
                     # Don't add custom folder for new overrides - let experiment name handle it
                     new_sub_exp["overrides"] = overrides_dict
@@ -426,22 +436,31 @@ def gen_experim(
         num_heads -= 1
 
     # 3. Calculate total parameters and scale max_tokens to 20x parameters
+    # Use user overrides for pos_encoding and tie_embeddings if provided
+    pos_encoding = overrides.get("pos_encoding", base_config["pos_encoding"])
+    tie_embeddings = overrides.get("tie_embeddings", base_config["tie_embeddings"])
+
     total_params = calculate_transformer_params(
         hidden_dim,
         num_layers,
-        pos_encoding=base_config["pos_encoding"],
-        tie_embeddings=base_config["tie_embeddings"],
+        pos_encoding=pos_encoding,
+        tie_embeddings=tie_embeddings,
     )
     max_tokens = int(20 * total_params)
 
     # 4. Estimate gradient accumulation based on GPU memory
     # Use target_effective_batch_size for optimization goals
-    target_effective_batch_size = base_config["target_effective_batch_size"]
+    # Check if user provided target_effective_batch_size and seq_length in overrides first
+    target_effective_batch_size = overrides.get(
+        "target_effective_batch_size", base_config["target_effective_batch_size"]
+    )
+    seq_length = overrides.get("seq_length", base_config["seq_length"])
+
     grad_accum_steps = estimate_gpu_memory_and_grad_accum(
         hidden_dim,
         num_layers,
         target_effective_batch_size,
-        base_config["seq_length"],
+        seq_length,
         gpu_type,
     )
 
@@ -500,21 +519,45 @@ def get_base_config():
     Get the base configuration for experiments.
 
     Returns:
-        Dictionary containing base configuration parameters
+        Dictionary containing base configuration parameters including:
+
+        Dataset Configuration:
+        - data_path: Path to the dataset file
+        - max_tokens: Maximum number of tokens to use from dataset
+        - train_split: Fraction of dataset for training (default: 0.9 = 90%)
+        - val_split: Fraction of dataset for validation (default: 0.1 = 10%)
+        - fixed_val_tokens: Fixed number of tokens for validation set (default: None)
+
+        Model Configuration:
+        - hidden_dim, num_layers, num_heads: Model architecture parameters
+        - seq_length, pos_encoding: Sequence and positional encoding settings
+        - activation, norm_type, norm_placement: Activation and normalization settings
+
+        Training Configuration:
+        - learning_rate, lr_schedule, warmup_frac: Learning rate settings
+        - batch_size, target_effective_batch_size: Batch size configuration
+        - gradient_accumulation_steps: Gradient accumulation for large effective batch sizes
+        - optimizer, weight_decay: Optimizer configuration
+
+        Other Configuration:
+        - seed: Random seed for reproducibility
+        - max_epochs, min_epochs: Training duration
+        - use_gradient_clipping, gradient_clip_val: Gradient clipping settings
+        - Complete-P and muP scaling parameters
     """
     return {
         "data_path": "Datasets/c4_subset.txt",  # Actual dataset file path
         "max_tokens": int(
             5 * 1e7 / 4
         ),  # Maximum number of tokens to use from dataset (converted from old character limit)
-        "target_effective_batch_size": 128,  # Target effective batch size for optimization
-        "batch_size": 128,  # Default per-step batch size (will be overridden by gen_experim)
+        "target_effective_batch_size": 64,  # Target effective batch size for optimization
+        "batch_size": 64,  # Default per-step batch size (will be overridden by gen_experim)
         "learning_rate": 0.001 * math.sqrt(4),
         "min_lr": 1e-5,
         "min_lr_multiplier": 0.1,
         "lr_schedule": "cosine_warmup",
-        "warmup_frac": 0.02,
-        "weight_decay": 0.01,
+        "warmup_frac": 0.1,
+        "weight_decay": 0.0,
         "hidden_dim": 64,  # Base hidden dimension
         "num_layers": 4,  # Base number of layers
         "num_heads": 4,
@@ -540,7 +583,7 @@ def get_base_config():
         "norm_type": "layer",
         "norm_placement": "pre",
         "results_folder": "new_experiments_folder_1",
-        "csv_log_interval": 10,
+        "csv_log_interval": 50,
         "seed": 123,
         # Complete-P (default OFF; non-breaking)
         "enable_completep": False,
@@ -557,4 +600,8 @@ def get_base_config():
         "sgd_momentum": 0.9,  # SGD momentum parameter
         "sgd_nesterov": False,  # SGD Nesterov momentum
         "use_amp": False,
+        # Dataset split configuration
+        "train_split": 0.9,  # Fraction of dataset to use for training (default: 90%)
+        "val_split": 0.1,  # Fraction of dataset to use for validation (default: 10%)
+        "fixed_val_tokens": None,  # Fixed number of tokens for validation set (None = use percentage split)
     }

@@ -320,7 +320,14 @@ class SimpleTransformerLayer(nn.Module):
         self.activation_type = config.activation
         self.dropout = nn.Dropout(dropout)
         self.use_rotary = config.pos_encoding == "rotary"
-        self.norm_placement = getattr(config, "norm_placement", "pre")
+        # Validate and set norm_placement
+        norm_placement = getattr(config, "norm_placement", "pre")
+        if norm_placement not in ["pre", "post"]:
+            valid_placements = ["pre", "post"]
+            raise ValueError(
+                f"Unsupported norm_placement: '{norm_placement}'. Valid options are: {valid_placements}"
+            )
+        self.norm_placement = norm_placement
         # Complete-P residual scaling
         self.enable_completep = getattr(config, "enable_completep", False)
         self.completep_alpha = float(getattr(config, "completep_alpha", 1.0))
@@ -332,10 +339,16 @@ class SimpleTransformerLayer(nn.Module):
             self.residual_scale = 1.0
 
         # Choose normalization type
-        if getattr(config, "norm_type", "layer") == "rms":
+        norm_type = getattr(config, "norm_type", "layer")
+        if norm_type == "rms":
             norm_layer = RMSNorm
-        else:
+        elif norm_type == "layer":
             norm_layer = nn.LayerNorm
+        else:
+            valid_norm_types = ["layer", "rms"]
+            raise ValueError(
+                f"Unsupported norm_type: '{norm_type}'. Valid options are: {valid_norm_types}"
+            )
 
         self.norm1 = norm_layer(hidden_dim)
         self.norm2 = norm_layer(hidden_dim)
@@ -439,7 +452,7 @@ class SimpleTransformerLayer(nn.Module):
                 causal=True,
             )
 
-            # Reshape back
+            # Reshape backf
             attn_output = attn_output.transpose(1, 2)  # [B, L, H, D] -> [B, H, L, D]
         else:
             # Use standard attention for CPU/MPS or when Flash Attention is not available
@@ -798,6 +811,24 @@ def train(gpu_id=None, csv_log_path=None):
             )
             csv_writer = None
 
+    # Validate training parameters
+    if config.batch_size <= 0:
+        raise ValueError(f"batch_size must be positive, got: {config.batch_size}")
+    if config.learning_rate <= 0:
+        raise ValueError(f"learning_rate must be positive, got: {config.learning_rate}")
+    if config.gradient_accumulation_steps <= 0:
+        raise ValueError(
+            f"gradient_accumulation_steps must be positive, got: {config.gradient_accumulation_steps}"
+        )
+    if config.max_epochs <= 0:
+        raise ValueError(f"max_epochs must be positive, got: {config.max_epochs}")
+    if hasattr(config, "gradient_clip_val") and config.gradient_clip_val <= 0:
+        raise ValueError(
+            f"gradient_clip_val must be positive, got: {config.gradient_clip_val}"
+        )
+    if config.seq_length <= 0:
+        raise ValueError(f"seq_length must be positive, got: {config.seq_length}")
+
     # random seeding to make experiments more reproducable
     seed = config.seed
     torch.manual_seed(seed)
@@ -863,6 +894,20 @@ def train(gpu_id=None, csv_log_path=None):
         )
     else:
         print("No warm-up will be used.")
+
+    # Validate critical model parameters before initialization
+    if config.hidden_dim <= 0:
+        raise ValueError(f"hidden_dim must be positive, got: {config.hidden_dim}")
+    if config.num_layers <= 0:
+        raise ValueError(f"num_layers must be positive, got: {config.num_layers}")
+    if config.num_heads <= 0:
+        raise ValueError(f"num_heads must be positive, got: {config.num_heads}")
+    if config.hidden_dim % config.num_heads != 0:
+        raise ValueError(
+            f"hidden_dim ({config.hidden_dim}) must be divisible by num_heads ({config.num_heads})"
+        )
+    if config.dropout < 0 or config.dropout >= 1:
+        raise ValueError(f"dropout must be in [0, 1), got: {config.dropout}")
 
     # Initialize model
     model = SimpleTransformer(
@@ -968,6 +1013,38 @@ def train(gpu_id=None, csv_log_path=None):
             model.fc.weight, mean=0.0, std=init_scale / math.sqrt(num_layers)
         )
         nn.init.zeros_(model.fc.bias)
+
+    elif config.init_scheme == "bert_gpt":
+        # BERT/GPT-style initialization
+        # All Linear & Embedding weights: Normal(mean=0, std=0.02)
+        # Biases: zeros
+        # LayerNorm/RMSNorm: weight (gamma) = 1, bias (beta) = 0
+        # Positional embeddings: same Normal(0, 0.02) (if learned)
+        init_std = 0.02
+
+        # Initialize all Linear layers
+        for module in model.modules():
+            if isinstance(module, nn.Linear):
+                nn.init.normal_(module.weight, mean=0.0, std=init_std)
+                if module.bias is not None:
+                    nn.init.zeros_(module.bias)
+            elif isinstance(module, (nn.LayerNorm, RMSNorm)):
+                # LayerNorm/RMSNorm: weight (gamma) = 1, bias (beta) = 0
+                if hasattr(module, "weight") and module.weight is not None:
+                    nn.init.ones_(module.weight)
+                if hasattr(module, "bias") and module.bias is not None:
+                    nn.init.zeros_(module.bias)
+
+        # Initialize embedding weights
+        nn.init.normal_(model.embedding.weight, mean=0.0, std=init_std)
+
+        # Initialize positional embedding if using learned positional embeddings
+        if model.pos_encoding == "learned" and hasattr(model, "pos_emb"):
+            nn.init.normal_(model.pos_emb.data, mean=0.0, std=init_std)
+
+        # Final output layer (will be handled by Linear layer loop above)
+        # Note: If embeddings are tied, they share weights so no separate init needed
+
     elif config.init_scheme == "default":
         pass
     else:
@@ -1252,8 +1329,18 @@ def train(gpu_id=None, csv_log_path=None):
         scheduler = optim.lr_scheduler.LambdaLR(optimizer, lr_lambda=linear_with_warmup)
         scheduler_type = "step"
     else:
-        scheduler = None
-        scheduler_type = None
+        # Validate lr_schedule parameter
+        valid_schedules = [
+            "cosine",
+            "cosine_warmup",
+            "inverse_sqrt",
+            "one_cycle",
+            "transformer",
+            "linear_warmup",
+        ]
+        raise ValueError(
+            f"Unsupported lr_schedule: '{config.lr_schedule}'. Valid options are: {valid_schedules}"
+        )
 
     # === Prepare profiler log directory and estimate FLOPs per training step ===
     profiler_dir = "profiler_logs"
@@ -1620,9 +1707,41 @@ def train(gpu_id=None, csv_log_path=None):
 
 
 def get_dataset(config):
-    """Load and prepare dataset using PyTorch Dataset"""
+    """
+    Load and prepare dataset using PyTorch Dataset with configurable train/validation splits.
+
+    Args:
+        config: Configuration object containing dataset parameters:
+            - data_path: Path to the dataset file
+            - max_tokens: Maximum number of tokens to use from dataset (optional)
+            - train_split: Fraction of dataset for training (default: 0.9)
+            - val_split: Fraction of dataset for validation (default: 0.1)
+            - fixed_val_tokens: Fixed number of tokens for validation set (optional, None = use percentage split)
+            - seq_length: Sequence length for tokenization
+            - stride: Stride for sequence generation
+            - seed: Random seed for reproducibility
+
+    Returns:
+        Tuple of (train_dataset, val_dataset, tokenizer, full_text)
+
+    Note:
+        - If fixed_val_tokens is specified, it takes precedence over percentage-based splits
+        - Fixed validation size uses character-based splitting (4:1 char:token ratio)
+        - Percentage-based splits use sentence-level splitting for better data integrity
+        - train_split + val_split should not exceed 1.0
+    """
     # Move this block before get_dataset() call
-    seed = config.seed
+    if hasattr(config, "get"):
+        # Dictionary-like config
+        seed = config.get("seed", 123)
+        data_path = config.get("data_path", None)
+        max_tokens = config.get("max_tokens", None)
+    else:
+        # Object-like config
+        seed = getattr(config, "seed", 123)
+        data_path = getattr(config, "data_path", None)
+        max_tokens = getattr(config, "max_tokens", None)
+
     torch.manual_seed(seed)
     np.random.seed(seed)
     random.seed(seed)
@@ -1637,7 +1756,6 @@ def get_dataset(config):
         )
 
     # Get the text data from configurable path (like LSTM system)
-    data_path = getattr(config, "data_path", None)
     if not data_path:
         raise ValueError("data_path must be specified in config to load dataset")
 
@@ -1651,7 +1769,6 @@ def get_dataset(config):
     text = Path(data_path).read_text(encoding="utf-8")
 
     # Apply token-based limit if specified (convert to characters using 4:1 ratio)
-    max_tokens = getattr(config, "max_tokens", None)
     if max_tokens:
         # Convert token limit to character limit using 4:1 ratio (same as LSTM system)
         max_characters = int(max_tokens * 4)
@@ -1677,28 +1794,100 @@ def get_dataset(config):
     sentences = text.split("\n")
     random.shuffle(sentences)
 
-    # Now split
-    split_idx = int(len(sentences) * 0.9)
-    train_sentences = sentences[:split_idx]
-    val_sentences = sentences[split_idx:]
+    # Get split configuration from config
+    if hasattr(config, "get"):
+        # Dictionary-like config
+        train_split = config.get("train_split", 0.9)
+        val_split = config.get("val_split", 0.1)
+        fixed_val_tokens = config.get("fixed_val_tokens", None)
+    else:
+        # Object-like config
+        train_split = getattr(config, "train_split", 0.9)
+        val_split = getattr(config, "val_split", 0.1)
+        fixed_val_tokens = getattr(config, "fixed_val_tokens", None)
 
-    train_text = "\n".join(train_sentences)
-    val_text = "\n".join(val_sentences)
+    # Validate split ratios
+    if not (0.0 < train_split < 1.0):
+        raise ValueError(f"train_split must be between 0 and 1, got: {train_split}")
+    if not (0.0 < val_split < 1.0):
+        raise ValueError(f"val_split must be between 0 and 1, got: {val_split}")
+    if train_split + val_split > 1.0:
+        raise ValueError(
+            f"train_split + val_split cannot exceed 1.0, got: {train_split + val_split}"
+        )
+
+    if fixed_val_tokens is not None:
+        # Use fixed validation token size
+        if fixed_val_tokens <= 0:
+            raise ValueError(
+                f"fixed_val_tokens must be positive, got: {fixed_val_tokens}"
+            )
+
+        # Convert fixed token count to approximate character count (4:1 ratio)
+        fixed_val_chars = int(fixed_val_tokens * 4)
+
+        # Calculate how many characters we need for validation
+        total_chars = len(text)
+        if fixed_val_chars >= total_chars:
+            raise ValueError(
+                f"fixed_val_tokens ({fixed_val_tokens}) requires more characters than available in dataset"
+            )
+
+        # Split by characters to get exact token count
+        val_text = text[-fixed_val_chars:]  # Take last N characters for validation
+        train_text = text[:-fixed_val_chars]  # Rest goes to training
+
+        print(
+            f"Using fixed validation size: {fixed_val_tokens:,} tokens (~{fixed_val_chars:,} characters)"
+        )
+        print(
+            f"Training set: {len(train_text):,} characters (~{len(train_text)//4:,} tokens)"
+        )
+        print(
+            f"Validation set: {len(val_text):,} characters (~{len(val_text)//4:,} tokens)"
+        )
+    else:
+        # Use percentage-based split
+        split_idx = int(len(sentences) * train_split)
+        train_sentences = sentences[:split_idx]
+        val_sentences = sentences[split_idx:]
+
+        train_text = "\n".join(train_sentences)
+        val_text = "\n".join(val_sentences)
+
+        print(
+            f"Using percentage-based split: {train_split*100:.1f}% train, {val_split*100:.1f}% validation"
+        )
+        print(
+            f"Training set: {len(train_text):,} characters (~{len(train_text)//4:,} tokens)"
+        )
+        print(
+            f"Validation set: {len(val_text):,} characters (~{len(val_text)//4:,} tokens)"
+        )
 
     # Create datasets with GPT2 tokenizer
+    if hasattr(config, "get"):
+        # Dictionary-like config
+        seq_length = config.get("seq_length", 128)
+        stride = config.get("stride", 128)
+    else:
+        # Object-like config
+        seq_length = getattr(config, "seq_length", 128)
+        stride = getattr(config, "stride", 128)
+
     train_dataset = TextDataset(
         text=train_text,
-        seq_length=config.seq_length,
+        seq_length=seq_length,
         tokenizer=tokenizer,
-        stride=config.stride,
+        stride=stride,
         random_offset=True,
     )
 
     val_dataset = TextDataset(
         text=val_text,
-        seq_length=config.seq_length,
+        seq_length=seq_length,
         tokenizer=tokenizer,
-        stride=config.stride,
+        stride=stride,
         random_offset=False,
     )
 

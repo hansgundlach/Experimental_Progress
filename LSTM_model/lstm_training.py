@@ -1012,7 +1012,85 @@ def evaluate_model_amp(
     return total_loss / total_tokens
 
 
-def train_model(config: Dict, run_name: str = None, csv_log_path: str = None):
+def evaluate_model_non_streaming(
+    model: nn.Module,
+    data_loader: DataLoader,
+    criterion: nn.Module,
+    device: torch.device,
+    config: Dict = None,
+    use_amp: bool = False,
+) -> float:
+    """
+    Evaluate model in non-streaming mode, similar to transformer evaluation.
+    Uses blockization with seq_len=128, stride=128, and resets hidden state for each block.
+    This matches how transformers are evaluated for fair comparison.
+    """
+    model.eval()
+    total_loss = 0
+    total_tokens = 0
+    
+    # Parameters for transformer-like evaluation
+    block_size = 128  # seq_len for each block
+    stride = 128      # stride (non-overlapping blocks)
+    
+    # Helper function to get vocab size
+    def get_vocab_size():
+        return model.vocab_size
+    
+    with torch.no_grad():
+        for batch_idx, (inputs, targets) in enumerate(data_loader):
+            inputs, targets = inputs.to(device), targets.to(device)
+            
+            # Handle tensor shapes - if 3D, squeeze first dimension
+            if inputs.dim() == 3:
+                inputs = inputs.squeeze(0)
+                targets = targets.squeeze(0)
+            
+            batch_size, sequence_length = inputs.size()
+            
+            # Process sequence in non-overlapping blocks of size block_size
+            for start_idx in range(0, sequence_length, stride):
+                end_idx = min(start_idx + block_size, sequence_length)
+                
+                # Skip if block is too small
+                if end_idx - start_idx < 2:  # Need at least 2 tokens for input/target pair
+                    continue
+                    
+                # Extract block
+                block_inputs = inputs[:, start_idx:end_idx]
+                block_targets = targets[:, start_idx:end_idx]
+                
+                # Reset hidden state for each block (no carry-over like transformers)
+                hidden = model.init_hidden(batch_size, device)
+                
+                # Forward pass through this block
+                if use_amp:
+                    with autocast():
+                        outputs, _ = model(block_inputs, hidden)
+                        # Compute loss
+                        outputs = outputs.view(-1, get_vocab_size())
+                        block_targets_flat = block_targets.view(-1)
+                        loss_sum = criterion(outputs, block_targets_flat)
+                else:
+                    outputs, _ = model(block_inputs, hidden)
+                    # Compute loss  
+                    outputs = outputs.view(-1, get_vocab_size())
+                    block_targets_flat = block_targets.view(-1)
+                    loss_sum = criterion(outputs, block_targets_flat)
+                
+                # Accumulate loss and token count for this block
+                block_tokens = block_inputs.numel()
+                total_loss += loss_sum.item()
+                total_tokens += block_tokens
+    
+    if total_tokens == 0:
+        return float("nan")
+    
+    # Return per-token loss for consistent logging
+    return total_loss / total_tokens
+
+
+def train_model(config: Dict, run_name: str = None, csv_log_path: str = None, folder_name: str = None):
     """Main training function with mixed precision and gradient accumulation"""
     # Initialize wandb
     if config["wandb_offline"]:
@@ -1029,16 +1107,21 @@ def train_model(config: Dict, run_name: str = None, csv_log_path: str = None):
             os.makedirs(os.path.dirname(csv_log_path), exist_ok=True)
             csv_file = open(csv_log_path, "w", newline="")
             csv_writer = csv.writer(csv_file)
-            csv_writer.writerow(
-                [
-                    "step",
-                    "training_loss",
-                    "validation_loss",
-                    "total_flops_profiler",
-                    "theoretical_flops",
-                    "tokens",
-                ]
-            )
+            # Determine header based on joint_evaluations setting
+            header = [
+                "step",
+                "training_loss",
+                "validation_loss",
+                "total_flops_profiler", 
+                "theoretical_flops",
+                "tokens",
+            ]
+            
+            # Add non-streaming validation loss column if joint evaluations enabled
+            if config.get("joint_evaluations", False):
+                header.insert(-3, "non_streaming_loss")  # Insert before flops columns
+                
+            csv_writer.writerow(header)
             csv_file.flush()  # Immediately write header to disk
             print(f"Logging training progress to {csv_log_path}")
         except IOError as e:
@@ -1052,7 +1135,9 @@ def train_model(config: Dict, run_name: str = None, csv_log_path: str = None):
     effective_batch_size = config["batch_size"] * gradient_accumulation_steps
     config["effective_batch_size"] = effective_batch_size  # Store for reporting
 
-    wandb.init(project=config["wandb_project"], config=config, name=run_name)
+    # Use folder_name as project name if provided, otherwise use config default
+    project_name = folder_name if folder_name else config["wandb_project"]
+    wandb.init(project=project_name, config=config, name=run_name)
 
     # === Seed everything exactly as in transformer.train() ===
     seed = wandb.config.seed
@@ -1465,6 +1550,13 @@ def train_model(config: Dict, run_name: str = None, csv_log_path: str = None):
                     current_val_loss = evaluate_model_amp(
                         model, val_loader, criterion, device, use_amp, config
                     )
+                    
+                    # Run non-streaming evaluation if joint evaluations enabled
+                    current_val_loss_non_streaming = None
+                    if config.get("joint_evaluations", False):
+                        current_val_loss_non_streaming = evaluate_model_non_streaming(
+                            model, val_loader, criterion, device, config, use_amp
+                        )
                 model.train()
 
                 total_flops = flop_counter.total_flops
@@ -1483,27 +1575,47 @@ def train_model(config: Dict, run_name: str = None, csv_log_path: str = None):
                 )
                 theoretical_flops_chinchilla = 6 * total_model_params * tokens_processed
 
-                csv_writer.writerow(
-                    [
-                        current_step,
-                        f"{current_train_loss:.4f}",
-                        f"{current_val_loss:.4f}",
-                        f"{total_flops:.2e}",
-                        f"{theoretical_flops_chinchilla:.2e}",
-                        f"{tokens_processed}",
-                    ]
-                )
+                # Prepare data row based on joint_evaluations setting
+                data_row = [
+                    current_step,
+                    f"{current_train_loss:.4f}",
+                    f"{current_val_loss:.4f}",
+                ]
+                
+                # Add non-streaming validation loss if enabled and available
+                if config.get("joint_evaluations", False):
+                    non_streaming_val = (
+                        f"{current_val_loss_non_streaming:.4f}" 
+                        if current_val_loss_non_streaming is not None 
+                        else "N/A"
+                    )
+                    data_row.append(non_streaming_val)
+                
+                # Add remaining columns
+                data_row.extend([
+                    f"{total_flops:.2e}",
+                    f"{theoretical_flops_chinchilla:.2e}",
+                    f"{tokens_processed}",
+                ])
+                
+                csv_writer.writerow(data_row)
                 csv_file.flush()  # Immediately write row to disk
 
                 # ALSO: log validation loss and cumulative FLOPs to W&B
-                wandb.log(
-                    {
-                        "val_loss_per_token": current_val_loss,
-                        "validation_loss": current_val_loss,  # Keep for backwards compatibility
-                        "total_flops_profiler": total_flops,
-                    },
-                    step=current_step,
-                )
+                wandb_log_dict = {
+                    "val_loss_per_token": current_val_loss,
+                    "validation_loss": current_val_loss,  # Keep for backwards compatibility
+                    "total_flops_profiler": total_flops,
+                }
+                
+                # Add non-streaming metrics if available
+                if config.get("joint_evaluations", False) and current_val_loss_non_streaming is not None:
+                    wandb_log_dict.update({
+                        "val_loss_non_streaming_per_token": current_val_loss_non_streaming,
+                        "validation_loss_non_streaming": current_val_loss_non_streaming,
+                    })
+                
+                wandb.log(wandb_log_dict, step=current_step)
 
             # Print batch statistics
             if batch_idx % config["print_every"] == 0:
@@ -1529,6 +1641,14 @@ def train_model(config: Dict, run_name: str = None, csv_log_path: str = None):
         val_loss = evaluate_model_amp(
             model, val_loader, criterion, device, use_amp, config
         )
+        
+        # Joint evaluations: also run non-streaming evaluation if enabled
+        joint_evaluations = config.get("joint_evaluations", False)
+        val_loss_non_streaming = None
+        if joint_evaluations:
+            val_loss_non_streaming = evaluate_model_non_streaming(
+                model, val_loader, criterion, device, config, use_amp
+            )
 
         # Calculate perplexity
         train_perplexity = np.exp(avg_train_loss)
@@ -1539,7 +1659,10 @@ def train_model(config: Dict, run_name: str = None, csv_log_path: str = None):
         print(
             f"  Training Loss: {avg_train_loss:.4f} (Perplexity: {train_perplexity:.2f})"
         )
-        print(f"  Validation Loss: {val_loss:.4f} (Perplexity: {val_perplexity:.2f})")
+        print(f"  Validation Loss (Streaming): {val_loss:.4f} (Perplexity: {val_perplexity:.2f})")
+        if joint_evaluations and val_loss_non_streaming is not None:
+            val_perplexity_non_streaming = np.exp(val_loss_non_streaming)
+            print(f"  Validation Loss (Non-Streaming): {val_loss_non_streaming:.4f} (Perplexity: {val_perplexity_non_streaming:.2f})")
         print(f"  Epoch Time: {epoch_time:.2f}s")
         print(
             f"  Effective Batch Size: {effective_batch_size} (Physical: {config['batch_size']} × {gradient_accumulation_steps})"
@@ -1568,6 +1691,13 @@ def train_model(config: Dict, run_name: str = None, csv_log_path: str = None):
             "mixed_precision": use_amp,
             "effective_batch_size": effective_batch_size,
         }
+        
+        # Add non-streaming metrics if joint evaluations enabled
+        if joint_evaluations and val_loss_non_streaming is not None:
+            log_dict.update({
+                "val_loss_non_streaming": val_loss_non_streaming,
+                "val_perplexity_non_streaming": np.exp(val_loss_non_streaming),
+            })
 
         if flop_counter.profiled and flop_counter.time_per_batch:
             log_dict.update(

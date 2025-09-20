@@ -6,6 +6,9 @@ import matplotlib.pyplot as plt
 
 # %%
 
+IRREDUCIBLE_LOSS = 1.8
+GAMMA = 0.155
+
 
 def final_loss(file_name):
     file = pd.read_csv(file_name)
@@ -22,13 +25,30 @@ def compute_effect(loss_1, loss_2):
 def loss_statistics(file_prefix):
     # Search for files matching the prefix in the specified directory
     # This will match both 'prefix.csv' and 'prefix_seed.csv'
-    base_path = "../experimental_data_folder/"
+    import os
+
+    # Check if we're in the experimental_analysis directory or the main project directory
+    if os.path.exists("../experimental_data_folder/"):
+        base_path = "../experimental_data_folder/"
+    else:
+        base_path = "experimental_data_folder/"
+
     file_pattern = f"{base_path}{file_prefix}*.csv"
     print(f"Searching for files with pattern: {file_pattern}")
-    matching_files = glob.glob(file_pattern)
+    all_matching_files = glob.glob(file_pattern)
+
+    # Filter to only include files with seed numbers at the end (e.g., _123.csv, _456.csv)
+    import re
+
+    seed_pattern = re.compile(r"_\d+\.csv$")
+    matching_files = [f for f in all_matching_files if seed_pattern.search(f)]
+
+    print(
+        f"Found {len(all_matching_files)} total files, {len(matching_files)} with seed numbers"
+    )
 
     if not matching_files:
-        print(f"No files found for prefix: {file_prefix}")
+        print(f"No files with seed numbers found for prefix: {file_prefix}")
         return None, None
 
     losses = []
@@ -36,13 +56,21 @@ def loss_statistics(file_prefix):
         try:
             df = pd.read_csv(file_path)
             if "Validation Loss" in df.columns:
-                losses.append(df["Validation Loss"].iloc[-1])
+                loss_val = df["Validation Loss"].iloc[-1]
             elif "validation_loss" in df.columns:
-                losses.append(df["validation_loss"].iloc[-1])
+                loss_val = df["validation_loss"].iloc[-1]
             else:
                 print(
                     f"Warning: 'Validation Loss' or 'validation_loss' column not found in {file_path}"
                 )
+                continue
+
+            # Only add non-nan values
+            if not np.isnan(loss_val):
+                losses.append(loss_val)
+            else:
+                print(f"Warning: Found nan validation loss in {file_path}, skipping")
+
         except Exception as e:
             print(f"Error reading {file_path}: {e}")
 
@@ -57,12 +85,12 @@ def loss_statistics(file_prefix):
 
 
 # find compute multiplier
-def compute_multiplier(loss_1, loss_2, irreducible=1.7, C=0.155):
+def compute_multiplier(loss_1, loss_2, irreducible=IRREDUCIBLE_LOSS, C=GAMMA):
     return np.exp(-(np.log(loss_1 - irreducible) - np.log(loss_2 - irreducible)) / C)
 
 
 def compute_multiplier_estimate(
-    base_loss_prefix, second_loss_prefix, irreducible=1.7, C=0.155
+    base_loss_prefix, second_loss_prefix, irreducible=IRREDUCIBLE_LOSS, C=GAMMA
 ):
     """
     Computes the multiplier estimate and its adjusted error bar for two sets of experiments.
@@ -109,7 +137,7 @@ def compute_multiplier_estimate(
 
 # %%
 # exampple usage
-loss_statistics("Activation_Functions_Comparison/ReLU")
+loss_statistics("alg_mult/64d_swiglu")
 
 # %%
 
@@ -117,38 +145,101 @@ loss_statistics("Activation_Functions_Comparison/ReLU")
 
 
 swiglu_estimate = compute_multiplier_estimate(
-    "activation_function/SwiGLU", "activation_function/GELU"
+    "alg_mult/64d_swiglu", "alg_mult/64d_gelu"
 )
-adam_estimate = compute_multiplier_estimate(
-    "optimizer_experiments/32d_adam", "optimizer_experiments/32d_sgd"
+print(swiglu_estimate)
+# %%
+
+swiglu_relu_estimate = compute_multiplier_estimate(
+    "alg_mult/64d_swiglu", "alg_mult/64d_relu"
 )
-rotary_estimate = compute_multiplier_estimate(
-    "pos_encoding/32d_rotary", "pos_encoding/32d_learned"
+
+
+print(swiglu_relu_estimate)
+# %%
+gelu_relu_estimate = compute_multiplier_estimate(
+    "alg_mult/64d_gelu", "alg_mult/64d_relu"
 )
-learned_estimate = compute_multiplier_estimate(
-    "pos_encoding/32d_learned", "pos_encoding/32d_sinusoidal"
+print(gelu_relu_estimate)
+# rotary vs sinusoidal
+rotary_sinusoidal_estimate = compute_multiplier_estimate(
+    "alg_mult/64d_rotary", "alg_mult/64d_sinusoidal"
 )
-# trans_lstm = compute_multiplier_estimate("Optimizer_Experiments/32d_adam", "lstm_optimizer/LSTMADAM")
-trans_lstm = compute_multiplier_estimate("Optimizer_Experiments/32d_adam", "LSTM_Hidden_Dim_Scaling/LSTM_16d")
-if trans_lstm[0] is not None:
-    trans_lstm = [(10/3) * trans_lstm[0], (10/3) * trans_lstm[1]]
-print("SwiGLU estimate:", swiglu_estimate)
-print("Adam estimate:", adam_estimate)
-print("Rotary estimate:", rotary_estimate)
-print("Learned estimate:", learned_estimate)
-print("Transformer Estimate:", trans_lstm)
+print(rotary_sinusoidal_estimate)
+# %%
+learned_vs_sinusoidal_estimate = compute_multiplier_estimate(
+    "alg_mult/64d_learned", "alg_mult/64d_sinusoidal"
+)
+print(learned_vs_sinusoidal_estimate)
+# %%
+
+# rotay vs learend
+rotary_learned_estimate = compute_multiplier_estimate(
+    "alg_mult/64d_rotary", "alg_mult/64d_learned"
+)
+print(rotary_learned_estimate)
+
+# transformer vs lstm
+transformer_lstm_estimate = [compute_multiplier(5.2039, 5.8135), 0]
+# learned vs sinusoidal
+print(transformer_lstm_estimate)
+# %%
+# estimate of csoine warmup vs inverss_sqrt
+cosine_inverse_sqrt_estimate = compute_multiplier_estimate(
+    "alg_mult/64d_gelu", "alg_mult/64d_lr_inverse_sqrt"
+)
+print(cosine_inverse_sqrt_estimate)
+# %%
+
+
+cosine_v_linear_estimate = compute_multiplier_estimate(
+    "alg_mult/64d_gelu", "alg_mult/64d_linear_warmup"
+)
+print(cosine_v_linear_estimate, "cosine vs linear")
+
+
+# %%
+# adam_estimate = compute_multiplier_estimate(
+#     "optimizer_experiments/32d_adam", "optimizer_experiments/32d_sgd"
+# )
+# rotary_estimate = compute_multiplier_estimate(
+#     "pos_encoding/32d_rotary", "pos_encoding/32d_learned"
+# )
+# learned_estimate = compute_multiplier_estimate(
+#     "pos_encoding/32d_learned", "pos_encoding/32d_sinusoidal"
+# )
+# # trans_lstm = compute_multiplier_estimate("Optimizer_Experiments/32d_adam", "lstm_optimizer/LSTMADAM")
+# trans_lstm = compute_multiplier_estimate(
+#     "Optimizer_Experiments/32d_adam", "LSTM_Hidden_Dim_Scaling/LSTM_16d"
+# )
+# if trans_lstm[0] is not None:
+#     trans_lstm = [(10 / 3) * trans_lstm[0], (10 / 3) * trans_lstm[1]]
+# print("SwiGLU estimate:", swiglu_estimate)
+# print("Adam estimate:", adam_estimate)
+# print("Rotary estimate:", rotary_estimate)
+# print("Learned estimate:", learned_estimate)
+# print("Transformer Estimate:", trans_lstm)
 
 # %%
 # Create bar plot of compute multiplier estimates with error bars
 
 # Collect all estimates and their labels
 estimates_data = [
-    ("SwiGLU vs GELU", swiglu_estimate),
-    ("Adam vs SGD", adam_estimate),
-    ("Rotary vs Learned", rotary_estimate),
-    ("Learned vs Standard", learned_estimate),
-    ("Transformer vs LSTM", trans_lstm)
+    ("Rotary vs Learned", rotary_learned_estimate),
+    ("Rotary vs Sinusoidal", rotary_sinusoidal_estimate),
+    ("SwiGLU vs ReLU", swiglu_relu_estimate),
+    ("GELU vs ReLU", gelu_relu_estimate),
+    ("Transformer vs LSTM", transformer_lstm_estimate),
+    ("Learned vs Sinusoidal", learned_vs_sinusoidal_estimate),
+    ("Cosine Warmup vs Inverse Sqrt", cosine_inverse_sqrt_estimate),
+    ("Cosine Warmup vs Linear", cosine_v_linear_estimate),
 ]
+
+import seaborn as sns
+
+# Set seaborn style and context
+sns.set_style("ticks")
+# sns.set_context("paper")
 
 # Filter out None estimates and separate labels, multipliers, and error bars
 valid_estimates = [
@@ -157,35 +248,38 @@ valid_estimates = [
 
 if valid_estimates:
     # Sort by multiplier so that the highest bar is on the right
-    # Each item: (label, (multiplier, error_bar))
     valid_estimates_sorted = sorted(valid_estimates, key=lambda x: x[1][0])
 
     labels = [item[0] for item in valid_estimates_sorted]
     multipliers = [item[1][0] for item in valid_estimates_sorted]
     error_bars = [item[1][1] for item in valid_estimates_sorted]
 
-    # Create the bar plot
+    # Choose color palette length to match number of bars (repeat if more than 3)
+    palette = sns.color_palette("viridis", n_colors=len(labels))
+    bar_colors = palette[: len(labels)]
+
     plt.figure(figsize=(10, 6))
     bars = plt.bar(
         labels,
         multipliers,
         yerr=error_bars,
         capsize=5,
-        color=["skyblue", "lightcoral", "lightgreen", "gold"][: len(labels)],
-        alpha=0.7,
+        color=bar_colors,
+        alpha=0.85,
         edgecolor="black",
         linewidth=1,
     )
 
-    # Customize the plot
-    plt.ylabel("Compute Multiplier Estimate", fontsize=12)
+    plt.ylabel("(CEG) Multiplier Estimate", fontsize=12)
     plt.xlabel("Improvement Type", fontsize=12)
     plt.title(
         "Compute Multiplier Estimates for Various Improvements",
         fontsize=14,
         fontweight="bold",
     )
-    plt.xticks(rotation=45, ha="right")
+    # Increase the font size of the x-tick labels for visibility
+    plt.xticks(rotation=45, ha="right", fontsize=12, fontweight="bold")
+    plt.yticks(fontsize=13)
     plt.grid(axis="y", alpha=0.3, linestyle="--")
 
     # Add value labels on top of bars
@@ -198,15 +292,17 @@ if valid_estimates:
             va="bottom",
             fontsize=10,
             fontweight="bold",
+            color="black",
         )
 
     # Add a horizontal line at y=1 for reference (no improvement)
     plt.axhline(
         y=1, color="red", linestyle="--", alpha=0.5, label="No improvement (1.0x)"
     )
+    plt.yscale("log")
+    plt.ylim(0, 4)
     plt.legend()
 
-    # Adjust layout and display
     plt.tight_layout()
     plt.show()
 
