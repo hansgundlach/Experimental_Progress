@@ -229,8 +229,11 @@ def gen_lstm_experim(
         tie_embeddings=base_config["tie_embeddings"],
     )
     trainable_params = param_info["trainable_params"]
-    # Convert to character limit (using 4:1 ratio for compatibility with existing system)
-    max_characters = int(20 * trainable_params * 4)  # 20x params in characters
+    # Calculate training tokens based on Chinchilla scaling (20x params)
+    max_tokens_training = int(
+        20 * trainable_params
+    )  # 20x params in tokens for training
+    # Note: Dataset loading will convert this to characters (4:1 ratio) automatically
 
     # 3. Estimate gradient accumulation based on GPU memory and single-GPU setup
     # Use target_effective_batch_size parameter (constant across experiments)
@@ -272,7 +275,7 @@ def gen_lstm_experim(
     experiment_config = {
         "hidden_size": hidden_size,
         "num_layers": num_layers,
-        "max_characters": max_characters,
+        "max_tokens_training": max_tokens_training,
         "gradient_accumulation_steps": grad_accum_steps,
         "batch_size": per_step_batch_size,  # Override with safe per-step batch size
     }
@@ -316,12 +319,14 @@ def get_lstm_base_config():
     return {
         "data_path": "../Datasets/c4_subset.txt",
         "tokenizer_path": "../gpt2_tokenizer",
-        "max_characters": 5 * 1e7,  # Base character limit
+        "max_tokens_training": int(
+            5 * 1e7 / 4
+        ),  # Maximum tokens for training (converted from characters using 4:1 ratio)
         "sequence_length": 128,
-        "target_effective_batch_size": 128,  # Target effective batch size for optimization
+        "target_effective_batch_size": 64,  # Target effective batch size for optimization
         "batch_size": 32,  # Default per-step batch size (will be overridden by gen_lstm_experim)
         "hidden_size": 16,  # Base hidden dimension
-        "num_layers": 1,  # Base number of layers
+        "num_layers": 2,  # Base number of layers
         "dropout": 0.0,
         "learning_rate": 0.001 * math.sqrt(4),  # Scale by sqrt of accumulation steps
         "lr_schedule": "cosine_warmup",
@@ -335,6 +340,8 @@ def get_lstm_base_config():
         "train_split": 0.8,
         "val_split": 0.1,
         "test_split": 0.1,
+        "fixed_val_tokens": 5
+        * 1e5,  # Fixed number of tokens for validation set (optional)
         "device": "cuda" if torch.cuda.is_available() else "cpu",
         "wandb_project": "lstm-language-modeling",
         "wandb_offline": True,
@@ -351,16 +358,16 @@ def get_lstm_base_config():
         "gradient_accumulation_steps": 16,  # Base gradient accumulation
         "use_compile": False,
         "seed": 123,
-        "optimizer": "adamw",
+        "optimizer": "adam",
         "weight_decay": 1e-4,
-        "adam_beta1": 0.9,
+        "adam_beta1": 0.0,
         "adam_beta2": 0.999,
-        "adam_epsilon": 1e-8,
+        "adam_epsilon": 1e-9,
         "stride": 128,
         # LSTM-specific dropout settings
-        "input_dropout": 0.2,
-        "hidden_dropout": 0.1,
-        "output_dropout": 0.2,
+        "input_dropout": 0.0,
+        "hidden_dropout": 0.0,
+        "output_dropout": 0.0,
         "between_layers_dropout": 0.0,  # Standard dropout between LSTM layers (0.1-0.5 typical range)
         "recurrent_dropout": 0.0,  # Dropout applied to hidden-to-hidden connections
         "use_layer_norm": False,
@@ -368,8 +375,8 @@ def get_lstm_base_config():
         "tie_embeddings": True,  # Enable weight tying by default
         # Truncated BPTT parameters
         "use_tbptt": True,  # Enable truncated BPTT by default
-        "tbptt_length": 128,  # Window length L (number of timesteps to backprop through)
-        "tbptt_stride": 128,  # Stride S (usually equal to tbptt_length for non-overlapping windows)
+        "tbptt_length": 32,  # Window length L (number of timesteps to backprop through)
+        "tbptt_stride": 32,  # Stride S (usually equal to tbptt_length for non-overlapping windows)
         "tbptt_reset_hidden": False,  # Reset hidden state at sequence boundaries
         # Streaming parameters
         "use_streaming": True,  # Enable streaming dataset (Melis/Merity style)
@@ -518,7 +525,123 @@ def subset_experiments(experiment_list, wanted_labels):
     return result
 
 
-def create_multi_lr_experiments(base_experiments, learning_rates):
+# def create_multi_lr_experiments(base_experiments, learning_rates):
+#     """
+#     Create multiple versions of experiments with different learning rates.
+#     Similar to create_multi_seed_experiments but for learning rates.
+
+#     Args:
+#         base_experiments: List of experiment dictionaries (e.g., LSTM_HIDDEN_DIM_EXPERIMENTS)
+#         learning_rates: List of learning rate values (e.g., [1e-4, 1e-3, 1e-2])
+
+#     Returns:
+#         List of experiment dictionaries with learning rate variations
+#     """
+#     multi_lr_experiments = []
+
+#     for experiment in base_experiments:
+#         # Check if any sub-experiment has a custom results folder
+#         custom_folder = None
+#         for sub_exp in experiment["subexperiments"]:
+#             if "overrides" in sub_exp:
+#                 # Check for both folder_name and results_folder
+#                 custom_folder = sub_exp["overrides"].get("folder_name") or sub_exp[
+#                     "overrides"
+#                 ].get("results_folder")
+#                 if custom_folder:
+#                     break
+#             elif "config" in sub_exp:
+#                 custom_folder = sub_exp["config"].get("folder_name") or sub_exp[
+#                     "config"
+#                 ].get("results_folder")
+#                 if custom_folder:
+#                     break
+
+#         # Create a new experiment group name
+#         if custom_folder:
+#             # If there's a custom folder, create the name to put results in "custom_folder_lr_sweep/"
+#             new_experiment_name = f"{custom_folder}_lr_sweep"
+#         else:
+#             # Otherwise use the original experiment name with lr_sweep suffix
+#             new_experiment_name = f"{experiment['name']}_lr_sweep"
+
+#         new_experiment = {
+#             "name": new_experiment_name,
+#             "subexperiments": [],
+#         }
+
+#         # For each subexperiment in the base experiment
+#         for sub_exp in experiment["subexperiments"]:
+#             # Create a version for each learning rate
+#             for lr in learning_rates:
+#                 # Create new subexperiment with lr suffix
+#                 new_sub_exp = copy.deepcopy(sub_exp)
+
+#                 # Add learning rate to the label
+#                 original_label = sub_exp["label"]
+#                 # Format learning rate for filename-safe label with clear scientific notation
+#                 import math
+
+#                 if lr >= 1:
+#                     lr_str = f"{lr:.0f}"
+#                 else:
+#                     # Use clear scientific notation: 10e-1, 10e-2, 10e-3, etc.
+#                     log_lr = math.log10(lr)
+
+#                     # Check if it's close to a nice power of 10
+#                     if (
+#                         abs(log_lr - round(log_lr)) < 0.01
+#                     ):  # Very close to integer power
+#                         exponent = int(round(log_lr))
+#                         lr_str = f"10e{exponent:+d}"  # +d ensures +/- sign
+#                     else:
+#                         # For non-integer powers, use coefficient notation
+#                         exponent = math.floor(log_lr)
+#                         coefficient = lr / (10**exponent)
+#                         if abs(coefficient - round(coefficient)) < 0.01:
+#                             lr_str = f"{round(coefficient):.0f}e{exponent:+d}"
+#                         else:
+#                             lr_str = f"{coefficient:.1f}e{exponent:+d}"
+
+#                 new_sub_exp["label"] = f"{original_label}_lr_{lr_str}"
+
+#                 # Add learning rate and max_characters to overrides, and remove folder settings
+#                 if "overrides" in new_sub_exp:
+#                     new_sub_exp["overrides"]["learning_rate"] = lr
+#                     new_sub_exp["overrides"]["max_characters"] = 129e6
+#                     # Remove custom folder settings - let the experiment name handle the directory
+#                     if custom_folder:
+#                         new_sub_exp["overrides"].pop("folder_name", None)
+#                         new_sub_exp["overrides"].pop("results_folder", None)
+#                 elif "config" in new_sub_exp:
+#                     new_sub_exp["config"]["learning_rate"] = lr
+#                     new_sub_exp["config"]["max_characters"] = 129e6
+#                     # Remove custom folder settings - let the experiment name handle the directory
+#                     if custom_folder:
+#                         new_sub_exp["config"].pop("folder_name", None)
+#                         new_sub_exp["config"].pop("results_folder", None)
+#                 else:
+#                     # If neither exists, create overrides with learning rate and max_characters
+#                     # Don't add custom folder for new overrides - let experiment name handle it
+#                     new_sub_exp["overrides"] = {
+#                         "learning_rate": lr,
+#                         "max_characters": 129e6,
+#                     }
+
+#                 new_experiment["subexperiments"].append(new_sub_exp)
+
+#         multi_lr_experiments.append(new_experiment)
+
+#     return multi_lr_experiments
+
+
+# reducing lr expeirment max tokens to 129e6 / 8 to save time
+def create_multi_lr_experiments(
+    base_experiments,
+    learning_rates,
+    max_tokens=int(129e6 / 8),
+    csv_log_interval_lr_sweep=200,
+):
     """
     Create multiple versions of experiments with different learning rates.
     Similar to create_multi_seed_experiments but for learning rates.
@@ -526,10 +649,14 @@ def create_multi_lr_experiments(base_experiments, learning_rates):
     Args:
         base_experiments: List of experiment dictionaries (e.g., LSTM_HIDDEN_DIM_EXPERIMENTS)
         learning_rates: List of learning rate values (e.g., [1e-4, 1e-3, 1e-2])
+        max_tokens: Maximum number of tokens to use for max_tokens (default: 129e6 / 4)
 
     Returns:
         List of experiment dictionaries with learning rate variations
     """
+    if max_tokens is None:
+        max_tokens = int(129e6 / 4)
+
     multi_lr_experiments = []
 
     for experiment in base_experiments:
@@ -598,28 +725,36 @@ def create_multi_lr_experiments(base_experiments, learning_rates):
 
                 new_sub_exp["label"] = f"{original_label}_lr_{lr_str}"
 
-                # Add learning rate and max_characters to overrides, and remove folder settings
+                # Add learning rate, max_tokens_training, and csv_log_interval to overrides, and update folder settings
                 if "overrides" in new_sub_exp:
                     new_sub_exp["overrides"]["learning_rate"] = lr
-                    new_sub_exp["overrides"]["max_characters"] = 129e6
+                    new_sub_exp["overrides"]["max_tokens_training"] = max_tokens
+                    new_sub_exp["overrides"][
+                        "csv_log_interval"
+                    ] = csv_log_interval_lr_sweep
                     # Remove custom folder settings - let the experiment name handle the directory
                     if custom_folder:
                         new_sub_exp["overrides"].pop("folder_name", None)
                         new_sub_exp["overrides"].pop("results_folder", None)
                 elif "config" in new_sub_exp:
                     new_sub_exp["config"]["learning_rate"] = lr
-                    new_sub_exp["config"]["max_characters"] = 129e6
+                    new_sub_exp["config"]["max_tokens_training"] = max_tokens
+                    new_sub_exp["config"][
+                        "csv_log_interval"
+                    ] = csv_log_interval_lr_sweep
                     # Remove custom folder settings - let the experiment name handle the directory
                     if custom_folder:
                         new_sub_exp["config"].pop("folder_name", None)
                         new_sub_exp["config"].pop("results_folder", None)
                 else:
-                    # If neither exists, create overrides with learning rate and max_characters
-                    # Don't add custom folder for new overrides - let experiment name handle it
-                    new_sub_exp["overrides"] = {
+                    # If neither exists, create overrides with learning rate, max_tokens_training, and csv_log_interval
+                    overrides_dict = {
                         "learning_rate": lr,
-                        "max_characters": 129e6,
+                        "max_tokens_training": max_tokens,
+                        "csv_log_interval": 200,
                     }
+                    # Don't add custom folder for new overrides - let experiment name handle it
+                    new_sub_exp["overrides"] = overrides_dict
 
                 new_experiment["subexperiments"].append(new_sub_exp)
 

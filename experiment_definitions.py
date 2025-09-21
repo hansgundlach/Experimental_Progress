@@ -623,4 +623,24 @@ SGD_STABILIZATION_EXPERIMENTS = gen_experim(
 #     + create_multi_lr_experiments(SIN_SCALING, TRANSFORMER_SWEEP)
 # )
 
-GRAND_EXPERIMENT = SIN_SCALING + SGD_SCALING + TRANSFORMER_SCALING
+
+HISTORICAL_EXPERIMENTS = gen_experim(
+    64,
+    label="transformer_2017_bs64",
+    folder_name="historical_experiments",
+    learning_rate=10 ** (-2.5),
+    activation="gelu",
+    norm_placement="post",
+    lr_schedule="inverse_sqrt",
+    pos_encoding="sinusoidal",
+) + gen_experim(
+    64,
+    label="transformer_2022_bs64",
+    folder_name="historical_experiments",
+    learning_rate=10 ** (-2.5),
+    activation="swiglu",
+    norm_type="rms",
+)
+
+# GRAND_EXPERIMENT = SIN_SCALING + SGD_SCALING + TRANSFORMER_SCALING
+GRAND_EXPERIMENT = HISTORICAL_EXPERIMENTS

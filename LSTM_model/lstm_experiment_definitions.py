@@ -12,13 +12,14 @@ from lstm_experiment_utils import (
 )
 
 NARROW_LR_SWEEP = [
-    10 ** (-3),
     10 ** (-2.5),
     10 ** (-2),
     10 ** (-1.5),
     1e-1,
 ]
 
+
+LSTM_LR_SWEEP = [10 ** (-2), 10 ** (-1.5), 10 ** (-1)]
 
 # LSTM_VARIATIONS = (
 #     gen_lstm_experim(
@@ -185,11 +186,81 @@ NARROW_LR_SWEEP = [
 # )
 
 
+# MELIS_SCALING = (
+#     gen_lstm_experim(
+#         32,
+#         label="32melis_steam",
+#         folder_name="lstm_scaling   _diagnostic",
+#         learning_rate=10 ** -(1.5),
+#         input_dropout=0.0,
+#         hidden_dropout=0.0,
+#         output_dropout=0.0,
+#         between_layers_dropout=0.0,
+#         optimizer="adam",
+#         adam_beta1=0.0,
+#         adam_beta2=0.999,
+#         adam_epsilon=1e-9,
+#         use_tbptt=True,
+#         tbptt_length=32,
+#         tbptt_stride=32,
+#         tbptt_reset_hidden=False,
+#         use_streaming=True,
+#         streaming_reset_prob=0.01,
+#         target_effective_batch_size=64,
+#         num_layers=2,
+#     )
+
+
 MELIS_SCALING = (
     gen_lstm_experim(
         32,
-        label="32melis_steam",
-        folder_name="lstm_scaling_diagnostic",
+        label="32melis_stream",
+        folder_name="lstm_scaling_study",
+        learning_rate=10 ** -(2),
+        between_layers_dropout=0.0,
+        optimizer="adam",
+    )
+    + gen_lstm_experim(
+        48,
+        label="48melis_stream",
+        folder_name="lstm_scaling_study",
+        learning_rate=10**-2,
+        optimizer="adam",
+    )
+    + gen_lstm_experim(
+        64,
+        label="64melis_stream",
+        folder_name="lstm_scaling_study",
+        learning_rate=10**-2,
+    )
+    + gen_lstm_experim(
+        80,
+        label="80melis_stream",
+        folder_name="lstm_scaling_study",
+        learning_rate=10**-2,
+        # Removed num_layers override - let it use base config value for fair comparison
+    )
+    + gen_lstm_experim(
+        128,
+        label="128melis_stream",
+        folder_name="lstm_scaling_study",
+        learning_rate=10**-2,
+        # Removed num_layers override - let it use base config value for fair comparison
+    )
+    + gen_lstm_experim(
+        160,
+        label="160melis_stream",
+        folder_name="lstm_scaling_study",
+        learning_rate=10**-2,
+    )
+)
+
+
+CORRECTED_MELIS_SCALING = (
+    gen_lstm_experim(
+        32,
+        label="stuffstuffstuff",
+        folder_name="lstm_scaling_study",
         learning_rate=10 ** -(1.5),
         input_dropout=0.0,
         hidden_dropout=0.0,
@@ -199,110 +270,131 @@ MELIS_SCALING = (
         adam_beta1=0.0,
         adam_beta2=0.999,
         adam_epsilon=1e-9,
-        weight_decay=0,
+        weight_decay=1e-4,
         use_tbptt=True,
         tbptt_length=32,
         tbptt_stride=32,
         tbptt_reset_hidden=False,
         use_streaming=True,
         streaming_reset_prob=0.01,
-        target_effective_batch_size=128,
+        target_effective_batch_size=64,
         num_layers=2,
     )
-    + gen_lstm_experim(
-        48,
-        label="48melis_steam",
-        folder_name="lstm_scaling_diagnostic",
-        learning_rate=10**-1.5,
-        input_dropout=0.0,
-        hidden_dropout=0.0,
-        output_dropout=0.0,
-        between_layers_dropout=0.0,
-        optimizer="adam",
-        adam_beta1=0.0,
-        adam_beta2=0.999,
-        adam_epsilon=1e-9,
-        weight_decay=0,
-        use_tbptt=True,
-        tbptt_length=32,
-        tbptt_stride=32,
-        tbptt_reset_hidden=False,
-        use_streaming=True,
-        streaming_reset_prob=0.01,
-        target_effective_batch_size=128,
-        num_layers=2,
-    )
-    + gen_lstm_experim(
-        64,
-        label="64melis_steam",
-        folder_name="lstm_scaling_diagnostic",
-        learning_rate=10**-1.5,
-        input_dropout=0.0,
-        hidden_dropout=0.0,
-        output_dropout=0.0,
-        between_layers_dropout=0.0,
-        optimizer="adam",
-        adam_beta1=0.0,
-        adam_beta2=0.999,
-        adam_epsilon=1e-9,
-        weight_decay=0,
-        use_tbptt=True,
-        tbptt_length=32,
-        tbptt_stride=32,
-        tbptt_reset_hidden=False,
-        use_streaming=True,
-        streaming_reset_prob=0.01,
-        target_effective_batch_size=128,
-        num_layers=2,
-    )
-    + gen_lstm_experim(
-        80,
-        label="80melis_steam",
-        folder_name="lstm_scaling_diagnostic",
-        learning_rate=10**-1.5,
-        input_dropout=0.2,
-        hidden_dropout=0.05,
-        output_dropout=0.2,
-        between_layers_dropout=0.0,
-        optimizer="adam",
-        adam_beta1=0.0,
-        adam_beta2=0.999,
-        adam_epsilon=1e-9,
-        weight_decay=0,
-        use_tbptt=True,
-        tbptt_length=32,
-        tbptt_stride=32,
-        tbptt_reset_hidden=False,
-        use_streaming=True,
-        streaming_reset_prob=0.01,
-        target_effective_batch_size=128,
-        num_layers=2,
-        # Removed num_layers override - let it use base config value for fair comparison
-    )
-    + gen_lstm_experim(
-        128,
-        label="128melis_steam",
-        folder_name="lstm_scaling_diagnostic",
-        learning_rate=10**-1.5,
-        input_dropout=0,
-        hidden_dropout=0,
-        output_dropout=0,
-        between_layers_dropout=0.0,
-        optimizer="adam",
-        adam_beta1=0.0,
-        adam_beta2=0.999,
-        adam_epsilon=1e-9,
-        weight_decay=0,
-        use_tbptt=True,
-        tbptt_length=32,
-        tbptt_stride=32,
-        tbptt_reset_hidden=False,
-        use_streaming=True,
-        streaming_reset_prob=0.01,
-        target_effective_batch_size=128,
-        num_layers=2,
-        # Removed num_layers override - let it use base config value for fair comparison
-    )
+    # + gen_lstm_experim(
+    #     64,
+    #     label="64_correction_bs64",
+    #     folder_name="lstm_scaling_study",
+    #     learning_rate=10 ** -(1.5),
+    #     input_dropout=0.0,
+    #     hidden_dropout=0.0,
+    #     output_dropout=0.0,
+    #     between_layers_dropout=0.0,
+    #     optimizer="adam",
+    #     adam_beta1=0.0,
+    #     adam_beta2=0.999,
+    #     adam_epsilon=1e-9,
+    #     weight_decay=1e-4,
+    #     use_tbptt=True,
+    #     tbptt_length=32,
+    #     tbptt_stride=32,
+    #     tbptt_reset_hidden=False,
+    #     use_streaming=True,
+    #     streaming_reset_prob=0.01,
+    #     target_effective_batch_size=64,
+    #     num_layers=2,
+    # )
+    # + gen_lstm_experim(
+    #     96,
+    #     label="96_correction_bs64",
+    #     folder_name="lstm_scaling_study",
+    #     learning_rate=10 ** -(1.5),
+    #     input_dropout=0.0,
+    #     hidden_dropout=0.0,
+    #     output_dropout=0.0,
+    #     between_layers_dropout=0.0,
+    #     optimizer="adam",
+    #     adam_beta1=0.0,
+    #     adam_beta2=0.999,
+    #     adam_epsilon=1e-9,
+    #     weight_decay=1e-4,
+    #     use_tbptt=True,
+    #     tbptt_length=32,
+    #     tbptt_stride=32,
+    #     tbptt_reset_hidden=False,
+    #     use_streaming=True,
+    #     streaming_reset_prob=0.01,
+    #     target_effective_batch_size=64,
+    #     num_layers=2,
+    # )
+    # + gen_lstm_experim(
+    #     128,
+    #     label="128_correction_bs64",
+    #     folder_name="lstm_scaling_study",
+    #     learning_rate=10 ** -(2),
+    #     input_dropout=0.0,
+    #     hidden_dropout=0.0,
+    #     output_dropout=0.0,
+    #     between_layers_dropout=0.0,
+    #     optimizer="adam",
+    #     adam_beta1=0.0,
+    #     adam_beta2=0.999,
+    #     adam_epsilon=1e-9,
+    #     weight_decay=1e-4,
+    #     use_tbptt=True,
+    #     tbptt_length=32,
+    #     tbptt_stride=32,
+    #     tbptt_reset_hidden=False,
+    #     use_streaming=True,
+    #     streaming_reset_prob=0.01,
+    #     target_effective_batch_size=64,
+    #     num_layers=2,
+    # )
+    # gen_lstm_experim(
+    #     160,
+    #     label="160_correction_bs64",
+    #     folder_name="lstm_scaling_study",
+    #     learning_rate=10 ** -(1.5),
+    #     input_dropout=0.0,
+    #     hidden_dropout=0.0,
+    #     output_dropout=0.0,
+    #     between_layers_dropout=0.0,
+    #     optimizer="adam",
+    #     adam_beta1=0.0,
+    #     adam_beta2=0.999,
+    #     adam_epsilon=1e-9,
+    #     weight_decay=1e-4,
+    #     use_tbptt=True,
+    #     tbptt_length=32,
+    #     tbptt_stride=32,
+    #     tbptt_reset_hidden=False,
+    #     use_streaming=True,
+    #     streaming_reset_prob=0.01,
+    #     target_effective_batch_size=64,
+    #     num_layers=2,
+    # )
+    # + gen_lstm_experim(
+    #     256,
+    #     label="256_correction_bs64",
+    #     folder_name="lstm_scaling_study",
+    #     learning_rate=10 ** -(1.5),
+    #     input_dropout=0.0,
+    #     hidden_dropout=0.0,
+    #     output_dropout=0.0,
+    #     between_layers_dropout=0.0,
+    #     optimizer="adam",
+    #     adam_beta1=0.0,
+    #     adam_beta2=0.999,
+    #     adam_epsilon=1e-9,
+    #     weight_decay=1e-4,
+    #     use_tbptt=True,
+    #     tbptt_length=32,
+    #     tbptt_stride=32,
+    #     tbptt_reset_hidden=False,
+    #     use_streaming=True,
+    #     streaming_reset_prob=0.01,
+    #     target_effective_batch_size=64,
+    #     num_layers=2,
+    # )
 )
 
 
@@ -429,4 +521,29 @@ MELIS_SCALING_SGD = (
 )
 
 
-GRAND_EXPERIMENT = MELIS_SCALING_SGD
+MELIS_DEBUG = gen_lstm_experim(
+    96,
+    label="96_correction_bs64",
+    folder_name="lstm_scaling_study",
+    learning_rate=10 ** -(1.5),
+    input_dropout=0.0,
+    hidden_dropout=0.0,
+    output_dropout=0.0,
+    between_layers_dropout=0.0,
+    optimizer="adam",
+    adam_beta1=0.0,
+    adam_beta2=0.999,
+    adam_epsilon=1e-9,
+    weight_decay=1e-4,
+    use_tbptt=True,
+    tbptt_length=32,
+    tbptt_stride=32,
+    tbptt_reset_hidden=False,
+    use_streaming=True,
+    streaming_reset_prob=0.01,
+    target_effective_batch_size=64,
+    num_layers=2,
+)
+
+
+GRAND_EXPERIMENT = CORRECTED_MELIS_SCALING

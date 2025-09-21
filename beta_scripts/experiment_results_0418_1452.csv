@@ -1,9 +1,0 @@
-Depth,Optimizer,Seed,Loss
-6,adam,42,3.8465
-6,adam,123,3.7960
-6,adam,456,3.8152
-6,adamw,42,4.0063
-6,adamw,123,3.4116
-6,adamw,456,3.9554
-6,adam_summary,N/A,3.8192 ± 0.0208
-6,adamw_summary,N/A,3.7911 ± 0.2692

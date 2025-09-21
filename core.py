@@ -1713,7 +1713,7 @@ def get_dataset(config):
     Args:
         config: Configuration object containing dataset parameters:
             - data_path: Path to the dataset file
-            - max_tokens: Maximum number of tokens to use from dataset (optional)
+            - max_tokens_training: Maximum number of tokens to use for training (optional)
             - train_split: Fraction of dataset for training (default: 0.9)
             - val_split: Fraction of dataset for validation (default: 0.1)
             - fixed_val_tokens: Fixed number of tokens for validation set (optional, None = use percentage split)
@@ -1725,6 +1725,7 @@ def get_dataset(config):
         Tuple of (train_dataset, val_dataset, tokenizer, full_text)
 
     Note:
+        - max_tokens_training specifies training tokens; validation tokens are added on top
         - If fixed_val_tokens is specified, it takes precedence over percentage-based splits
         - Fixed validation size uses character-based splitting (4:1 char:token ratio)
         - Percentage-based splits use sentence-level splitting for better data integrity
@@ -1735,12 +1736,18 @@ def get_dataset(config):
         # Dictionary-like config
         seed = config.get("seed", 123)
         data_path = config.get("data_path", None)
-        max_tokens = config.get("max_tokens", None)
+        max_tokens_training = config.get("max_tokens_training", None)
+        # Support old parameter name for backward compatibility
+        if max_tokens_training is None:
+            max_tokens_training = config.get("max_tokens", None)
     else:
         # Object-like config
         seed = getattr(config, "seed", 123)
         data_path = getattr(config, "data_path", None)
-        max_tokens = getattr(config, "max_tokens", None)
+        max_tokens_training = getattr(config, "max_tokens_training", None)
+        # Support old parameter name for backward compatibility
+        if max_tokens_training is None:
+            max_tokens_training = getattr(config, "max_tokens", None)
 
     torch.manual_seed(seed)
     np.random.seed(seed)
@@ -1768,16 +1775,38 @@ def get_dataset(config):
     print(f"Loading dataset from: {data_path}")
     text = Path(data_path).read_text(encoding="utf-8")
 
+    # Get split configuration first to determine how to limit the dataset
+    if hasattr(config, "get"):
+        # Dictionary-like config
+        train_split = config.get("train_split", 0.9)
+        fixed_val_tokens = config.get("fixed_val_tokens", None)
+    else:
+        # Object-like config
+        train_split = getattr(config, "train_split", 0.9)
+        fixed_val_tokens = getattr(config, "fixed_val_tokens", None)
+
     # Apply token-based limit if specified (convert to characters using 4:1 ratio)
-    if max_tokens:
+    if max_tokens_training:
+        if fixed_val_tokens:
+            # When fixed_val_tokens is specified, we need exactly max_tokens_training + fixed_val_tokens
+            total_tokens_needed = max_tokens_training + fixed_val_tokens
+            print(f"Fixed validation mode: need exactly {max_tokens_training:,} training + {fixed_val_tokens:,} validation tokens")
+        else:
+            # Calculate total tokens needed so that training portion = max_tokens_training
+            total_tokens_needed = int(max_tokens_training / train_split)
+            print(f"Percentage split mode: need {total_tokens_needed:,} total tokens for {max_tokens_training:,} training tokens")
+        
         # Convert token limit to character limit using 4:1 ratio (same as LSTM system)
-        max_characters = int(max_tokens * 4)
+        max_characters = int(total_tokens_needed * 4)
         if len(text) > max_characters:
             # Random sampling for variety in training data
             start_idx = random.randint(0, max(0, len(text) - max_characters))
             text = text[start_idx : start_idx + max_characters]
             print(
-                f"Limited dataset to {max_tokens:,} tokens (~{max_characters:,} characters) from {len(Path(data_path).read_text(encoding='utf-8')):,} total characters"
+                f"Limited dataset to {max_characters:,} characters (~{total_tokens_needed:,} tokens)"
+            )
+            print(
+                f"  Sampled from {len(Path(data_path).read_text(encoding='utf-8')):,} total characters"
             )
         else:
             print(
@@ -1794,57 +1823,62 @@ def get_dataset(config):
     sentences = text.split("\n")
     random.shuffle(sentences)
 
-    # Get split configuration from config
-    if hasattr(config, "get"):
-        # Dictionary-like config
-        train_split = config.get("train_split", 0.9)
-        val_split = config.get("val_split", 0.1)
-        fixed_val_tokens = config.get("fixed_val_tokens", None)
-    else:
-        # Object-like config
-        train_split = getattr(config, "train_split", 0.9)
-        val_split = getattr(config, "val_split", 0.1)
-        fixed_val_tokens = getattr(config, "fixed_val_tokens", None)
+    # Note: split configuration already loaded above
 
     # Validate split ratios
     if not (0.0 < train_split < 1.0):
         raise ValueError(f"train_split must be between 0 and 1, got: {train_split}")
-    if not (0.0 < val_split < 1.0):
-        raise ValueError(f"val_split must be between 0 and 1, got: {val_split}")
-    if train_split + val_split > 1.0:
-        raise ValueError(
-            f"train_split + val_split cannot exceed 1.0, got: {train_split + val_split}"
-        )
+    
+    # When fixed_val_tokens is used, we don't use percentage splits for validation
+    if fixed_val_tokens is None:
+        # Calculate val_split from train_split (remaining portion)
+        val_split = 1.0 - train_split
+        if val_split <= 0:
+            raise ValueError(f"train_split too large, no room for validation: {train_split}")
+    else:
+        # Fixed validation tokens - percentage split validation not applicable
+        val_split = None
 
     if fixed_val_tokens is not None:
-        # Use fixed validation token size
+        # Use fixed validation token size - take exactly the amounts specified
         if fixed_val_tokens <= 0:
             raise ValueError(
                 f"fixed_val_tokens must be positive, got: {fixed_val_tokens}"
             )
 
-        # Convert fixed token count to approximate character count (4:1 ratio)
+        # Convert token counts to character counts (4:1 ratio)
+        if max_tokens_training:
+            training_chars_needed = int(max_tokens_training * 4)
+        else:
+            # If no max_tokens_training specified, use default percentage of available text
+            training_chars_needed = int(len(text) * train_split)
+            
         fixed_val_chars = int(fixed_val_tokens * 4)
+        total_chars_needed = training_chars_needed + fixed_val_chars
 
-        # Calculate how many characters we need for validation
-        total_chars = len(text)
-        if fixed_val_chars >= total_chars:
+        # Check if we have enough data
+        if total_chars_needed > len(text):
             raise ValueError(
-                f"fixed_val_tokens ({fixed_val_tokens}) requires more characters than available in dataset"
+                f"Not enough data: need {total_chars_needed:,} characters "
+                f"({training_chars_needed:,} training + {fixed_val_chars:,} validation) "
+                f"but only have {len(text):,} characters available"
             )
 
-        # Split by characters to get exact token count
-        val_text = text[-fixed_val_chars:]  # Take last N characters for validation
-        train_text = text[:-fixed_val_chars]  # Rest goes to training
+        # Take exactly the specified amounts from separate parts of the dataset
+        train_text = text[:training_chars_needed]  # First N characters for training
+        val_text = text[training_chars_needed:training_chars_needed + fixed_val_chars]  # Next M characters for validation
 
         print(
-            f"Using fixed validation size: {fixed_val_tokens:,} tokens (~{fixed_val_chars:,} characters)"
+            f"Using fixed validation size with separate datasets:"
         )
         print(
-            f"Training set: {len(train_text):,} characters (~{len(train_text)//4:,} tokens)"
+            f"  Training set: {len(train_text):,} characters (~{len(train_text)//4:,} tokens)"
         )
         print(
-            f"Validation set: {len(val_text):,} characters (~{len(val_text)//4:,} tokens)"
+            f"  Validation set: {len(val_text):,} characters (~{len(val_text)//4:,} tokens)"
+        )
+        print(
+            f"  Datasets are completely separate (no overlap)"
         )
     else:
         # Use percentage-based split
