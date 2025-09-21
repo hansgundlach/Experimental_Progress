@@ -512,11 +512,13 @@ def chinchilla_sk_fit(
     log_y_std = float(np.std(log_y_all))
 
     # Better initial guesses based on the data
-    a_init = log_y_mean + 0.5 * log_y_std  # Parameter scaling coefficient
-    b_init = log_y_mean + 0.5 * log_y_std  # Data scaling coefficient
-    e_init = log_y_mean  # Irreducible loss term
-    alpha_init = -0.3  # Negative for parameter scaling (closer to typical values)
-    beta_init = -0.1  # Negative for data scaling (closer to typical values)
+    a_init = float(
+        np.log(500)
+    )  # Parameter scaling coefficient (set to log(500) = 6.215)
+    b_init = float(np.log(500))  # Data scaling coefficient (set to log(500) = 6.215)
+    e_init = float(np.log(1.9))  # Irreducible loss term (set to log(1.9) = 0.642)
+    alpha_init = -0.33  # Negative for parameter scaling
+    beta_init = -0.33  # Negative for data scaling
 
     initial_guess = [a_init, alpha_init, b_init, beta_init, e_init]
 
@@ -713,15 +715,14 @@ def fit_parameters(
         )
 
     # Initial guesses for exponential form: L = exp(E) + exp(A) * N^alpha + exp(B) * D^beta
-    # E_init: log of baseline loss level
-    E_init = float(np.log(max(np.percentile(y_all, 10), 1e-6)))
-    # A_init and B_init: log of scaling coefficients
-    range_y = max(float(np.percentile(y_all, 90) - np.percentile(y_all, 10)), 1e-3)
-    A_init = float(np.log(range_y))
-    B_init = float(np.log(range_y))
+    # E_init: log of baseline loss level (set to log(1.9) = 0.642)
+    E_init = float(np.log(1.9))
+    # A_init and B_init: log of scaling coefficients (set to log(500) = 6.215)
+    A_init = float(np.log(500))
+    B_init = float(np.log(500))
     # alpha and beta: scaling exponents (should be negative for compute scaling)
-    alpha_init = -0.5  # Negative for parameter scaling
-    beta_init = -0.2  # Negative for data scaling
+    alpha_init = -0.33  # Negative for parameter scaling
+    beta_init = -0.33  # Negative for data scaling
 
     initial_guess = [E_init, A_init, alpha_init, B_init, beta_init]
 
@@ -975,11 +976,14 @@ def get_dataset_configurations() -> dict:
     new_scaling_dir = data_folder / "transformer_scaling"
     if new_scaling_dir.exists():
         new_scaling_pairs = [
-            (new_scaling_dir / "32d_bs128lr2.csv", 1683000),
-            (new_scaling_dir / "48d_bs128lr2.csv", 2545000),
-            (new_scaling_dir / "64d_bs128lr2.csv", 3463000),
-            (new_scaling_dir / "80d_bs128lr25.csv", 4454000),
+            (new_scaling_dir / "32d_transformer_bs64.csv", 1683000),
+            (new_scaling_dir / "48d_transformer_bs64.csv", 2545000),
+            (new_scaling_dir / "64d_transformer_bs64.csv", 3463000),
+            (new_scaling_dir / "96d_transformer_bs64.csv", int(5.538e6)),
+            (new_scaling_dir / "128d_transformer_bs64.csv", int(8.056e6)),
+            (new_scaling_dir / "160d_transformer_bs64.csv", int(11.163e6)),
         ]
+
         configurations["transformer_scaling"] = [
             (str(p), n) for p, n in new_scaling_pairs if p.exists()
         ]
@@ -1010,13 +1014,16 @@ def get_dataset_configurations() -> dict:
             (str(p), n) for p, n in lstm_pairs if p.exists()
         ]
     # sgd scaling
-    sgd_dir = data_folder / "best_possible_sgd"
+    sgd_dir = data_folder / "sgd_scaling"
     if sgd_dir.exists():
         sgd_pairs = [
             # (sgd_dir / "32d_best_sgdbs128lr1.csv", 1683000),
-            (sgd_dir / "48d_best_sgdbs32.csv", 2545000),
-            (sgd_dir / "64d_best_sgdbs32.csv", 3463000),
-            (sgd_dir / "80d_best_sgdbs32.csv", 4454000),
+            (sgd_dir / "32d_sgdbs64.csv", 1683000),
+            (sgd_dir / "48d_sgdbs64.csv", 2545000),
+            (sgd_dir / "64d_sgdbs64.csv", 3463000),
+            (sgd_dir / "96d_sgdbs64.csv", int(5.538e6)),
+            (sgd_dir / "128d_sgdbs64.csv", int(8.056e6)),
+            (sgd_dir / "160d_sgdbs64.csv", int(11.163e6)),
         ]
         configurations["sgd_scaling"] = [
             (str(p), n) for p, n in sgd_pairs if p.exists()
