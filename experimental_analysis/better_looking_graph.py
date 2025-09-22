@@ -10,7 +10,9 @@ The analyzer supports two types of fits:
 1. Power law fit: y = a * x^b
 2. Sklearn-style fit: L = E + A * C^alpha
 
-The analyzer also supports class-to-legend-label mapping for cleaner legends.
+The analyzer also supports:
+- Class-to-legend-label mapping for cleaner legends
+- Flexible color specification using colormaps (e.g., 'viridis[2]', 'plasma[0.3]')
 
 Usage:
     # To use theoretical_flops:
@@ -23,6 +25,9 @@ Usage:
     class_mapping = {"lstm": "LSTM experiments", "transformer": "Transformer experiments"}
     analyzer = TrainingCurveAnalyzer(class_legend_mapping=class_mapping)
 
+    # Add experiment with colormap color:
+    analyzer.add_experiment("exp1", "data.csv", color="viridis[2]")
+
     # To enable sklearn-style fitting:
     analyzer.plot_training_curves_by_class(show_sklearn_fit=True)
 """
@@ -32,13 +37,58 @@ from scipy.optimize import curve_fit
 import matplotlib.pyplot as plt
 from pathlib import Path
 import matplotlib.colors as mcolors
+import matplotlib.cm as cm
 from typing import List, Dict, Tuple, Optional
 import warnings
+import re
 
 # sklearn imports removed - not actually used in the code
 
+# =============================================================================
+# FONT SIZE CONFIGURATION
+# =============================================================================
+# Modify these values to adjust font sizes throughout the plots
 
-IRREDUCIBLE_LOSS = 1.9
+FONT_CONFIG = {
+    # Main plot elements
+    "xlabel_size": 18,
+    "ylabel_size": 18,
+    "title_size": 20,
+    "title_weight": "bold",
+    # Tick labels
+    "major_tick_size": 16,
+    "minor_tick_size": 14,
+    # Legend
+    "legend_size": 12,
+    # Power law fit labels
+    "fit_label_size": 12,
+    # Theoretical scaling law labels
+    "theory_label_size": 12,
+    # Regular plot elements (for plot_training_curves method)
+    "regular_xlabel_size": 12,
+    "regular_ylabel_size": 12,
+    "regular_title_size": 14,
+    "regular_legend_size": 12,
+}
+
+# =============================================================================
+# ALPHA (TRANSPARENCY) CONFIGURATION
+# =============================================================================
+# Modify these values to adjust transparency of plot elements
+
+ALPHA_CONFIG = {
+    # Data points and lines
+    "data_points_alpha": 0.15,  # Alpha for training curve data points
+    "data_lines_alpha": 0.8,  # Alpha for training curve lines
+    # Frontier points (stars)
+    "frontier_points_alpha": 0.0,  # Alpha for frontier star points
+    # Fit lines
+    "power_law_fit_alpha": 0.8,  # Alpha for power law fit lines
+    "sklearn_fit_alpha": 0.8,  # Alpha for sklearn fit lines
+    "theoretical_alpha": 0.8,  # Alpha for theoretical scaling law lines
+}
+
+IRREDUCIBLE_LOSS = 1.8
 
 
 class TrainingCurveAnalyzer:
@@ -77,6 +127,69 @@ class TrainingCurveAnalyzer:
         # Class to legend label mapping
         self.class_legend_mapping = class_legend_mapping or {}
 
+    def _parse_color_spec(self, color_spec: str):
+        """
+        Parse color specification that can be either a standard color name or a colormap index.
+
+        Args:
+            color_spec: Color specification like 'red', 'tab:blue', 'viridis[2]', 'plasma[0.5]'
+
+        Returns:
+            Actual color value that matplotlib can use
+        """
+        if not isinstance(color_spec, str):
+            return color_spec
+
+        # Check if it's a colormap specification like 'viridis[2]' or 'plasma[0.5]'
+        colormap_match = re.match(r"(\w+)\[([^\]]+)\]", color_spec)
+        if colormap_match:
+            cmap_name = colormap_match.group(1)
+            index_str = colormap_match.group(2)
+
+            try:
+                # Get the colormap (updated for matplotlib 3.7+)
+                try:
+                    cmap = cm.get_cmap(cmap_name)
+                except AttributeError:
+                    # Fallback for newer matplotlib versions
+                    import matplotlib.pyplot as plt
+
+                    cmap = plt.colormaps.get_cmap(cmap_name)
+
+                # Parse the index (can be integer or float)
+                if "." in index_str:
+                    index = float(index_str)
+                else:
+                    index = int(index_str)
+
+                # For continuous colormaps, ensure index is in [0, 1] range
+                if cmap_name in ["viridis", "plasma", "inferno", "magma", "cividis"]:
+                    # These are continuous colormaps that expect values in [0, 1]
+                    if index > 1.0:
+                        index = 1.0
+                    elif index < 0.0:
+                        index = 0.0
+                else:
+                    # For discrete colormaps, normalize to [0, 1] if needed
+                    if index > 1.0:
+                        index = 1.0
+                    elif index < 0.0:
+                        index = 0.0
+
+                # Get color from colormap
+                color = cmap(index)
+                print(f"Colormap '{color_spec}' -> {color}")  # Debug print
+                return color
+
+            except (ValueError, KeyError) as e:
+                print(
+                    f"Warning: Could not parse colormap '{color_spec}': {e}. Using as-is."
+                )
+                return color_spec
+
+        # If not a colormap specification, return as-is
+        return color_spec
+
     def add_experiment(
         self,
         name: str,
@@ -99,7 +212,9 @@ class TrainingCurveAnalyzer:
             csv_path: Path to the CSV file
             compute_col: Column name for compute values (uses default if None)
             loss_col: Column name for loss values
-            color: Color for plotting (auto-assigned if None)
+            color: Color for plotting (auto-assigned if None). Can be:
+                   - Standard color name: 'red', 'blue', 'tab:orange'
+                   - Colormap index: 'viridis[2]', 'plasma[0.3]', 'inferno[5]'
             marker: Marker style for plotting
             linestyle: Line style for plotting
             alpha: Transparency for plotting
@@ -129,6 +244,9 @@ class TrainingCurveAnalyzer:
                 color = self.color_palette[
                     len(self.experiments) % len(self.color_palette)
                 ]
+            else:
+                # Parse color specification (handles colormap indices like 'viridis[2]')
+                color = self._parse_color_spec(color)
 
             self.experiments[name] = {
                 "data": df,
@@ -781,7 +899,7 @@ class TrainingCurveAnalyzer:
                         marker=exp["marker"],
                         linestyle=exp["linestyle"],
                         color=color,
-                        alpha=exp["alpha"],
+                        alpha=ALPHA_CONFIG["data_points_alpha"],
                         label=label,
                         linewidth=2,
                         markersize=6,
@@ -806,6 +924,7 @@ class TrainingCurveAnalyzer:
                         zorder=120,
                         edgecolors="black",
                         linewidth=2,
+                        alpha=ALPHA_CONFIG["frontier_points_alpha"],
                         label=None,
                     )
         else:
@@ -824,6 +943,7 @@ class TrainingCurveAnalyzer:
                         zorder=100,
                         edgecolors="black",
                         linewidth=2.5,
+                        alpha=ALPHA_CONFIG["frontier_points_alpha"],
                         label=None,
                     )
 
@@ -868,7 +988,7 @@ class TrainingCurveAnalyzer:
                     y_fit,
                     linestyle,
                     linewidth=4,
-                    alpha=0.95,
+                    alpha=ALPHA_CONFIG["power_law_fit_alpha"],
                     label=f"{cls} power law: \n y = {a:.2e} * x^({b:.3f}) (R² = {r2:.3f})",
                     color="black",
                 )
@@ -912,7 +1032,7 @@ class TrainingCurveAnalyzer:
                     y_fit,
                     linestyle,
                     linewidth=4,
-                    alpha=0.95,
+                    alpha=ALPHA_CONFIG["sklearn_fit_alpha"],
                     label=f"{cls} sklearn: \n L = {E:.3f} + {A:.2e} * C^({alpha:.3f}) (R² = {r2:.3f})",
                     color="red",
                 )
@@ -964,26 +1084,36 @@ class TrainingCurveAnalyzer:
                         color=color,
                         linestyle=linestyle,
                         linewidth=linewidth,
-                        alpha=alpha,
+                        alpha=ALPHA_CONFIG["theoretical_alpha"],
                         label=f"{label}: L = {E:.3f} - {self.irreducible_loss:.3f} + {A:.2e} * C^({gamma:.3f})",
                     )
 
-        ax.set_xlabel("Compute (FLOPS)", fontsize=18)
-        ax.set_ylabel("Validation Loss (Irreducible)", fontsize=18)
+        ax.set_xlabel("Compute (FLOPS)", fontsize=FONT_CONFIG["xlabel_size"])
+        ax.set_ylabel(
+            "Validation Loss (Irreducible)", fontsize=FONT_CONFIG["ylabel_size"]
+        )
         ax.set_yscale("log")
         ax.set_xscale("log")
         ax.grid(True, alpha=0.3)
         ax.set_title(
             "Per-Class Training Curves and Scaling Analysis",
-            fontsize=20,
-            fontweight="bold",
+            fontsize=FONT_CONFIG["title_size"],
+            fontweight=FONT_CONFIG["title_weight"],
         )
         # Increase tick label sizes
-        ax.tick_params(axis="both", which="major", labelsize=16)
-        ax.tick_params(axis="both", which="minor", labelsize=14)
+        ax.tick_params(
+            axis="both", which="major", labelsize=FONT_CONFIG["major_tick_size"]
+        )
+        ax.tick_params(
+            axis="both", which="minor", labelsize=FONT_CONFIG["minor_tick_size"]
+        )
 
         # Position legend
-        ax.legend(bbox_to_anchor=(1.05, 1), loc="upper left", fontsize=12)
+        ax.legend(
+            bbox_to_anchor=(1.05, 1),
+            loc="upper left",
+            fontsize=FONT_CONFIG["legend_size"],
+        )
 
         # Adjust layout to accommodate legend
         plt.tight_layout()
@@ -1134,7 +1264,7 @@ class TrainingCurveAnalyzer:
                     marker=exp["marker"],
                     linestyle=exp["linestyle"],
                     color=exp["color"],
-                    alpha=exp["alpha"],
+                    alpha=ALPHA_CONFIG["data_lines_alpha"],
                     label=f"{name} (training)",
                     linewidth=1,
                     markersize=3,
@@ -1157,6 +1287,7 @@ class TrainingCurveAnalyzer:
                     zorder=120,
                     edgecolors="black",
                     linewidth=1.5,
+                    alpha=ALPHA_CONFIG["frontier_points_alpha"],
                     label=None,
                 )
         else:
@@ -1176,6 +1307,11 @@ class TrainingCurveAnalyzer:
                     zorder=zorder,
                     edgecolors="black" if is_frontier else None,
                     linewidth=2 if is_frontier else 1,
+                    alpha=(
+                        ALPHA_CONFIG["frontier_points_alpha"]
+                        if is_frontier
+                        else ALPHA_CONFIG["data_points_alpha"]
+                    ),
                 )
 
         # Plot power law fit if requested
@@ -1209,7 +1345,7 @@ class TrainingCurveAnalyzer:
                     y_fit,
                     "k--",
                     linewidth=4,
-                    alpha=0.95,
+                    alpha=ALPHA_CONFIG["power_law_fit_alpha"],
                     label=f"Power law fit: y = {a:.2e} * x^({b:.3f}) (R² = {r_squared:.3f})",
                 )
 
@@ -1241,7 +1377,7 @@ class TrainingCurveAnalyzer:
                     y_fit,
                     "r-.",
                     linewidth=4,
-                    alpha=0.95,
+                    alpha=ALPHA_CONFIG["sklearn_fit_alpha"],
                     label=f"Sklearn fit: L = {E:.3f} + {A:.2e} * C^({alpha:.3f}) (R² = {r_squared:.3f})",
                 )
 
@@ -1287,22 +1423,30 @@ class TrainingCurveAnalyzer:
                         color=color,
                         linestyle=linestyle,
                         linewidth=linewidth,
-                        alpha=alpha,
+                        alpha=ALPHA_CONFIG["theoretical_alpha"],
                         label=f"{label}: L = {E:.3f} - {self.irreducible_loss:.3f} + {A:.2e} * C^({gamma:.3f})",
                     )
 
         # Customize plot
-        plt.xlabel("Compute (FLOPS)", fontsize=12)
-        plt.ylabel("Validation Loss (Irreducible)", fontsize=12)
+        plt.xlabel("Compute (FLOPS)", fontsize=FONT_CONFIG["regular_xlabel_size"])
+        plt.ylabel(
+            "Validation Loss (Irreducible)", fontsize=FONT_CONFIG["regular_ylabel_size"]
+        )
         plt.yscale("log")
         plt.xscale("log")
         plt.grid(True, alpha=0.3)
         plt.title(
-            "Training Curves and Scaling Analysis", fontsize=14, fontweight="bold"
+            "Training Curves and Scaling Analysis",
+            fontsize=FONT_CONFIG["regular_title_size"],
+            fontweight="bold",
         )
 
         # Add legend
-        plt.legend(bbox_to_anchor=(1.05, 1), loc="upper left", fontsize=12)
+        plt.legend(
+            bbox_to_anchor=(1.05, 1),
+            loc="upper left",
+            fontsize=FONT_CONFIG["regular_legend_size"],
+        )
         plt.tight_layout()
 
         if save_path:
@@ -1327,7 +1471,7 @@ if __name__ == "__main__":
             "name": "32d corrected melis scaling experiments",
             "csv_path": "../experimental_data_folder/lstm_scaling_study/32_correction_bs64.csv",
             "marker": "o",
-            "color": "orange",
+            "color": "viridis[0.8]",
             "include_in_in_frontier": False,  # Include in frontier analysis
             "class": "lstm",
             "hidden_dim": 32,
@@ -1337,7 +1481,7 @@ if __name__ == "__main__":
             "name": "64d corrected melis scaling experiments",
             "csv_path": "../experimental_data_folder/lstm_scaling_study/64_correction_bs64.csv",
             "marker": "o",
-            "color": "orange",
+            "color": "viridis[0.8]",
             "include_in_in_frontier": False,  # Include in frontier analysis
             "class": "lstm",
             "hidden_dim": 64,
@@ -1346,7 +1490,7 @@ if __name__ == "__main__":
             "name": "96d corrected melis scaling experiments",
             "csv_path": "../experimental_data_folder/lstm_scaling_study/96_correction_bs64.csv",
             "marker": "o",
-            "color": "orange",
+            "color": "viridis[0.8]",
             "include_in_in_frontier": False,  # Include in frontier analysis
             "class": "lstm",
             "hidden_dim": 96,
@@ -1355,7 +1499,7 @@ if __name__ == "__main__":
             "name": "128d corrected melis scaling experiments",
             "csv_path": "../experimental_data_folder/lstm_scaling_study/128_correction_bs64.csv",
             "marker": "o",
-            "color": "orange",
+            "color": "viridis[0.8]",
             "include_in_in_frontier": False,  # Include in frontier analysis
             "class": "lstm",
             "hidden_dim": 128,
@@ -1364,7 +1508,7 @@ if __name__ == "__main__":
             "name": "160d corrected melis scaling experiments",
             "csv_path": "../experimental_data_folder/lstm_scaling_study/160_correction_bs64.csv",
             "marker": "o",
-            "color": "orange",
+            "color": "viridis[0.8]",
             "include_in_in_frontier": False,  # Include in frontier analysis
             "class": "lstm",
             "hidden_dim": 160,
@@ -1373,7 +1517,7 @@ if __name__ == "__main__":
             "name": "192d corrected melis scaling experiments",
             "csv_path": "../experimental_data_folder/lstm_scaling_study/192_correction_bs64.csv",
             "marker": "o",
-            "color": "orange",
+            "color": "viridis[0.8]",
             "include_in_in_frontier": False,  # Include in frontier analysis
             "class": "lstm",
             "hidden_dim": 192,
@@ -1382,41 +1526,41 @@ if __name__ == "__main__":
             "name": "256d corrected melis scaling experiments",
             "csv_path": "../experimental_data_folder/lstm_scaling_study/256_correction_bs64.csv",
             "marker": "o",
-            "color": "orange",
+            "color": "viridis[0.8]",
             "include_in_in_frontier": False,  # Include in frontier analysis
             "class": "lstm",
             "hidden_dim": 256,
         },
-        # lstm sgd
-        {
-            "name": "48d melis sgd",
-            "csv_path": "../experimental_data_folder/lstm_sgd/48melis_steam_sgd.csv",
-            "marker": "o",
-            "include_in_frontier": False,  # Include in frontier analysis
-            "class": "lstm_sgd",
-            "color": "tab:orange",
-            "hidden_dim": 48,
-        },
-        # 64melis scaling
-        {
-            "name": "64d melis sgd",
-            "csv_path": "../experimental_data_folder/lstm_sgd/64melis_steam_sgd.csv",
-            "marker": "o",
-            "include_in_frontier": False,  # Include in frontier analysis
-            "class": "lstm_sgd",
-            "color": "tab:orange",
-            "hidden_dim": 64,
-        },
-        # 128 melis scaling
-        {
-            "name": "128d melis sgd",
-            "csv_path": "../experimental_data_folder/lstm_sgd/128melis_stream_sgd.csv",
-            "marker": "o",
-            "include_in_frontier": False,  # Include in frontier analysis
-            "class": "lstm_sgd",
-            "color": "tab:orange",
-            "hidden_dim": 128,
-        },
+        # # lstm sgd
+        # {
+        #     "name": "48d melis sgd",
+        #     "csv_path": "../experimental_data_folder/lstm_sgd/48melis_steam_sgd.csv",
+        #     "marker": "o",
+        #     "include_in_frontier": False,  # Include in frontier analysis
+        #     "class": "lstm_sgd",
+        #     "color": "tab:orange",
+        #     "hidden_dim": 48,
+        # },
+        # # 64melis scaling
+        # {
+        #     "name": "64d melis sgd",
+        #     "csv_path": "../experimental_data_folder/lstm_sgd/64melis_steam_sgd.csv",
+        #     "marker": "o",
+        #     "include_in_frontier": False,  # Include in frontier analysis
+        #     "class": "lstm_sgd",
+        #     "color": "tab:orange",
+        #     "hidden_dim": 64,
+        # },
+        # # 128 melis scaling
+        # {
+        #     "name": "128d melis sgd",
+        #     "csv_path": "../experimental_data_folder/lstm_sgd/128melis_stream_sgd.csv",
+        #     "marker": "o",
+        #     "include_in_frontier": False,  # Include in frontier analysis
+        #     "class": "lstm_sgd",
+        #     "color": "tab:orange",
+        #     "hidden_dim": 128,
+        # },
         # transformer scaling further
         {
             "name": "32d transformer scaling further",
@@ -1424,7 +1568,7 @@ if __name__ == "__main__":
             "marker": "o",
             "include_in_frontier": False,  # Include in frontier analysis
             "class": "transformer",
-            "color": "tab:purple",
+            "color": "viridis[0.0]",
             "hidden_dim": 32,
         },
         {
@@ -1433,7 +1577,7 @@ if __name__ == "__main__":
             "marker": "o",
             "include_in_frontier": False,  # Include in frontier analysis
             "class": "transformer",
-            "color": "tab:purple",
+            "color": "viridis[0.0]",
             "hidden_dim": 48,
         },
         {
@@ -1442,7 +1586,7 @@ if __name__ == "__main__":
             "marker": "o",
             "include_in_frontier": False,  # Include in frontier analysis
             "class": "transformer",
-            "color": "tab:purple",
+            "color": "viridis[0.0]",
             "hidden_dim": 64,
         },
         # 96 128 160
@@ -1452,7 +1596,7 @@ if __name__ == "__main__":
             "marker": "o",
             "include_in_frontier": False,  # Include in frontier analysis
             "class": "transformer",
-            "color": "tab:purple",
+            "color": "viridis[0.0]",
             "hidden_dim": 96,
         },
         {
@@ -1461,7 +1605,7 @@ if __name__ == "__main__":
             "marker": "o",
             "include_in_frontier": False,  # Include in frontier analysis
             "class": "transformer",
-            "color": "tab:purple",
+            "color": "viridis[0.0]",
             "hidden_dim": 128,
         },
         {
@@ -1470,7 +1614,7 @@ if __name__ == "__main__":
             "marker": "o",
             "include_in_frontier": False,  # Include in frontier analysis
             "class": "transformer",
-            "color": "tab:purple",
+            "color": "viridis[0.0]",
             "hidden_dim": 160,
         },
         # sgd scaling further
@@ -1480,7 +1624,7 @@ if __name__ == "__main__":
             "marker": "o",
             "include_in_frontier": False,  # Include in frontier analysis
             "class": "sgd",
-            "color": "tab:orange",
+            "color": "viridis[0.0]",
             "hidden_dim": 32,
         },
         {
@@ -1489,7 +1633,7 @@ if __name__ == "__main__":
             "marker": "o",
             "include_in_frontier": False,  # Include in frontier analysis
             "class": "sgd",
-            "color": "tab:orange",
+            "color": "viridis[4]",  # Example: using viridis colormap index 2
             "hidden_dim": 48,
         },
         {
@@ -1498,7 +1642,7 @@ if __name__ == "__main__":
             "marker": "o",
             "include_in_frontier": False,  # Include in frontier analysis
             "class": "sgd",
-            "color": "tab:orange",
+            "color": "viridis[20]",  # Example: using plasma colormap at 0.3
             "hidden_dim": 64,
         },
         {
@@ -1670,14 +1814,14 @@ if __name__ == "__main__":
             # "optimal_lr_sgd_transformer",
             "transformer",
             "lstm",
-            "2017 Transformer",
+            # "2017 Transformer",
             # "sgd",
             # "vanilla_transformer_rmsprop",
         ],
         flop_range_by_class={
-            "transformer": (1 * 1e0, 5 * 1e17),
-            "lstm": (1e16 * 4, 1e16 * 5),
-            "2017 Transformer": (1e14, 1e15),
+            "transformer": (1e14, 5 * 1e17),
+            "lstm": (1e14, 1e16 * 5),
+            # "2017 Transformer": (1e14, 1e15),
             # "sgd": (3 * 1e14, 1e15),
         },
         extrapolation_factor=50.0,  # Extend trend lines 3x beyond data range
