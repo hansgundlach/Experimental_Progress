@@ -9,6 +9,9 @@ use_theoretical_flops parameter when initializing the analyzer.
 The analyzer supports two types of fits:
 1. Power law fit: y = a * x^b
 2. Sklearn-style fit: L = E + A * C^alpha
+
+The analyzer also supports class-to-legend-label mapping for cleaner legends.
+
 Usage:
     # To use theoretical_flops:
     analyzer = TrainingCurveAnalyzer(use_theoretical_flops=True)
@@ -16,8 +19,9 @@ Usage:
     # To use total_flops_profiler (default):
     analyzer = TrainingCurveAnalyzer(use_theoretical_flops=False)
 
-    # Or simply:
-    analyzer = TrainingCurveAnalyzer()  # defaults to total_flops_profiler
+    # With class legend mapping for cleaner legends:
+    class_mapping = {"lstm": "LSTM experiments", "transformer": "Transformer experiments"}
+    analyzer = TrainingCurveAnalyzer(class_legend_mapping=class_mapping)
 
     # To enable sklearn-style fitting:
     analyzer.plot_training_curves_by_class(show_sklearn_fit=True)
@@ -47,6 +51,7 @@ class TrainingCurveAnalyzer:
         self,
         irreducible_loss: float = IRREDUCIBLE_LOSS,
         use_theoretical_flops: bool = False,
+        class_legend_mapping: Optional[Dict[str, str]] = None,
     ):
         """
         Initialize the analyzer.
@@ -54,6 +59,7 @@ class TrainingCurveAnalyzer:
         Args:
             irreducible_loss: The irreducible loss to subtract from validation losses
             use_theoretical_flops: If True, use 'theoretical_flops' column; if False, use 'total_flops_profiler'
+            class_legend_mapping: Optional mapping from class names to legend labels (e.g., {'lstm': 'LSTM experiments'})
         """
         self.irreducible_loss = irreducible_loss
         self.use_theoretical_flops = use_theoretical_flops
@@ -68,6 +74,8 @@ class TrainingCurveAnalyzer:
         self.frontier_points_all_by_class: Dict[str, List[Tuple[str, float, float]]] = (
             {}
         )
+        # Class to legend label mapping
+        self.class_legend_mapping = class_legend_mapping or {}
 
     def add_experiment(
         self,
@@ -742,6 +750,9 @@ class TrainingCurveAnalyzer:
 
         # Optionally plot all training curves
         if show_all_curves:
+            # Track which classes we've already plotted to avoid duplicate legend entries
+            plotted_classes = set()
+
             for name, exp in self.experiments.items():
                 cls = exp.get("class", "default")
                 if cls not in classes_to_plot:
@@ -754,6 +765,16 @@ class TrainingCurveAnalyzer:
                 loss_vals = exp["data"][exp["loss_col"]].values - self.irreducible_loss
                 mask = loss_vals > 0
                 if np.any(mask):
+                    # Use class legend mapping if available, otherwise use class name
+                    if cls in self.class_legend_mapping:
+                        legend_label = self.class_legend_mapping[cls]
+                    else:
+                        legend_label = cls
+
+                    # Only add label if we haven't plotted this class yet
+                    label = legend_label if cls not in plotted_classes else None
+                    plotted_classes.add(cls)
+
                     ax.plot(
                         compute_vals[mask],
                         loss_vals[mask],
@@ -761,7 +782,7 @@ class TrainingCurveAnalyzer:
                         linestyle=exp["linestyle"],
                         color=color,
                         alpha=exp["alpha"],
-                        label=name,  # Use experiment name as label
+                        label=label,
                         linewidth=2,
                         markersize=6,
                     )
@@ -1299,218 +1320,14 @@ class TrainingCurveAnalyzer:
 if __name__ == "__main__":
     # Initialize analyzer
     # Toggle between theoretical_flops and total_flops_profiler by setting use_theoretical_flops
-    USE_THEORETICAL_FLOPS = (
-        False  # Set to True to use theoretical_flops, False for total_flops_profiler
-    )
-    analyzer = TrainingCurveAnalyzer(
-        irreducible_loss=IRREDUCIBLE_LOSS, use_theoretical_flops=USE_THEORETICAL_FLOPS
-    )
 
     # Add experiments - you can modify these paths and names as needed
     experiments_config = [
-        # {
-        #     "name": " best sgd 32d",
-        #     "csv_path": "../experimental_data_folder/best_possible_sgd/32d_best_sgdbs32.csv",
-        #     "marker": "s",
-        #     "color": "tab:cyan",
-        #     "include_in_in_frontier": False,  # Include in frontier analysis
-        #     "class": "sgd",
-        #     "hidden_dim": 32,
-        # },
-        # {
-        #     "name": " best sgd 48d",
-        #     "csv_path": "../experimental_data_folder/best_possible_sgd/48d_best_sgdbs32.csv",
-        #     "marker": "s",
-        #     "color": "tab:cyan",
-        #     "include_in_in_frontier": False,  # Include in frontier analysis
-        #     "class": "sgd",
-        #     "hidden_dim": 48,
-        # },
-        # {
-        #     "name": " best sgd 64d",
-        #     "csv_path": "../experimental_data_folder/best_possible_sgd/64d_best_sgdbs32.csv",
-        #     "marker": "s",
-        #     "color": "tab:cyan",
-        #     "include_in_in_frontier": False,  # Include in frontier analysis
-        #     "class": "sgd",
-        #     "hidden_dim": 64,
-        # },
-        # {
-        #     "name": " best sgd 80d",
-        #     "csv_path": "../experimental_data_folder/best_possible_sgd/80d_best_sgdbs32.csv",
-        #     "marker": "s",
-        #     "color": "tab:cyan",
-        #     "include_in_in_frontier": False,  # Include in frontier analysis
-        #     "class": "sgd",
-        #     "hidden_dim": 80,
-        # },
-        # # best sgd 128 and 256
-        # {
-        #     "name": " best sgd 128d bs64",
-        #     "csv_path": "../experimental_data_folder/best_possible_sgd/128d_best_sgdbs64.csv",
-        #     "marker": "s",
-        #     "color": "tab:cyan",
-        #     "include_in_in_frontier": False,  # Include in frontier analysis
-        #     "class": "sgd",
-        #     "hidden_dim": 128,
-        # },
-        # # 256d best sgd bs128
-        # {
-        #     "name": "best sgd 256d bs64",
-        #     "csv_path": "../experimental_data_folder/best_possible_sgd/256d_best_sgdbs64.csv",
-        #     "marker": "s",
-        #     "color": "tab:cyan",
-        #     "include_in_in_frontier": False,  # Include in frontier analysis
-        #     "class": "sgd",
-        #     "hidden_dim": 256,
-        # },
-        # {
-        #     "name": "best sgd 48d bs64lr1",
-        #     "csv_path": "../experimental_data_folder/best_possible_sgd/48d_best_sgdbs64lr1.csv",
-        #     "marker": "s",
-        #     "color": "tab:blue",
-        #     "include_in_in_frontier": False,  # Include in frontier analysis
-        #     "class": "sgd",
-        #     "hidden_dim": 48,
-        # },
-        # {
-        #     "name": "best sgd 64d bs64lr1",
-        #     "csv_path": "../experimental_data_folder/best_possible_sgd/64d_best_sgdbs64lr1.csv",
-        #     "marker": "s",
-        #     "color": "tab:blue",
-        #     "include_in_in_frontier": False,  # Include in frontier analysis
-        #     "class": "sgd",
-        #     "hidden_dim": 64,
-        # },
-        # {
-        #     "name": "best sgd 80d bs64lr1",
-        #     "csv_path": "../experimental_data_folder/best_possible_sgd/80d_best_sgdbs64lr1.csv",
-        #     "marker": "s",
-        #     "color": "tab:blue",
-        #     "include_in_in_frontier": False,  # Include in frontier analysis
-        #     "class": "sgd",
-        #     "hidden_dim": 80,
-        # },
-        # # sinscaling
-        # # 128d sin scaling
-        # {
-        #     "name": "128d sin scaling",
-        #     "csv_path": "../experimental_data_folder/sin_scaling/128d_sinbs128.csv",
-        #     "marker": "o",
-        #     "color": "tab:green",
-        #     "include_in_in_frontier": False,  # Include in frontier analysis
-        #     "class": "lstm",
-        #     "hidden_dim": 128,
-        # },
-        # # 256d sin scaling
-        # {
-        #     "name": "128d sin scaling bs 128",
-        #     "csv_path": "../experimental_data_folder/sin_scaling/128d_sinbs128.csv",
-        #     "marker": "o",
-        #     "color": "tab:green",
-        #     "include_in_in_frontier": False,  # Include in frontier analysis
-        #     "class": "lstm",
-        #     "hidden_dim": 256,
-        # },
-        # melis scaling
-        # {
-        #     "name": "32d melis scaling experiments",
-        #     "csv_path": "../experimental_data_folder/lstm_scaling_diagnostic/32melis_settings_low_dropout.csv",
-        #     "marker": "o",
-        #     "color": "deeppink",
-        #     "include_in_in_frontier": False,  # Include in frontier analysis
-        #     "class": "lstm",
-        #     "hidden_dim": 32,
-        # },
-        # {
-        #     "name": "48d melis scaling experiments",
-        #     "csv_path": "../experimental_data_folder/lstm_scaling_diagnostic/48melis_settings_low_dropout.csv",
-        #     "marker": "o",
-        #     "color": "deeppink",
-        #     "include_in_in_frontier": False,  # Include in frontier analysis
-        #     "class": "lstm",
-        #     "hidden_dim": 48,
-        # },
-        # {
-        #     "name": "64d melis scaling experiments",
-        #     "csv_path": "../experimental_data_folder/lstm_scaling_diagnostic/64melis_settings_low_dropout.csv",
-        #     "marker": "o",
-        #     "color": "deeppink",
-        #     "include_in_in_frontier": False,  # Include in frontier analysis
-        #     "class": "lstm",
-        #     "hidden_dim": 64,
-        # },
-        # # 80 and 96 melis
-        # {
-        #     "name": "80d melis scaling experiments",
-        #     "csv_path": "../experimental_data_folder/lstm_scaling_diagnostic/80melis_settings_low_dropout.csv",
-        #     "marker": "o",
-        #     "color": "deeppink",
-        #     "include_in_in_frontier": False,  # Include in frontier analysis
-        #     "class": "lstm",
-        #     "hidden_dim": 80,
-        # },
-        # {
-        #     "name": "96d melis scaling experiments",
-        #     "csv_path": "../experimental_data_folder/lstm_scaling_diagnostic/96melis_settings_low_dropout.csv",
-        #     "marker": "o",
-        #     "color": "deeppink",
-        #     "include_in_in_frontier": False,  # Include in frontier analysis
-        #     "class": "lstm",
-        #     "hidden_dim": 96,
-        # },
-        # {
-        #     "name": "32d melis scaling experiments",
-        #     "csv_path": "../experimental_data_folder/lstm_scaling_diagnostic/32melis_settings_low_dropout.csv",
-        #     "marker": "o",
-        #     "color": "deeppink",
-        #     "include_in_in_frontier": False,  # Include in frontier analysis
-        #     "class": "lstm",
-        #     "hidden_dim": 32,
-        # },
-        # {
-        #     "name": "48d melis scaling experiments",
-        #     "csv_path": "../experimental_data_folder/lstm_scaling_diagnostic/48melis_steam.csv",
-        #     "marker": "o",
-        #     "color": "deeppink",
-        #     "include_in_in_frontier": False,  # Include in frontier analysis
-        #     "class": "lstm",
-        #     "hidden_dim": 48,
-        # },
-        # {
-        #     "name": "64d melis scaling experiments",
-        #     "csv_path": "../experimental_data_folder/lstm_scaling_diagnostic/64melis_steam.csv",
-        #     "marker": "o",
-        #     "color": "deeppink",
-        #     "include_in_in_frontier": False,  # Include in frontier analysis
-        #     "class": "lstm",
-        #     "hidden_dim": 64,
-        # },
-        # # 80 and 96 melis
-        # {
-        #     "name": "80d melis scaling experiments",
-        #     "csv_path": "../experimental_data_folder/lstm_scaling_diagnostic/80melis_steam.csv",
-        #     "marker": "o",
-        #     "color": "deeppink",
-        #     "include_in_in_frontier": False,  # Include in frontier analysis
-        #     "class": "lstm",
-        #     "hidden_dim": 80,
-        # },
-        # {
-        #     "name": "128d melis scaling experiments",
-        #     "csv_path": "../experimental_data_folder/lstm_scaling_diagnostic/128melis_steam.csv",
-        #     "marker": "o",
-        #     "color": "deeppink",
-        #     "include_in_in_frontier": False,  # Include in frontier analysis
-        #     "class": "lstm",
-        #     "hidden_dim": 96,
-        # },
-        # #correctd melsis scaling
         {
             "name": "32d corrected melis scaling experiments",
             "csv_path": "../experimental_data_folder/lstm_scaling_study/32_correction_bs64.csv",
             "marker": "o",
-            "color": "cyan",
+            "color": "orange",
             "include_in_in_frontier": False,  # Include in frontier analysis
             "class": "lstm",
             "hidden_dim": 32,
@@ -1520,7 +1337,7 @@ if __name__ == "__main__":
             "name": "64d corrected melis scaling experiments",
             "csv_path": "../experimental_data_folder/lstm_scaling_study/64_correction_bs64.csv",
             "marker": "o",
-            "color": "cyan",
+            "color": "orange",
             "include_in_in_frontier": False,  # Include in frontier analysis
             "class": "lstm",
             "hidden_dim": 64,
@@ -1529,7 +1346,7 @@ if __name__ == "__main__":
             "name": "96d corrected melis scaling experiments",
             "csv_path": "../experimental_data_folder/lstm_scaling_study/96_correction_bs64.csv",
             "marker": "o",
-            "color": "purple",
+            "color": "orange",
             "include_in_in_frontier": False,  # Include in frontier analysis
             "class": "lstm",
             "hidden_dim": 96,
@@ -1570,43 +1387,6 @@ if __name__ == "__main__":
             "class": "lstm",
             "hidden_dim": 256,
         },
-        # new scaling
-        # {
-        #     "name": "32d new scaling",
-        #     "csv_path": "../experimental_data_folder/transformer_scaling/32d_bs128lr2.csv",
-        #     "marker": "o",
-        #     "color": "tab:purple",
-        #     "include_in_in_frontier": True,  # Include in frontier analysis
-        #     "class": "transformer",
-        #     "hidden_dim": 32,
-        # },
-        # {
-        #     "name": "48d new scaling",
-        #     "csv_path": "../experimental_data_folder/transformer_scaling/48d_bs128lr2.csv",
-        #     "marker": "o",
-        #     "color": "tab:purple",
-        #     "include_in_in_frontier": True,  # Include in frontier analysis
-        #     "class": "transformer",
-        #     "hidden_dim": 48,
-        # },
-        # {
-        #     "name": "64d new scaling",
-        #     "csv_path": "../experimental_data_folder/transformer_scaling/64d_bs128lr2.csv",
-        #     "marker": "o",
-        #     "color": "tab:purple",
-        #     "include_in_in_frontier": True,  # Include in frontier analysis
-        #     "class": "transformer",
-        #     "hidden_dim": 64,
-        # },
-        # {
-        #     "name": "80d new scaling",
-        #     "csv_path": "../experimental_data_folder/transformer_scaling/80d_bs128lr25.csv",
-        #     "marker": "o",
-        #     "color": "tab:purple",
-        #     "include_in_in_frontier": True,  # Include in frontier analysis
-        #     "class": "transformer",
-        #     "hidden_dim": 80,
-        # },
         # lstm sgd
         {
             "name": "48d melis sgd",
@@ -1754,7 +1534,7 @@ if __name__ == "__main__":
             "csv_path": "../experimental_data_folder/historical_experiments/p32transformer_2017_bs64.csv",
             "marker": "o",
             "include_in_frontier": False,  # Include in frontier analysis
-            "class": "transformer",
+            "class": "2017 Transformer",
             "color": "tab:green",
             "hidden_dim": 32,
         },
@@ -1763,7 +1543,7 @@ if __name__ == "__main__":
             "csv_path": "../experimental_data_folder/historical_experiments/p64transformer_2017_bs64.csv",
             "marker": "o",
             "include_in_frontier": False,  # Include in frontier analysis
-            "class": "transformer",
+            "class": "2017 Transformer",
             "color": "tab:green",
             "hidden_dim": 64,
         },
@@ -1772,7 +1552,7 @@ if __name__ == "__main__":
             "csv_path": "../experimental_data_folder/historical_experiments/p128transformer_2017_bs64.csv",
             "marker": "o",
             "include_in_frontier": False,  # Include in frontier analysis
-            "class": "transformer",
+            "class": "2017 Transformer",
             "color": "tab:green",
             "hidden_dim": 128,
         },
@@ -1781,93 +1561,10 @@ if __name__ == "__main__":
             "csv_path": "../experimental_data_folder/historical_experiments/p160transformer_2017_bs64.csv",
             "marker": "o",
             "include_in_frontier": False,  # Include in frontier analysis
-            "class": "transformer",
+            "class": "2017 Transformer",
             "color": "tab:green",
             "hidden_dim": 160,
         },
-        # sin scaling further
-        # {
-        #     "name": "32d sin scaling further",
-        #     "csv_path": "../experimental_data_folder/sin_scaling/32d_sin_bs64.csv",
-        #     "marker": "o",
-        #     "include_in_frontier": False,  # Include in frontier analysis
-        #     "class": "sin",
-        #     "color": "tab:green",
-        #     "hidden_dim": 32,
-        # },
-        # {
-        #     "name": "48d sin scaling further",
-        #     "csv_path": "../experimental_data_folder/sin_scaling/48d_sin_bs64.csv",
-        #     "marker": "o",
-        #     "include_in_frontier": False,  # Include in frontier analysis
-        #     "class": "sin",
-        #     "color": "tab:green",
-        #     "hidden_dim": 48,
-        # },
-        # {
-        #     "name": "64d sin scaling further",
-        #     "csv_path": "../experimental_data_folder/sin_scaling/64d_sin_bs64.csv",
-        #     "marker": "o",
-        #     "include_in_frontier": False,  # Include in frontier analysis
-        #     "class": "sin",
-        #     "color": "tab:green",
-        #     "hidden_dim": 64,
-        # },
-        # {
-        #     "name": "96d sin scaling further",
-        #     "csv_path": "../experimental_data_folder/sin_scaling/96d_sin_bs64.csv",
-        #     "marker": "o",
-        #     "include_in_frontier": False,  # Include in frontier analysis
-        #     "class": "sin",
-        #     "color": "tab:green",
-        #     "hidden_dim": 96,
-        # },
-        # {
-        #     "name": "128d sin scaling further",
-        #     "csv_path": "../experimental_data_folder/sin_scaling/128d_sin_bs64.csv",
-        #     "marker": "o",
-        #     "include_in_frontier": False,  # Include in frontier analysis
-        #     "class": "sin",
-        #     "color": "tab:green",
-        #     "hidden_dim": 128,
-        # },
-        # {
-        #     "name": "160d sin scaling further",
-        #     "csv_path": "../experimental_data_folder/sin_scaling/160d_sin_bs64.csv",
-        #     "marker": "o",
-        #     "include_in_frontier": False,  # Include in frontier analysis
-        #     "class": "sin",
-        #     "color": "tab:green",
-        #     "hidden_dim": 160,
-        # },
-        # new scaling no rotary
-        # {
-        #     "name": "32d new scaling no rotary",
-        #     "csv_path": "../experimental_data_folder/new_scaling/32d_new_scaling_no_rotary.csv",
-        #     "marker": "o",
-        #     "color": "tab:blue",
-        #     "include_in_in_frontier": False,  # Include in frontier analysis
-        #     "class": "transformer_no_rotary",
-        #     "hidden_dim": 32,
-        # },
-        # {
-        #     "name": "48d new scaling no rotary",
-        #     "csv_path": "../experimental_data_folder/new_scaling/48d_new_scaling_no_rotary.csv",
-        #     "marker": "o",
-        #     "color": "tab:blue",
-        #     "include_in_in_frontier": False,  # Include in frontier analysis
-        #     "class": "transformer_no_rotary",
-        #     "hidden_dim": 48,
-        # },
-        # {
-        #     "name": "64d new scaling no rotary",
-        #     "csv_path": "../experimental_data_folder/new_scaling/64d_new_scaling_no_rotary.csv",
-        #     "marker": "o",
-        #     "color": "tab:blue",
-        #     "include_in_in_frontier": False,  # Include in frontier analysis
-        #     "class": "transformer_no_rotary",
-        #     "hidden_dim": 64,
-        # },
     ]
 
     #   {
@@ -1911,6 +1608,26 @@ if __name__ == "__main__":
     #         "hidden_dim": 64,
     #     },
 
+    USE_THEORETICAL_FLOPS = (
+        False  # Set to True to use theoretical_flops, False for total_flops_profiler
+    )
+
+     # Define class-to-legend-label mapping for cleaner legend
+    class_legend_mapping = {
+        "lstm": "LSTM experiments",
+        "lstm_sgd": "LSTM SGD experiments",
+        "transformer": "Transformer experiments",
+        "sgd": "SGD experiments",
+        "2017 Transformer": "2017 Transformer experiments",
+    }
+
+    analyzer = TrainingCurveAnalyzer(
+        irreducible_loss=IRREDUCIBLE_LOSS,
+        use_theoretical_flops=USE_THEORETICAL_FLOPS,
+        class_legend_mapping=class_legend_mapping,
+    )
+
+
     # Add experiments
     for config in experiments_config:
         analyzer.add_experiment(
@@ -1924,6 +1641,7 @@ if __name__ == "__main__":
             hidden_dim=config.get("hidden_dim"),
         )
 
+   
     # Identify per-class frontiers
     # analyzer.identify_frontier_by_class(
     #     method="pareto",
@@ -1954,12 +1672,14 @@ if __name__ == "__main__":
             # "optimal_lr_sgd_transformer",
             "transformer",
             "lstm",
+            "2017 Transformer",
             # "sgd",
             # "vanilla_transformer_rmsprop",
         ],
         flop_range_by_class={
             "transformer": (1 * 1e0, 5 * 1e17),
             "lstm": (1e16 * 4, 1e16 * 5),
+            "2017 Transformer": (1e14, 1e15),
             # "sgd": (3 * 1e14, 1e15),
         },
         extrapolation_factor=50.0,  # Extend trend lines 3x beyond data range
