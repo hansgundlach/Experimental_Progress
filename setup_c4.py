@@ -6,7 +6,7 @@ from pathlib import Path
 CACHE_DIR = "/your/real/cache/dir"  # ← adjust as needed
 
 # How many GPT-2 tokens to collect (≈1e9)
-TOKEN_LIMIT = 10**10
+TOKEN_LIMIT = 3 * 10**9
 
 # Ensure target directory exists
 Path("Datasets").mkdir(exist_ok=True)

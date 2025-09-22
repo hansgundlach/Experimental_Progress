@@ -342,6 +342,7 @@ def get_lstm_base_config():
         "test_split": 0.1,
         "fixed_val_tokens": 5
         * 1e5,  # Fixed number of tokens for validation set (optional)
+        "char_to_token_ratio": 4.0,  # Character-to-token ratio for dataset loading (e.g., 4.0 = load 4 chars per expected token)
         "device": "cuda" if torch.cuda.is_available() else "cpu",
         "wandb_project": "lstm-language-modeling",
         "wandb_offline": True,

@@ -1796,8 +1796,9 @@ def get_dataset(config):
             total_tokens_needed = int(max_tokens_training / train_split)
             print(f"Percentage split mode: need {total_tokens_needed:,} total tokens for {max_tokens_training:,} training tokens")
         
-        # Convert token limit to character limit using 4:1 ratio (same as LSTM system)
-        max_characters = int(total_tokens_needed * 4)
+        # Convert token limit to character limit using configurable ratio
+        char_to_token_ratio = config.get("char_to_token_ratio", 4.0)
+        max_characters = int(total_tokens_needed * char_to_token_ratio)
         if len(text) > max_characters:
             # Random sampling for variety in training data
             start_idx = random.randint(0, max(0, len(text) - max_characters))
@@ -1810,11 +1811,12 @@ def get_dataset(config):
             )
         else:
             print(
-                f"Using full dataset: {len(text):,} characters (~{len(text)//4:,} tokens)"
+                f"Using full dataset: {len(text):,} characters (~{int(len(text)/char_to_token_ratio):,} tokens)"
             )
     else:
+        char_to_token_ratio = config.get("char_to_token_ratio", 4.0)
         print(
-            f"Using full dataset: {len(text):,} characters (~{len(text)//4:,} tokens)"
+            f"Using full dataset: {len(text):,} characters (~{int(len(text)/char_to_token_ratio):,} tokens)"
         )
 
     # BETTER SPLIT: Random shuffle before splitting
@@ -1872,10 +1874,10 @@ def get_dataset(config):
             f"Using fixed validation size with separate datasets:"
         )
         print(
-            f"  Training set: {len(train_text):,} characters (~{len(train_text)//4:,} tokens)"
+            f"  Training set: {len(train_text):,} characters (~{int(len(train_text)/char_to_token_ratio):,} tokens)"
         )
         print(
-            f"  Validation set: {len(val_text):,} characters (~{len(val_text)//4:,} tokens)"
+            f"  Validation set: {len(val_text):,} characters (~{int(len(val_text)/char_to_token_ratio):,} tokens)"
         )
         print(
             f"  Datasets are completely separate (no overlap)"
@@ -1893,10 +1895,10 @@ def get_dataset(config):
             f"Using percentage-based split: {train_split*100:.1f}% train, {val_split*100:.1f}% validation"
         )
         print(
-            f"Training set: {len(train_text):,} characters (~{len(train_text)//4:,} tokens)"
+            f"Training set: {len(train_text):,} characters (~{int(len(train_text)/char_to_token_ratio):,} tokens)"
         )
         print(
-            f"Validation set: {len(val_text):,} characters (~{len(val_text)//4:,} tokens)"
+            f"Validation set: {len(val_text):,} characters (~{int(len(val_text)/char_to_token_ratio):,} tokens)"
         )
 
     # Create datasets with GPT2 tokenizer

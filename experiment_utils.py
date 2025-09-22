@@ -610,4 +610,5 @@ def get_base_config():
         "fixed_val_tokens": int(
             500e3
         ),  # Fixed number of tokens for validation set (None = use percentage split)
+        "char_to_token_ratio": 4.0,  # Character-to-token ratio for dataset loading (e.g., 4.0 = load 4 chars per expected token)
     }

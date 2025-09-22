@@ -797,9 +797,9 @@ def load_and_preprocess_data(
                 f"Percentage split mode: need {total_tokens_needed:,} total tokens for {max_tokens_training:,} training tokens"
             )
 
-        # Use a generous 6:1 character-to-token ratio to ensure we load enough characters
-        # This accounts for dataset variations - better to load extra than run out of tokens
-        max_characters_total = int(total_tokens_needed * 6)
+        # Use configurable character-to-token ratio for dataset loading
+        char_to_token_ratio = config.get("char_to_token_ratio", 4.0)
+        max_characters_total = int(total_tokens_needed * char_to_token_ratio)
 
         if len(text) > max_characters_total:
             text = text[:max_characters_total]
