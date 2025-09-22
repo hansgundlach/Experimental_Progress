@@ -1612,7 +1612,7 @@ if __name__ == "__main__":
         False  # Set to True to use theoretical_flops, False for total_flops_profiler
     )
 
-     # Define class-to-legend-label mapping for cleaner legend
+    # Define class-to-legend-label mapping for cleaner legend
     class_legend_mapping = {
         "lstm": "LSTM experiments",
         "lstm_sgd": "LSTM SGD experiments",
@@ -1627,7 +1627,6 @@ if __name__ == "__main__":
         class_legend_mapping=class_legend_mapping,
     )
 
-
     # Add experiments
     for config in experiments_config:
         analyzer.add_experiment(
@@ -1641,7 +1640,6 @@ if __name__ == "__main__":
             hidden_dim=config.get("hidden_dim"),
         )
 
-   
     # Identify per-class frontiers
     # analyzer.identify_frontier_by_class(
     #     method="pareto",
