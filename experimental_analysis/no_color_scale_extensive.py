@@ -1554,7 +1554,24 @@ if __name__ == "__main__":
             "class": "lstm",
             "hidden_dim": 160,
         },
-
+        {
+            "name": "192d corrected melis scaling experiments",
+            "csv_path": "../experimental_data_folder/lstm_scaling_study/192_correction_bs64.csv",
+            "marker": "o",
+            "color": "orange",
+            "include_in_in_frontier": False,  # Include in frontier analysis
+            "class": "lstm",
+            "hidden_dim": 192,
+        },
+        {
+            "name": "256d corrected melis scaling experiments",
+            "csv_path": "../experimental_data_folder/lstm_scaling_study/256_correction_bs64.csv",
+            "marker": "o",
+            "color": "orange",
+            "include_in_in_frontier": False,  # Include in frontier analysis
+            "class": "lstm",
+            "hidden_dim": 256,
+        },
 
 
 

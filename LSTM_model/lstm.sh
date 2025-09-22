@@ -5,7 +5,7 @@
 #SBATCH --partition=xeon-g6-volta
 #SBATCH --nodes=1
 #SBATCH --gres=gpu:volta:1
-#SBATCH --mem=16G
+#SBATCH --mem=128G
 # Array specification is now handled by submit_lstm_job.sh wrapper
 
 # Create logs directory name with timestamp
@@ -22,7 +22,8 @@ echo "Log directory: $LOG_DIR"
 # Clear modules and load required ones
 module purge
 # module load anaconda/2023a-pytorch
-conda activate flashconda
+# conda activate flashconda
+conda activate llm_training
 
 # Print GPU allocation info
 echo "GPU allocation for this task:"
