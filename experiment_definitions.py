@@ -664,5 +664,54 @@ HISTORICAL_EXPERIMENTS = (
     )
 )
 
+
+# HISTORICAL SCALING
+
+
+HISTORICAL_EXPERIMENTS = (
+    gen_experim(
+        32,
+        label="p32transformer_2017_bs64",
+        folder_name="historical_experiments",
+        learning_rate=10 ** (-2.5),
+        activation="gelu",
+        norm_placement="post",
+        lr_schedule="inverse_sqrt",
+        pos_encoding="sinusoidal",
+    )
+    + gen_experim(
+        64,
+        label="p64transformer_2017_bs64",
+        folder_name="historical_experiments",
+        learning_rate=10 ** (-3),
+        activation="gelu",
+        norm_placement="post",
+        lr_schedule="inverse_sqrt",
+        pos_encoding="sinusoidal",
+    )
+    + gen_experim(
+        128,
+        label="p128transformer_2017_bs64",
+        folder_name="historical_experiments",
+        learning_rate=10 ** (-3.5),
+        activation="gelu",
+        norm_placement="post",
+        lr_schedule="inverse_sqrt",
+        pos_encoding="sinusoidal",
+    )
+    + gen_experim(
+        160,
+        label="p160transformer_2017_bs64",
+        folder_name="historical_experiments",
+        learning_rate=10 ** (-3.5),
+        activation="gelu",
+        norm_placement="post",
+        lr_schedule="inverse_sqrt",
+        pos_encoding="sinusoidal",
+    )
+)
+
+
 # GRAND_EXPERIMENT = SIN_SCALING + SGD_SCALING + TRANSFORMER_SCALING
+# GRAND_EXPERIMENT = create_multi_lr_experiments(HISTORICAL_EXPERIMENTS, LR_ADHOC)
 GRAND_EXPERIMENT = HISTORICAL_EXPERIMENTS

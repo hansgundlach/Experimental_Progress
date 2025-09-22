@@ -420,9 +420,6 @@ def gen_experim(
     base_config = get_base_config()
     # this stuff
 
-
-
-
     # Calculate scaled parameters
 
     # 1. Scale num_layers proportionally with hidden_dim
@@ -568,7 +565,7 @@ def get_base_config():
         "dropout": 0.0,
         "seq_length": 128,
         "pos_encoding": "rotary",
-        "init_scheme": "transformer_scaled",
+        "init_scheme": "bert_gpt",
         "stride": 128,
         "pin_memory": True,
         "compile": False,

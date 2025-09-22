@@ -184,8 +184,8 @@ transformer_lstm_estimate = [compute_multiplier(5.2039, 5.8135), 0]
 # learned vs sinusoidal
 print(transformer_lstm_estimate)
 
-#%%
-#historical anlaysis 
+# %%
+# historical anlaysis
 transformer_2022_2017_64 = [compute_multiplier(5.1735, 5.5102), 0]
 print(transformer_2022_2017_64, "historical analysis")
 

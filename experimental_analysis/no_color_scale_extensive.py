@@ -1507,9 +1507,9 @@ if __name__ == "__main__":
         #     "class": "lstm",
         #     "hidden_dim": 96,
         # },
-
-        #correctd melsis scaling
-        {       "name": "32d corrected melis scaling experiments",
+        # #correctd melsis scaling
+        {
+            "name": "32d corrected melis scaling experiments",
             "csv_path": "../experimental_data_folder/lstm_scaling_study/32_correction_bs64.csv",
             "marker": "o",
             "color": "cyan",
@@ -1517,7 +1517,7 @@ if __name__ == "__main__":
             "class": "lstm",
             "hidden_dim": 32,
         },
-        #64 96 128 160 corrected melis scaling
+        # 64 96 128 160 corrected melis scaling
         {
             "name": "64d corrected melis scaling experiments",
             "csv_path": "../experimental_data_folder/lstm_scaling_study/64_correction_bs64.csv",
@@ -1572,14 +1572,6 @@ if __name__ == "__main__":
             "class": "lstm",
             "hidden_dim": 256,
         },
-
-
-
-
-
-
-
-
         # new scaling
         # {
         #     "name": "32d new scaling",
@@ -1758,6 +1750,43 @@ if __name__ == "__main__":
             "color": "tab:orange",
             "hidden_dim": 160,
         },
+        # look at scaling of 2017 transfomere
+        {
+            "name": "32d 2017 transformer",
+            "csv_path": "../experimental_data_folder/historical_experiments/p32transformer_2017_bs64.csv",
+            "marker": "o",
+            "include_in_frontier": False,  # Include in frontier analysis
+            "class": "transformer",
+            "color": "tab:green",
+            "hidden_dim": 32,
+        },
+        {
+            "name": "64d 2017 transformer",
+            "csv_path": "../experimental_data_folder/historical_experiments/p64transformer_2017_bs64.csv",
+            "marker": "o",
+            "include_in_frontier": False,  # Include in frontier analysis
+            "class": "transformer",
+            "color": "tab:green",
+            "hidden_dim": 64,
+        },
+        {
+            "name": "128d 2017 transformer",
+            "csv_path": "../experimental_data_folder/historical_experiments/p128transformer_2017_bs64.csv",
+            "marker": "o",
+            "include_in_frontier": False,  # Include in frontier analysis
+            "class": "transformer",
+            "color": "tab:green",
+            "hidden_dim": 128,
+        },
+        {
+            "name": "160d 2017 transformer",
+            "csv_path": "../experimental_data_folder/historical_experiments/p160transformer_2017_bs64.csv",
+            "marker": "o",
+            "include_in_frontier": False,  # Include in frontier analysis
+            "class": "transformer",
+            "color": "tab:green",
+            "hidden_dim": 160,
+        },
         # sin scaling further
         # {
         #     "name": "32d sin scaling further",
@@ -1931,10 +1960,10 @@ if __name__ == "__main__":
         ],
         flop_range_by_class={
             "transformer": (1 * 1e0, 5 * 1e17),
-            "lstm": (1e15, 1e16 * 5),
+            "lstm": (1e16 * 4, 1e16 * 5),
             "sgd": (3 * 1e14, 1e15),
         },
-        extrapolation_factor=1000.0,  # Extend trend lines 3x beyond data range
+        extrapolation_factor=50.0,  # Extend trend lines 3x beyond data range
         # Example theoretical scaling laws to compare with data
         theoretical_scaling_laws=[
             {
@@ -1963,85 +1992,85 @@ if __name__ == "__main__":
 
 
 # def quick_test_theoretical_scaling():
-    # """
-    # Quick test function to verify theoretical scaling laws are working.
-    # Call this in a notebook cell to test.
-    # """
-    # # Initialize analyzer
-    # analyzer = TrainingCurveAnalyzer(irreducible_loss=IRREDUCIBLE_LOSS)
+# """
+# Quick test function to verify theoretical scaling laws are working.
+# Call this in a notebook cell to test.
+# """
+# # Initialize analyzer
+# analyzer = TrainingCurveAnalyzer(irreducible_loss=IRREDUCIBLE_LOSS)
 
-    # # Add a few experiments
-    # experiments_to_test = [
-    #     {
-    #         "name": "32d transformer scaling further",
-    #         "csv_path": "experimental_data_folder/transformer_scaling/32d_transformer_bs64.csv",
-    #         "class": "transformer",
-    #         "color": "tab:purple",
-    #     },
-    #     {
-    #         "name": "48d transformer scaling further",
-    #         "csv_path": "experimental_data_folder/transformer_scaling/48d_transformer_bs64.csv",
-    #         "class": "transformer",
-    #         "color": "tab:purple",
-    #     },
-    # ]
+# # Add a few experiments
+# experiments_to_test = [
+#     {
+#         "name": "32d transformer scaling further",
+#         "csv_path": "experimental_data_folder/transformer_scaling/32d_transformer_bs64.csv",
+#         "class": "transformer",
+#         "color": "tab:purple",
+#     },
+#     {
+#         "name": "48d transformer scaling further",
+#         "csv_path": "experimental_data_folder/transformer_scaling/48d_transformer_bs64.csv",
+#         "class": "transformer",
+#         "color": "tab:purple",
+#     },
+# ]
 
-    # for exp in experiments_to_test:
-    #     try:
-    #         analyzer.add_experiment(
-    #             name=exp["name"],
-    #             csv_path=exp["csv_path"],
-    #             class_name=exp["class"],
-    #             color=exp["color"],
-    #             include_in_frontier=True,
-    #         )
-    #     except Exception as e:
-    #         print(f"Could not load {exp['name']}: {e}")
+# for exp in experiments_to_test:
+#     try:
+#         analyzer.add_experiment(
+#             name=exp["name"],
+#             csv_path=exp["csv_path"],
+#             class_name=exp["class"],
+#             color=exp["color"],
+#             include_in_frontier=True,
+#         )
+#     except Exception as e:
+#         print(f"Could not load {exp['name']}: {e}")
 
-    # # Identify frontier
-    # analyzer.identify_frontier_by_class(use_all_points=True)
+# # Identify frontier
+# analyzer.identify_frontier_by_class(use_all_points=True)
 
-    # # Print data range for debugging
-    # if hasattr(analyzer, "frontier_points_all_by_class"):
-    #     for cls, pts in analyzer.frontier_points_all_by_class.items():
-    #         if pts:
-    #             computes = [comp for (_, comp, _) in pts]
-    #             losses = [loss for (_, _, loss) in pts]
-    #             print(f"Class '{cls}' data range:")
-    #             print(f"  Compute: {min(computes):.2e} to {max(computes):.2e}")
-    #             print(f"  Loss: {min(losses):.4f} to {max(losses):.4f}")
+# # Print data range for debugging
+# if hasattr(analyzer, "frontier_points_all_by_class"):
+#     for cls, pts in analyzer.frontier_points_all_by_class.items():
+#         if pts:
+#             computes = [comp for (_, comp, _) in pts]
+#             losses = [loss for (_, _, loss) in pts]
+#             print(f"Class '{cls}' data range:")
+#             print(f"  Compute: {min(computes):.2e} to {max(computes):.2e}")
+#             print(f"  Loss: {min(losses):.4f} to {max(losses):.4f}")
 
-    # # Plot with theoretical scaling laws
-    # analyzer.plot_training_curves_by_class(
-    #     show_all_curves=True,
-    #     show_power_law_fit=True,
-    #     show_sklearn_fit=False,
-    #     classes_to_plot=["transformer"],
-    #     theoretical_scaling_laws=[
-    #         {
-    #             "E": 1.9,  # Irreducible loss
-    #             "A": 1e-2,  # Scaling coefficient
-    #             "gamma": -0.1,  # Scaling exponent
-    #             "label": "Test Theory 1",
-    #             "color": "red",
-    #             "linestyle": "--",
-    #             "linewidth": 3,
-    #             "alpha": 0.8,
-    #         },
-    #         {
-    #             "E": 1.8,  # Different irreducible loss
-    #             "A": 1e-3,  # Different scaling coefficient
-    #             "gamma": -0.2,  # Different scaling exponent
-    #             "label": "Test Theory 2",
-    #             "color": "blue",
-    #             "linestyle": "-",
-    #             "linewidth": 3,
-    #             "alpha": 0.8,
-    #         },
-    #     ],
-    # )
+# # Plot with theoretical scaling laws
+# analyzer.plot_training_curves_by_class(
+#     show_all_curves=True,
+#     show_power_law_fit=True,
+#     show_sklearn_fit=False,
+#     classes_to_plot=["transformer"],
+#     theoretical_scaling_laws=[
+#         {
+#             "E": 1.9,  # Irreducible loss
+#             "A": 1e-2,  # Scaling coefficient
+#             "gamma": -0.1,  # Scaling exponent
+#             "label": "Test Theory 1",
+#             "color": "red",
+#             "linestyle": "--",
+#             "linewidth": 3,
+#             "alpha": 0.8,
+#         },
+#         {
+#             "E": 1.8,  # Different irreducible loss
+#             "A": 1e-3,  # Different scaling coefficient
+#             "gamma": -0.2,  # Different scaling exponent
+#             "label": "Test Theory 2",
+#             "color": "blue",
+#             "linestyle": "-",
+#             "linewidth": 3,
+#             "alpha": 0.8,
+#         },
+#     ],
+# )
 
-    # return analyzer
+# return analyzer
 
 
 # %%
