@@ -1903,18 +1903,18 @@ if __name__ == "__main__":
     # Example 1: Plot all experiments with frontier analysis
     analyzer.plot_training_curves_by_class(
         show_all_curves=True,
-        show_power_law_fit=False,
+        show_power_law_fit=True,
         show_sklearn_fit=False,  # Enable sklearn-style fit: L = E + A * C^alpha
         save_path="Figures/universal_scaling_law_study_by_class.png",
         classes_to_plot=[
             # "optimal_lr_sgd_transformer",
-            # "transformer",
+            "transformer",
             "lstm",
             # "vanilla_transformer_rmsprop",
         ],
         flop_range_by_class={
             "transformer": (1 * 1e0, 5 * 1e17),
-            "lstm": (1e16, 1e16 * 3),
+            "lstm": (1e15, 1e16 * 5),
             "sgd": (3 * 1e14, 1e15),
         },
         extrapolation_factor=1000.0,  # Extend trend lines 3x beyond data range

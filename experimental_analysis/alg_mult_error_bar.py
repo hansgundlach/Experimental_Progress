@@ -183,6 +183,17 @@ print(rotary_learned_estimate)
 transformer_lstm_estimate = [compute_multiplier(5.2039, 5.8135), 0]
 # learned vs sinusoidal
 print(transformer_lstm_estimate)
+
+#%%
+#historical anlaysis 
+transformer_2022_2017_64 = [compute_multiplier(5.1735, 5.5102), 0]
+print(transformer_2022_2017_64, "historical analysis")
+
+
+transformer_2022_2017_64 = [compute_multiplier(4.5318, 5.1177), 0]
+print(transformer_2022_2017_64, "historical analysis 128")
+
+
 # %%
 # estimate of csoine warmup vs inverss_sqrt
 cosine_inverse_sqrt_estimate = compute_multiplier_estimate(

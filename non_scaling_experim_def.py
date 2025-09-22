@@ -103,6 +103,32 @@ NORMALIZATION_EXPERIMENTS = (
     )
 )
 
+OPTIMIZER_EXPERIMENTS = (
+    gen_experim(
+        DIMENSION,
+        label=f"{DIMENSION}d_adamw",
+        folder_name="alg_mult",
+        learning_rate=10 ** (-2.5),
+        optimizer="adamw",
+    )
+    +gen_experim(
+        DIMENSION,
+        label=f"{DIMENSION}d_sgd",
+        folder_name="alg_mult",
+        learning_rate=10 ** (-2.5),
+        optimizer="sgd",
+    )
+    +gen_experim(
+        DIMENSION,
+        label=f"{DIMENSION}d_adam",
+        folder_name="alg_mult",
+        learning_rate=10 ** (-2.5),
+        optimizer="adam",
+    )
+)
+
+
+
 
 POSITIONAL_ENCODING_EXPERIMENTS = (
     gen_experim(

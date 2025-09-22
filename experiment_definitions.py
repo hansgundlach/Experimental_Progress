@@ -6,6 +6,7 @@ from experiment_utils import (
     get_base_config,
 )
 
+LR_ADHOC = [10 ** (-4), 10 ** (-3.5)]
 NARROW_LR_SWEEP = [
     10 ** (-3),
     10 ** (-2.5),
@@ -24,7 +25,7 @@ SGD_LR_SWEEP = [
     10 ** (-1.5),
 ]
 SEEDS = [123, 456, 789, 101]
-TRANSFORMER_SWEEP = [10 ** (-2.5), 10 ** (-2)]
+TRANSFORMER_SWEEP = [10 ** (-2.5), 10 ** (-2), 10 ** (-1.5)]
 
 
 # optimizer variation experiments ?
@@ -624,22 +625,43 @@ SGD_STABILIZATION_EXPERIMENTS = gen_experim(
 # )
 
 
-HISTORICAL_EXPERIMENTS = gen_experim(
-    64,
-    label="transformer_2017_bs64",
-    folder_name="historical_experiments",
-    learning_rate=10 ** (-2.5),
-    activation="gelu",
-    norm_placement="post",
-    lr_schedule="inverse_sqrt",
-    pos_encoding="sinusoidal",
-) + gen_experim(
-    64,
-    label="transformer_2022_bs64",
-    folder_name="historical_experiments",
-    learning_rate=10 ** (-2.5),
-    activation="swiglu",
-    norm_type="rms",
+HISTORICAL_EXPERIMENTS = (
+    gen_experim(
+        64,
+        label="64transformer_2017_bs64",
+        folder_name="historical_experiments",
+        learning_rate=10 ** (-3),
+        activation="gelu",
+        norm_placement="post",
+        lr_schedule="inverse_sqrt",
+        pos_encoding="sinusoidal",
+    )
+    + gen_experim(
+        64,
+        label="64transformer_2022_bs64",
+        folder_name="historical_experiments",
+        learning_rate=10 ** (-2),
+        activation="swiglu",
+        norm_type="rms",
+    )
+    + gen_experim(
+        128,
+        label="128transformer_2017_bs64",
+        folder_name="historical_experiments",
+        learning_rate=10 ** (-3.5),
+        activation="gelu",
+        norm_placement="post",
+        lr_schedule="inverse_sqrt",
+        pos_encoding="sinusoidal",
+    )
+    + gen_experim(
+        128,
+        label="128transformer_2022_bs64",
+        folder_name="historical_experiments",
+        learning_rate=10 ** (-2.5),
+        activation="swiglu",
+        norm_type="rms",
+    )
 )
 
 # GRAND_EXPERIMENT = SIN_SCALING + SGD_SCALING + TRANSFORMER_SCALING

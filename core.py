@@ -1773,7 +1773,55 @@ def get_dataset(config):
         )
 
     print(f"Loading dataset from: {data_path}")
-    text = Path(data_path).read_text(encoding="utf-8")
+    
+    # Smart loading: determine how much data we actually need before loading
+    max_tokens_training = config.get("max_tokens_training") if hasattr(config, "get") else getattr(config, "max_tokens_training", None)
+    # Support old parameter name for backward compatibility  
+    if max_tokens_training is None:
+        max_tokens_training = config.get("max_tokens") if hasattr(config, "get") else getattr(config, "max_tokens", None)
+    
+    fixed_val_tokens = config.get("fixed_val_tokens") if hasattr(config, "get") else getattr(config, "fixed_val_tokens", None)
+    
+    if max_tokens_training:
+        # Calculate exactly how much data we need BEFORE loading
+        train_split = config.get("train_split", 0.9) if hasattr(config, "get") else getattr(config, "train_split", 0.9)
+        char_to_token_ratio = config.get("char_to_token_ratio", 4.0)
+        
+        if fixed_val_tokens:
+            total_tokens_needed = max_tokens_training + fixed_val_tokens
+        else:
+            total_tokens_needed = int(max_tokens_training / train_split)
+        
+        max_characters_needed = int(total_tokens_needed * char_to_token_ratio)
+        
+        # Get file size without loading entire file
+        file_size = Path(data_path).stat().st_size
+        
+        if file_size > max_characters_needed * 2:  # If file is much larger than needed
+            # Smart loading: read only what we need + buffer for random sampling
+            buffer_multiplier = 2.0  # 100% extra for random positioning
+            chars_to_load = min(int(max_characters_needed * buffer_multiplier), file_size)
+            
+            with open(data_path, 'r', encoding='utf-8') as f:
+                # Random start position for data variety
+                max_start = max(0, file_size - chars_to_load)
+                start_pos = random.randint(0, max_start) if max_start > 0 else 0
+                f.seek(start_pos)
+                # Skip partial line at start
+                if start_pos > 0:
+                    f.readline()
+                
+                text = f.read(chars_to_load)
+                
+            print(f"Smart loading: loaded {len(text):,} chars from {file_size:,}-char file (need ~{max_characters_needed:,})")
+        else:
+            # File is reasonably sized, load normally
+            text = Path(data_path).read_text(encoding="utf-8")
+            print(f"Standard loading: {len(text):,} characters")
+    else:
+        # No token limit specified, load entire file
+        text = Path(data_path).read_text(encoding="utf-8")
+        print(f"Full loading (no limit): {len(text):,} characters")
 
     # Get split configuration first to determine how to limit the dataset
     if hasattr(config, "get"):

@@ -17,6 +17,7 @@ import torch.backends.cudnn as cudnn
 import random  # NEW: for reproducible seeding
 import copy
 import csv
+from pathlib import Path
 
 
 cudnn.benchmark = True
@@ -764,9 +765,64 @@ def load_and_preprocess_data(
     """Load and preprocess text data with optimized DataLoaders"""
     print("Loading and preprocessing data...")
 
-    # Load raw text
-    with open(config["data_path"], "r", encoding="utf-8") as f:
-        text = f.read()
+    # Smart loading: determine how much data we need before loading the entire file
+    # This matches the transformer loading algorithm exactly
+    data_path = config["data_path"]
+    
+    # Get token requirements (same logic as transformer)
+    max_tokens_training = config.get("max_tokens_training")
+    # Support old parameter name for backward compatibility
+    if max_tokens_training is None:
+        max_tokens_training = config.get("max_characters")
+        if max_tokens_training is not None:
+            # Convert characters to tokens using 4:1 ratio
+            max_tokens_training = int(max_tokens_training / 4)
+
+    fixed_val_tokens = config.get("fixed_val_tokens", None)
+    
+    if max_tokens_training:
+        # Calculate exactly how much data we need BEFORE loading (same as transformer)
+        train_split = config.get("train_split", 0.8)
+        char_to_token_ratio = config.get("char_to_token_ratio", 4.0)
+        
+        if fixed_val_tokens:
+            total_tokens_needed = max_tokens_training + fixed_val_tokens
+        else:
+            total_tokens_needed = int(max_tokens_training / train_split)
+        
+        max_characters_needed = int(total_tokens_needed * char_to_token_ratio)
+        
+        # Get file size without loading entire file (same as transformer)
+        file_size = Path(data_path).stat().st_size
+        
+        if file_size > max_characters_needed * 2:  # If file is much larger than needed
+            # Smart loading: read only what we need + buffer for random sampling
+            # Uses exact same algorithm as transformer
+            buffer_multiplier = 2.0  # 100% extra for random positioning
+            chars_to_load = min(int(max_characters_needed * buffer_multiplier), file_size)
+            
+            with open(data_path, 'r', encoding='utf-8') as f:
+                # Random start position for data variety (same as transformer)
+                max_start = max(0, file_size - chars_to_load)
+                start_pos = random.randint(0, max_start) if max_start > 0 else 0
+                f.seek(start_pos)
+                # Skip partial line at start (same as transformer)
+                if start_pos > 0:
+                    f.readline()
+                
+                text = f.read(chars_to_load)
+                
+            print(f"LSTM smart loading: loaded {len(text):,} chars from {file_size:,}-char file (need ~{max_characters_needed:,})")
+        else:
+            # File is reasonably sized, load normally
+            with open(data_path, "r", encoding="utf-8") as f:
+                text = f.read()
+            print(f"LSTM standard loading: {len(text):,} characters")
+    else:
+        # No token limit specified, load entire file
+        with open(data_path, "r", encoding="utf-8") as f:
+            text = f.read()
+        print(f"LSTM full loading (no limit): {len(text):,} characters")
 
     # Limit data size based on training tokens if specified
     max_tokens_training = config.get("max_tokens_training")
