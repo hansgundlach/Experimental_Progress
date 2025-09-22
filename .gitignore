@@ -13,3 +13,4 @@ maybe/
 safe_stuff/
 stuff_to_ignore/
 TODO.txt
+*.pyc
