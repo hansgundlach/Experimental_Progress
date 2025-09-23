@@ -111,14 +111,14 @@ OPTIMIZER_EXPERIMENTS = (
         learning_rate=10 ** (-2.5),
         optimizer="adamw",
     )
-    +gen_experim(
+    + gen_experim(
         DIMENSION,
         label=f"{DIMENSION}d_sgd",
         folder_name="alg_mult",
         learning_rate=10 ** (-2.5),
         optimizer="sgd",
     )
-    +gen_experim(
+    + gen_experim(
         DIMENSION,
         label=f"{DIMENSION}d_adam",
         folder_name="alg_mult",
@@ -126,8 +126,6 @@ OPTIMIZER_EXPERIMENTS = (
         optimizer="adam",
     )
 )
-
-
 
 
 POSITIONAL_ENCODING_EXPERIMENTS = (
@@ -204,10 +202,12 @@ LR_SCHEDULE_EXPERIMENTS = (
 # )
 
 
-GRAND_VARIATION_EXPERIMENTS = (
-    create_multi_seed_experiments(LR_SCHEDULE_EXPERIMENTS, SEEDS)
-    + create_multi_seed_experiments(INITIALIZATION_EXPERIMENTS, SEEDS)
-    + create_multi_seed_experiments(NORMALIZATION_EXPERIMENTS, SEEDS)
-    + create_multi_seed_experiments(POSITIONAL_ENCODING_EXPERIMENTS, SEEDS)
-    + create_multi_seed_experiments(ACTIVATION_EXPERIMENTS, SEEDS)
-)
+# GRAND_VARIATION_EXPERIMENTS = (
+#     create_multi_seed_experiments(LR_SCHEDULE_EXPERIMENTS, SEEDS)
+#     + create_multi_seed_experiments(INITIALIZATION_EXPERIMENTS, SEEDS)
+#     + create_multi_seed_experiments(NORMALIZATION_EXPERIMENTS, SEEDS)
+#     + create_multi_seed_experiments(POSITIONAL_ENCODING_EXPERIMENTS, SEEDS)
+#     + create_multi_seed_experiments(ACTIVATION_EXPERIMENTS, SEEDS)
+# )
+
+GRAND_VARIATION_EXPERIMENTS = LR_SCHEDULE_EXPERIMENTS

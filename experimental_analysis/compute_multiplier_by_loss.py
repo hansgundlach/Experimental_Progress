@@ -1,5 +1,4 @@
-
-#%%
+# %%
 
 #!/usr/bin/env python3
 """
@@ -303,13 +302,15 @@ multiplier, details = compute_multiplier_by_loss(
     verbose=True,
 )
 # %%
-#rotary vs sinusoidal
-target_loss = 5.4
+# rotary vs sinusoidal
+target_loss = 5.3
 
 # Example usage and testing
 # Example usage - you would replace these with actual file paths
 example_file_a = "../experimental_data_folder/alg_mult/64d_rotary_456.csv"
-example_file_b = "../experimental_data_folder/alg_mult/64d_sinusoidal_456.csv"  # hypothetical
+example_file_b = (
+    "../experimental_data_folder/alg_mult/64d_sinusoidal_456.csv"  # hypothetical
+)
 
 multiplier, details = compute_multiplier_by_loss(
     example_file_a,
@@ -317,14 +318,17 @@ multiplier, details = compute_multiplier_by_loss(
     target_loss,
     verbose=True,
 )
-#%%
+# %%
 
-target_loss = 5.4
+
+target_loss = 5.3
 
 # Example usage and testing
 # Example usage - you would replace these with actual file paths
-example_file_a = "../experimental_data_folder/alg_mult/64d_gelu_123.csv"
-example_file_b = "../experimental_data_folder/alg_mult/64d_lr_inverse_sqrt_456.csv"  # hypothetical
+example_file_a = "../experimental_data_folder/alg_mult/64d_lr_cosine_warmup.csv"
+example_file_b = (
+    "../experimental_data_folder/alg_mult/64d_lr_inverse_sqrt.csv"  # hypothetical
+)
 
 multiplier, details = compute_multiplier_by_loss(
     example_file_a,
@@ -334,30 +338,34 @@ multiplier, details = compute_multiplier_by_loss(
 )
 
 
-#%%
-#OVerall multiplier 
+# %%
+# OVerall multiplier
 
-target_loss = 5.4
+# target_loss = 5.3
+
+# # Example usage and testing
+# # Example usage - you would replace these with actual file paths
+# example_file_a = "../experimental_data_folder/alg_mult/64d_gelu_123.csv"
+# example_file_b = (
+#     "../experimental_data_folder/alg_mult/64d_lr_inverse_sqrt_456.csv"  # hypothetical
+# )
+
+# multiplier, details = compute_multiplier_by_loss(
+#     example_file_a,
+#     example_file_b,  # Using same file for demo
+#     target_loss,
+#     verbose=True,
+# )
+# %%
+
+
+target_loss = 5.3
 
 # Example usage and testing
 # Example usage - you would replace these with actual file paths
-example_file_a = "../experimental_data_folder/alg_mult/64d_gelu_123.csv"
-example_file_b = "../experimental_data_folder/alg_mult/64d_lr_inverse_sqrt_456.csv"  # hypothetical
-
-multiplier, details = compute_multiplier_by_loss(
-    example_file_a,
-    example_file_b,  # Using same file for demo
-    target_loss,
-    verbose=True,
+example_file_b = (
+    "../experimental_data_folder/historical_experiments/p64transformer_2017_bs64.csv"
 )
-#%%
-
-
-target_loss = 5.4
-
-# Example usage and testing
-# Example usage - you would replace these with actual file paths
-example_file_b = "../experimental_data_folder/historical_experiments/p64transformer_2017_bs64.csv"
 example_file_a = "../experimental_data_folder/historical_experiments/64transformer_2022_bs64.csv"  # hypothetical
 
 multiplier, details = compute_multiplier_by_loss(
@@ -368,10 +376,7 @@ multiplier, details = compute_multiplier_by_loss(
 )
 
 
-
-
-
-#%%
+# %%
 
 
 print("Compute Multiplier by Loss Analysis")
@@ -403,13 +408,15 @@ except Exception as e:
 
 
 # %%
-# Updated Generic Stacked Bar Plot Function with Adjustable Font Sizes
+# Updated Generic Stacked Bar Plot Function with Correct Multiplicative Effects
+
 
 def create_stacked_comparison_plot(
     components_data, comparison_data, title="Stacked vs Single Comparison"
 ):
     """
     Create a stacked bar plot comparing multiple stacked components vs single values.
+    Each level shows cumulative multiplicative effects.
 
     Args:
         components_data: List of tuples (name, value, color) for stacked components
@@ -447,21 +454,32 @@ def create_stacked_comparison_plot(
 
     plt.figure(figsize=(14, 10))  # Made figure larger
 
-    # Calculate cumulative heights for stacking
-    cumulative_heights = np.cumsum([0] + [comp[1] for comp in components_data])
+    # Calculate cumulative multiplicative heights for stacking
+    # Each level represents the total efficiency gain up to that point
+    cumulative_heights = [0.0]  # Start at 0
+    running_product = 1.0  # Track the running product of multipliers
+
+    for comp in components_data:
+        multiplier = comp[1]
+        running_product *= multiplier
+        cumulative_heights.append(running_product)
+
     total_stacked_height = cumulative_heights[-1]
 
     # Generate viridis colors for components
     viridis_colors = sns.color_palette("viridis", n_colors=len(components_data))
 
-    # Plot stacked components
+    # Plot stacked components with cumulative multiplicative effects
     for i, (name, value, color) in enumerate(components_data):
         bottom = cumulative_heights[i]
+        top = cumulative_heights[i + 1]
+        segment_height = top - bottom
+
         # Use viridis colors instead of provided colors
         viridis_color = viridis_colors[i]
         bar = plt.bar(
             x_positions[0],
-            value,
+            segment_height,
             bottom=bottom,
             color=viridis_color,
             width=0.6,
@@ -472,10 +490,18 @@ def create_stacked_comparison_plot(
         )
 
         # Add component labels in the middle of each segment
-        if value > 0.1:  # Only add label if segment is large enough
+        if segment_height > 0.1:  # Only add label if segment is large enough
+            # For the first segment, position text higher to be visible above y=1
+            if i == 0 and bottom < 1.0:
+                text_y = max(
+                    1.2, bottom + segment_height / 2
+                )  # Position at least at y=1.2
+            else:
+                text_y = bottom + segment_height / 2
+
             plt.text(
                 x_positions[0],
-                bottom + value / 2,
+                text_y,
                 f"{name}\n{value:.2f}x",
                 ha="center",
                 va="center",
@@ -528,14 +554,16 @@ def create_stacked_comparison_plot(
     plt.xticks(
         x_positions, labels, rotation=0, ha="center", fontsize=tick_label_fontsize
     )
-    plt.ylabel("Compute Effect Multiplier", fontsize=axis_label_fontsize, fontweight="bold")
+    plt.ylabel(
+        "Compute Effect Multiplier", fontsize=axis_label_fontsize, fontweight="bold"
+    )
     plt.title(title, fontsize=title_fontsize, fontweight="bold")
     plt.grid(axis="y", linestyle="--", alpha=0.3)
     plt.yscale("log")
 
     # Set y-axis limits
     max_value = max(total_stacked_height, max([comp[1] for comp in comparison_data]))
-    plt.ylim(0.5, max_value * 2)
+    plt.ylim(1, max_value * 2)
 
     # Add legend with better positioning
     plt.legend(
@@ -553,8 +581,10 @@ def create_stacked_comparison_plot(
     # Print summary
     print(f"\nSummary:")
     print(f"Stacked components total: {total_stacked_height:.2f}x")
-    for name, value, _ in components_data:
-        print(f"  {name}: {value:.2f}x")
+    print("Cumulative breakdown:")
+    for i, (name, value, _) in enumerate(components_data):
+        cumulative = cumulative_heights[i + 1]
+        print(f"  After {name}: {cumulative:.2f}x (×{value:.2f})")
     print(f"\nComparison values:")
     for name, value, _ in comparison_data:
         print(f"  {name}: {value:.2f}x")
@@ -564,31 +594,35 @@ def create_stacked_comparison_plot(
 # Example usage with placeholder data
 
 # Example 1: 3 stacked components vs 2 comparison bars
-components_data = [
-    ("Adam", 2.5, "#3498db"),
-    ("Rotary", 1.8, "#85C1E9"),
-    ("SwiGLU", 1.4, "#2ECC71"),
-]
+# components_data = [
+#     ("Adam", 2.5, "#3498db"),
+#     ("Rotary", 1.8, "#85C1E9"),
+#     ("SwiGLU", 1.4, "#2ECC71"),
+# ]
 
-comparison_data = [
-    ("LSTM Baseline", 1.0, "#e74c3c"),
-    ("Simple Transformer", 3.2, "#f39c12"),
-]
+# comparison_data = [
+#     ("LSTM Baseline", 1.0, "#e74c3c"),
+#     ("Simple Transformer", 3.2, "#f39c12"),
+# ]
 
-create_stacked_comparison_plot(
-    components_data, comparison_data, "Advanced vs Simple Architectures"
-)
+# create_stacked_comparison_plot(
+#     components_data, comparison_data, "Advanced vs Simple Architectures"
+# )
 
+
+# components_data_2 = [
+#     ("Rotary Encoding", 1.4, "#9b59b6"),
+#     ("SwiGLU", 1.1, "#e67e22"),
+#     ("Cosine Scheduler", 1.2, "#1abc9c"),
+# ]
 # %%
 # Example 2: 4 stacked components vs 1 comparison
 components_data_2 = [
-    ("Attention", 2.1, "#9b59b6"),
-    ("LayerNorm", 1.3, "#e67e22"),
-    ("Residual", 1.2, "#1abc9c"),
-    ("Dropout", 1.1, "#34495e"),
+    ("Rotary Encoding", 1.4, "#9b59b6"),
+    ("SwiGLU", 1.1, "#e67e22"),
 ]
 
-comparison_data_2 = [("Vanilla RNN", 1.0, "#e74c3c")]
+comparison_data_2 = [("Current vs 2017 Transformer", 1.677, "#e74c3c")]
 
 create_stacked_comparison_plot(
     components_data_2, comparison_data_2, "Transformer Components vs RNN"

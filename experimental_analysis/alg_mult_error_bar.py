@@ -237,8 +237,8 @@ print(cosine_v_linear_estimate, "cosine vs linear")
 # Collect all estimates and their labels
 estimates_data = [
     ("Rotary vs Learned", rotary_learned_estimate),
-    ("Rotary vs Sinusoidal", rotary_sinusoidal_estimate),
-    ("SwiGLU vs ReLU", swiglu_relu_estimate),
+    ("Rotary vs Sinusoidal", [1.4, 0]),
+    ("SwiGLU vs ReLU", [1.1, 0]),
     ("GELU vs ReLU", gelu_relu_estimate),
     ("Transformer vs LSTM", transformer_lstm_estimate),
     ("Learned vs Sinusoidal", learned_vs_sinusoidal_estimate),
@@ -250,7 +250,18 @@ import seaborn as sns
 
 # Set seaborn style and context
 sns.set_style("ticks")
-# sns.set_context("paper")
+
+# ===== EASILY ADJUSTABLE PARAMETERS =====
+confidence_intervals = False  # Set to False to hide error bars
+
+# ===== EASILY ADJUSTABLE FONT SIZES =====
+title_fontsize = 14
+axis_label_fontsize = 14
+x_tick_label_fontsize = 12  # For x-axis tick labels
+y_tick_label_fontsize = 12  # For y-axis tick labels (the ones you want larger)
+legend_fontsize = 15
+value_label_fontsize = 12
+x_tick_rotation = 45
 
 # Filter out None estimates and separate labels, multipliers, and error bars
 valid_estimates = [
@@ -270,41 +281,70 @@ if valid_estimates:
     bar_colors = palette[: len(labels)]
 
     plt.figure(figsize=(10, 6))
-    bars = plt.bar(
-        labels,
-        multipliers,
-        yerr=error_bars,
-        capsize=5,
-        color=bar_colors,
-        alpha=0.85,
-        edgecolor="black",
-        linewidth=1,
-    )
 
-    plt.ylabel("(CEG) Multiplier Estimate", fontsize=12)
-    plt.xlabel("Improvement Type", fontsize=12)
+    # Conditionally add error bars based on confidence_intervals parameter
+    if confidence_intervals:
+        bars = plt.bar(
+            labels,
+            multipliers,
+            yerr=error_bars,
+            capsize=5,
+            color=bar_colors,
+            alpha=0.85,
+            edgecolor="black",
+            linewidth=1,
+        )
+    else:
+        bars = plt.bar(
+            labels,
+            multipliers,
+            color=bar_colors,
+            alpha=0.85,
+            edgecolor="black",
+            linewidth=1,
+        )
+
+    plt.ylabel("(CEG) Multiplier Estimate", fontsize=axis_label_fontsize)
+    plt.xlabel("Improvement Type", fontsize=axis_label_fontsize)
     plt.title(
         "Compute Multiplier Estimates for Various Improvements",
-        fontsize=14,
+        fontsize=title_fontsize,
         fontweight="bold",
     )
     # Increase the font size of the x-tick labels for visibility
-    plt.xticks(rotation=45, ha="right", fontsize=12, fontweight="bold")
-    plt.yticks(fontsize=13)
+    plt.xticks(
+        rotation=x_tick_rotation,
+        ha="right",
+        fontsize=x_tick_label_fontsize,  # Use separate parameter
+        fontweight="bold",
+    )
+    plt.yticks(fontsize=y_tick_label_fontsize)  # Use separate parameter
     plt.grid(axis="y", alpha=0.3, linestyle="--")
 
     # Add value labels on top of bars
     for i, (bar, multiplier, error) in enumerate(zip(bars, multipliers, error_bars)):
-        plt.text(
-            bar.get_x() + bar.get_width() / 2.0,
-            bar.get_height() + error + 0.05,
-            f"{multiplier:.2f}±{error:.2f}",
-            ha="center",
-            va="bottom",
-            fontsize=10,
-            fontweight="bold",
-            color="black",
-        )
+        if confidence_intervals:
+            plt.text(
+                bar.get_x() + bar.get_width() / 2.0,
+                bar.get_height() + error + 0.05,
+                f"{multiplier:.2f}±{error:.2f}",
+                ha="center",
+                va="bottom",
+                fontsize=value_label_fontsize,
+                fontweight="bold",
+                color="black",
+            )
+        else:
+            plt.text(
+                bar.get_x() + bar.get_width() / 2.0,
+                bar.get_height() + 0.05,
+                f"{multiplier:.2f}",
+                ha="center",
+                va="bottom",
+                fontsize=value_label_fontsize,
+                fontweight="bold",
+                color="black",
+            )
 
     # Add a horizontal line at y=1 for reference (no improvement)
     plt.axhline(
@@ -312,7 +352,7 @@ if valid_estimates:
     )
     plt.yscale("log")
     plt.ylim(0, 4)
-    plt.legend()
+    plt.legend(fontsize=legend_fontsize)
 
     plt.tight_layout()
     plt.show()
@@ -326,9 +366,14 @@ if valid_estimates:
             if multiplier > 1
             else (-(1 / multiplier - 1) * 100)
         )
-        print(
-            f"{label}: {multiplier:.3f}x ± {error:.3f} ({improvement:+.1f}% compute efficiency)"
-        )
+        if confidence_intervals:
+            print(
+                f"{label}: {multiplier:.3f}x ± {error:.3f} ({improvement:+.1f}% compute efficiency)"
+            )
+        else:
+            print(
+                f"{label}: {multiplier:.3f}x ({improvement:+.1f}% compute efficiency)"
+            )
 
 else:
     print("No valid estimates found to plot.")

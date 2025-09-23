@@ -90,6 +90,22 @@ ALPHA_CONFIG = {
 
 IRREDUCIBLE_LOSS = 1.8
 
+# =============================================================================
+# CLASS COLOR CONFIGURATION
+# =============================================================================
+# Centralized color configuration for each class - modify these to change colors
+# All experiments of the same class will use the same color
+# Available colormaps: viridis, plasma, inferno, magma, cividis, tab10, etc.
+# Format: "colormap[index]" where index is 0.0-1.0 for continuous colormaps
+CLASS_COLORS = {
+    "lstm": "viridis[0.8]",  # Green-ish color
+    "transformer": "viridis[0.0]",  # Dark purple color
+    "sgd": "viridis[0.6]",  # Yellow-green color
+    "2017 Transformer": "plasma[0.7]",  # Orange color
+    "lstm_sgd": "tab:orange",  # Orange color for LSTM SGD experiments
+    "default": "tab:blue",  # Default color for unclassified experiments
+}
+
 
 class TrainingCurveAnalyzer:
     """
@@ -241,12 +257,16 @@ class TrainingCurveAnalyzer:
 
             # Assign color if not provided
             if color is None:
-                color = self.color_palette[
-                    len(self.experiments) % len(self.color_palette)
-                ]
-            else:
-                # Parse color specification (handles colormap indices like 'viridis[2]')
-                color = self._parse_color_spec(color)
+                # Use centralized class color if available, otherwise use palette
+                if class_name and class_name in CLASS_COLORS:
+                    color = CLASS_COLORS[class_name]
+                else:
+                    color = self.color_palette[
+                        len(self.experiments) % len(self.color_palette)
+                    ]
+
+            # Always parse color specification (handles colormap indices like 'viridis[2]')
+            color = self._parse_color_spec(color)
 
             self.experiments[name] = {
                 "data": df,
@@ -269,6 +289,21 @@ class TrainingCurveAnalyzer:
 
         except Exception as e:
             print(f"Error loading experiment '{name}' from {csv_path}: {e}")
+
+    def get_class_color(self, class_name: str):
+        """
+        Get the color for a given class by finding the first experiment of that class.
+
+        Args:
+            class_name: Name of the class
+
+        Returns:
+            The color used by experiments of this class, or 'black' if no experiments found
+        """
+        for exp in self.experiments.values():
+            if exp.get("class", "default") == class_name:
+                return exp["color"]
+        return "black"  # fallback color
 
     def identify_frontier(
         self,
@@ -981,7 +1016,7 @@ class TrainingCurveAnalyzer:
                 x_fit = np.logspace(np.log10(extended_min), np.log10(extended_max), 200)
                 y_fit = a * np.power(x_fit, b)
 
-                # Use a unique linestyle per class for clarity; color black to overlay
+                # Use a unique linestyle per class for clarity; color matches class
                 linestyle = "--"
                 ax.plot(
                     x_fit,
@@ -990,7 +1025,7 @@ class TrainingCurveAnalyzer:
                     linewidth=4,
                     alpha=ALPHA_CONFIG["power_law_fit_alpha"],
                     label=f"{cls} power law: \n y = {a:.2e} * x^({b:.3f}) (R² = {r2:.3f})",
-                    color="black",
+                    color=self.get_class_color(cls),
                 )
 
         # Plot per-class sklearn-style fits
@@ -1025,7 +1060,7 @@ class TrainingCurveAnalyzer:
 
                 x_fit = np.logspace(np.log10(extended_min), np.log10(extended_max), 200)
                 y_fit = E + A * np.power(x_fit, alpha)
-                # Use a different linestyle for sklearn fit
+                # Use a different linestyle for sklearn fit; color matches class
                 linestyle = "-."
                 ax.plot(
                     x_fit,
@@ -1034,7 +1069,7 @@ class TrainingCurveAnalyzer:
                     linewidth=4,
                     alpha=ALPHA_CONFIG["sklearn_fit_alpha"],
                     label=f"{cls} sklearn: \n L = {E:.3f} + {A:.2e} * C^({alpha:.3f}) (R² = {r2:.3f})",
-                    color="red",
+                    color=self.get_class_color(cls),
                 )
 
         # Plot theoretical scaling laws if provided
@@ -1098,7 +1133,7 @@ class TrainingCurveAnalyzer:
         ax.set_xscale("log")
         ax.grid(True, alpha=0.3)
         ax.set_title(
-            "Per-Class Training Curves and Scaling Analysis",
+            "Transformer Scaling Analysis",
             fontsize=FONT_CONFIG["title_size"],
             fontweight=FONT_CONFIG["title_weight"],
         )
@@ -1432,7 +1467,7 @@ class TrainingCurveAnalyzer:
         # Customize plot
         plt.xlabel("Compute (FLOPS)", fontsize=FONT_CONFIG["regular_xlabel_size"])
         plt.ylabel(
-            "Validation Loss (Irreducible)", fontsize=FONT_CONFIG["regular_ylabel_size"]
+            "Validation Loss - Irreducible", fontsize=FONT_CONFIG["regular_ylabel_size"]
         )
         plt.yscale("log")
         plt.xscale("log")
@@ -1473,7 +1508,6 @@ if __name__ == "__main__":
             "name": "32d corrected melis scaling experiments",
             "csv_path": "../experimental_data_folder/lstm_scaling_study/32_correction_bs64.csv",
             "marker": "o",
-            "color": "viridis[0.8]",
             "include_in_in_frontier": False,  # Include in frontier analysis
             "class": "lstm",
             "hidden_dim": 32,
@@ -1483,7 +1517,6 @@ if __name__ == "__main__":
             "name": "64d corrected melis scaling experiments",
             "csv_path": "../experimental_data_folder/lstm_scaling_study/64_correction_bs64.csv",
             "marker": "o",
-            "color": "viridis[0.8]",
             "include_in_in_frontier": False,  # Include in frontier analysis
             "class": "lstm",
             "hidden_dim": 64,
@@ -1492,7 +1525,6 @@ if __name__ == "__main__":
             "name": "96d corrected melis scaling experiments",
             "csv_path": "../experimental_data_folder/lstm_scaling_study/96_correction_bs64.csv",
             "marker": "o",
-            "color": "viridis[0.8]",
             "include_in_in_frontier": False,  # Include in frontier analysis
             "class": "lstm",
             "hidden_dim": 96,
@@ -1501,7 +1533,6 @@ if __name__ == "__main__":
             "name": "128d corrected melis scaling experiments",
             "csv_path": "../experimental_data_folder/lstm_scaling_study/128_correction_bs64.csv",
             "marker": "o",
-            "color": "viridis[0.8]",
             "include_in_in_frontier": False,  # Include in frontier analysis
             "class": "lstm",
             "hidden_dim": 128,
@@ -1510,7 +1541,6 @@ if __name__ == "__main__":
             "name": "160d corrected melis scaling experiments",
             "csv_path": "../experimental_data_folder/lstm_scaling_study/160_correction_bs64.csv",
             "marker": "o",
-            "color": "viridis[0.8]",
             "include_in_in_frontier": False,  # Include in frontier analysis
             "class": "lstm",
             "hidden_dim": 160,
@@ -1519,7 +1549,6 @@ if __name__ == "__main__":
             "name": "192d corrected melis scaling experiments",
             "csv_path": "../experimental_data_folder/lstm_scaling_study/192_correction_bs64.csv",
             "marker": "o",
-            "color": "viridis[0.8]",
             "include_in_in_frontier": False,  # Include in frontier analysis
             "class": "lstm",
             "hidden_dim": 192,
@@ -1528,7 +1557,6 @@ if __name__ == "__main__":
             "name": "256d corrected melis scaling experiments",
             "csv_path": "../experimental_data_folder/lstm_scaling_study/256_correction_bs64.csv",
             "marker": "o",
-            "color": "viridis[0.8]",
             "include_in_in_frontier": False,  # Include in frontier analysis
             "class": "lstm",
             "hidden_dim": 256,
@@ -1540,7 +1568,6 @@ if __name__ == "__main__":
         #     "marker": "o",
         #     "include_in_frontier": False,  # Include in frontier analysis
         #     "class": "lstm_sgd",
-        #     "color": "tab:orange",
         #     "hidden_dim": 48,
         # },
         # # 64melis scaling
@@ -1550,7 +1577,6 @@ if __name__ == "__main__":
         #     "marker": "o",
         #     "include_in_frontier": False,  # Include in frontier analysis
         #     "class": "lstm_sgd",
-        #     "color": "tab:orange",
         #     "hidden_dim": 64,
         # },
         # # 128 melis scaling
@@ -1560,63 +1586,56 @@ if __name__ == "__main__":
         #     "marker": "o",
         #     "include_in_frontier": False,  # Include in frontier analysis
         #     "class": "lstm_sgd",
-        #     "color": "tab:orange",
         #     "hidden_dim": 128,
         # },
         # transformer scaling further
         {
             "name": "32d transformer scaling further",
-            "csv_path": "../experimental_data_folder/transformer_scaling/32d_transformer_bs64.csv",
+            "csv_path": "../experimental_data_folder/transformer_scaling/swiglu_32d_transformer_bs64.csv",
             "marker": "o",
             "include_in_frontier": True,  # Include in frontier analysis
             "class": "transformer",
-            "color": "viridis[0.0]",
             "hidden_dim": 32,
         },
         {
             "name": "48d transformer scaling further",
-            "csv_path": "../experimental_data_folder/transformer_scaling/48d_transformer_bs64.csv",
+            "csv_path": "../experimental_data_folder/transformer_scaling/swiglu_48d_transformer_bs64.csv",
             "marker": "o",
             "include_in_frontier": True,  # Include in frontier analysis
             "class": "transformer",
-            "color": "viridis[0.0]",
             "hidden_dim": 48,
         },
         {
             "name": "64d transformer scaling further",
-            "csv_path": "../experimental_data_folder/transformer_scaling/64d_transformer_bs64.csv",
+            "csv_path": "../experimental_data_folder/transformer_scaling/swiglu_64d_transformer_bs64.csv",
             "marker": "o",
             "include_in_frontier": True,  # Include in frontier analysis
             "class": "transformer",
-            "color": "viridis[0.0]",
             "hidden_dim": 64,
         },
         # 96 128 160
-        {
-            "name": "96d transformer scaling further",
-            "csv_path": "../experimental_data_folder/transformer_scaling/96d_transformer_bs64.csv",
-            "marker": "o",
-            "include_in_frontier": True,  # Include in frontier analysis
-            "class": "transformer",
-            "color": "viridis[0.0]",
-            "hidden_dim": 96,
-        },
+        # {
+        #     "name": "96d transformer scaling further",
+        #     "csv_path": "../experimental_data_folder/transformer_scaling/96d_transformer_bs64.csv",
+        #     "marker": "o",
+        #     "include_in_frontier": True,  # Include in frontier analysis
+        #     "class": "transformer",
+        #     "hidden_dim": 96,
+        # },
         {
             "name": "128d transformer scaling further",
-            "csv_path": "../experimental_data_folder/transformer_scaling/128d_transformer_bs64.csv",
+            "csv_path": "../experimental_data_folder/transformer_scaling/swiglu_128d_transformer_bs64.csv",
             "marker": "o",
             "include_in_frontier": True,  # Include in frontier analysis
             "class": "transformer",
-            "color": "viridis[0.0]",
             "hidden_dim": 128,
         },
         {
             "name": "160d transformer scaling further",
-            "csv_path": "../experimental_data_folder/transformer_scaling/160d_transformer_bs64.csv",
+            "csv_path": "../experimental_data_folder/transformer_scaling/swiglu_160d_transformer_bs64.csv",
             "marker": "o",
             "include_in_frontier": True,  # Include in frontier analysis
             "class": "transformer",
-            "color": "viridis[0.0]",
             "hidden_dim": 160,
         },
         # sgd scaling further
@@ -1626,7 +1645,6 @@ if __name__ == "__main__":
             "marker": "o",
             "include_in_frontier": True,  # Include in frontier analysis
             "class": "sgd",
-            "color": "viridis[0.0]",
             "hidden_dim": 32,
         },
         {
@@ -1635,7 +1653,7 @@ if __name__ == "__main__":
             "marker": "o",
             "include_in_frontier": True,  # Include in frontier analysis
             "class": "sgd",
-            "color": "viridis[4]",  # Example: using viridis colormap index 2
+            # Example: using viridis colormap index 2
             "hidden_dim": 48,
         },
         {
@@ -1644,7 +1662,7 @@ if __name__ == "__main__":
             "marker": "o",
             "include_in_frontier": True,  # Include in frontier analysis
             "class": "sgd",
-            "color": "viridis[20]",  # Example: using plasma colormap at 0.3
+            # Example: using plasma colormap at 0.3
             "hidden_dim": 64,
         },
         {
@@ -1653,7 +1671,6 @@ if __name__ == "__main__":
             "marker": "o",
             "include_in_frontier": True,  # Include in frontier analysis
             "class": "sgd",
-            "color": "tab:orange",
             "hidden_dim": 96,
         },
         {
@@ -1662,7 +1679,6 @@ if __name__ == "__main__":
             "marker": "o",
             "include_in_frontier": True,  # Include in frontier analysis
             "class": "sgd",
-            "color": "tab:orange",
             "hidden_dim": 128,
         },
         {
@@ -1671,7 +1687,6 @@ if __name__ == "__main__":
             "marker": "o",
             "include_in_frontier": True,  # Include in frontier analysis
             "class": "sgd",
-            "color": "tab:orange",
             "hidden_dim": 160,
         },
         # look at scaling of 2017 transfomere
@@ -1681,17 +1696,40 @@ if __name__ == "__main__":
             "marker": "o",
             "include_in_frontier": True,  # Include in frontier analysis
             "class": "2017 Transformer",
-            "color": "plasma[0.7]",
             "hidden_dim": 32,
         },
+        # {
+        #     "name": "48d 2017 transformer",
+        #     "csv_path": "../experimental_data_folder/historical_experiments/p48transformer_2017_bs64.csv",
+        #     "marker": "o",
+        #     "include_in_frontier": True,  # Include in frontier analysis
+        #     "class": "2017 Transformer",
+        #     "hidden_dim": 48,
+        # },
         {
             "name": "64d 2017 transformer",
             "csv_path": "../experimental_data_folder/historical_experiments/p64transformer_2017_bs64.csv",
             "marker": "o",
             "include_in_frontier": True,  # Include in frontier analysis
             "class": "2017 Transformer",
-            "color": "plasma[0.7]",
             "hidden_dim": 64,
+        },
+        # 80 96 128
+        {
+            "name": "80d 2017 transformer",
+            "csv_path": "../experimental_data_folder/historical_experiments/p80transformer_2017_bs64.csv",
+            "marker": "o",
+            "include_in_frontier": True,  # Include in frontier analysis
+            "class": "2017 Transformer",
+            "hidden_dim": 80,
+        },
+        {
+            "name": "96d 2017 transformer",
+            "csv_path": "../experimental_data_folder/historical_experiments/p96transformer_2017_bs64.csv",
+            "marker": "o",
+            "include_in_frontier": True,  # Include in frontier analysis
+            "class": "2017 Transformer",
+            "hidden_dim": 96,
         },
         {
             "name": "128d 2017 transformer",
@@ -1699,7 +1737,6 @@ if __name__ == "__main__":
             "marker": "o",
             "include_in_frontier": True,  # Include in frontier analysis
             "class": "2017 Transformer",
-            "color": "plasma[0.7]",
             "hidden_dim": 128,
         },
         {
@@ -1708,7 +1745,6 @@ if __name__ == "__main__":
             "marker": "o",
             "include_in_frontier": True,  # Include in frontier analysis
             "class": "2017 Transformer",
-            "color": "plasma[0.7]",
             "hidden_dim": 160,
         },
     ]
@@ -1815,16 +1851,16 @@ if __name__ == "__main__":
         classes_to_plot=[
             # "optimal_lr_sgd_transformer",
             "transformer",
-            "lstm",
+            # "lstm",
             "2017 Transformer",
             # "sgd",
             # "vanilla_transformer_rmsprop",
         ],
         flop_range_by_class={
             "transformer": (1e14, 5 * 1e17),
-            "lstm": (1e14, 1e16 * 5),
-            # "2017 Transformer": (1e14, 1e16),
-            # "sgd": (3 * 1e14, 1e15),
+            # "lstm": (1e14, 1e16 * 5),
+            "2017 Transformer": (1e14, 1e16),
+            # "sgd": (1e14, 1e16),
         },
         extrapolation_factor=10.0,  # Extend trend lines 3x beyond data range
         # Example theoretical scaling laws to compare with data
@@ -1841,99 +1877,5 @@ if __name__ == "__main__":
             },
         ],
     )
-
-    # Example 2: Plot with specific FLOP range to focus on a region
-    # Uncomment and modify the range as needed:
-    # analyzer.plot_training_curves(
-    #     show_all_curves=True,
-    #     show_frontier_only=False,
-    #     show_power_law_fit=True,
-    #     flop_range=(1e14, 1e15),  # Example: focus on 10^16 to 10^18 FLOPs
-
-    #     save_path="Figures/universal_scaling_law_study_range.png",
-    # )
-
-
-# def quick_test_theoretical_scaling():
-# """
-# Quick test function to verify theoretical scaling laws are working.
-# Call this in a notebook cell to test.
-# """
-# # Initialize analyzer
-# analyzer = TrainingCurveAnalyzer(irreducible_loss=IRREDUCIBLE_LOSS)
-
-# # Add a few experiments
-# experiments_to_test = [
-#     {
-#         "name": "32d transformer scaling further",
-#         "csv_path": "experimental_data_folder/transformer_scaling/32d_transformer_bs64.csv",
-#         "class": "transformer",
-#         "color": "tab:purple",
-#     },
-#     {
-#         "name": "48d transformer scaling further",
-#         "csv_path": "experimental_data_folder/transformer_scaling/48d_transformer_bs64.csv",
-#         "class": "transformer",
-#         "color": "tab:purple",
-#     },
-# ]
-
-# for exp in experiments_to_test:
-#     try:
-#         analyzer.add_experiment(
-#             name=exp["name"],
-#             csv_path=exp["csv_path"],
-#             class_name=exp["class"],
-#             color=exp["color"],
-#             include_in_frontier=True,
-#         )
-#     except Exception as e:
-#         print(f"Could not load {exp['name']}: {e}")
-
-# # Identify frontier
-# analyzer.identify_frontier_by_class(use_all_points=True)
-
-# # Print data range for debugging
-# if hasattr(analyzer, "frontier_points_all_by_class"):
-#     for cls, pts in analyzer.frontier_points_all_by_class.items():
-#         if pts:
-#             computes = [comp for (_, comp, _) in pts]
-#             losses = [loss for (_, _, loss) in pts]
-#             print(f"Class '{cls}' data range:")
-#             print(f"  Compute: {min(computes):.2e} to {max(computes):.2e}")
-#             print(f"  Loss: {min(losses):.4f} to {max(losses):.4f}")
-
-# # Plot with theoretical scaling laws
-# analyzer.plot_training_curves_by_class(
-#     show_all_curves=True,
-#     show_power_law_fit=True,
-#     show_sklearn_fit=False,
-#     classes_to_plot=["transformer"],
-#     theoretical_scaling_laws=[
-#         {
-#             "E": 1.9,  # Irreducible loss
-#             "A": 1e-2,  # Scaling coefficient
-#             "gamma": -0.1,  # Scaling exponent
-#             "label": "Test Theory 1",
-#             "color": "red",
-#             "linestyle": "--",
-#             "linewidth": 3,
-#             "alpha": 0.8,
-#         },
-#         {
-#             "E": 1.8,  # Different irreducible loss
-#             "A": 1e-3,  # Different scaling coefficient
-#             "gamma": -0.2,  # Different scaling exponent
-#             "label": "Test Theory 2",
-#             "color": "blue",
-#             "linestyle": "-",
-#             "linewidth": 3,
-#             "alpha": 0.8,
-#         },
-#     ],
-# )
-
-# return analyzer
-
 
 # %%
