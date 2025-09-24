@@ -1613,15 +1613,16 @@ if __name__ == "__main__":
             "class": "transformer",
             "hidden_dim": 64,
         },
+
         # 96 128 160
-        # {
-        #     "name": "96d transformer scaling further",
-        #     "csv_path": "../experimental_data_folder/transformer_scaling/96d_transformer_bs64.csv",
-        #     "marker": "o",
-        #     "include_in_frontier": True,  # Include in frontier analysis
-        #     "class": "transformer",
-        #     "hidden_dim": 96,
-        # },
+        {
+            "name": "96d transformer scaling further",
+            "csv_path": "../experimental_data_folder/transformer_scaling/96d_transformer_bs64.csv",
+            "marker": "o",
+            "include_in_frontier": True,  # Include in frontier analysis
+            "class": "transformer",
+            "hidden_dim": 96,
+        },
         {
             "name": "128d transformer scaling further",
             "csv_path": "../experimental_data_folder/transformer_scaling/swiglu_128d_transformer_bs64.csv",
@@ -1637,6 +1638,15 @@ if __name__ == "__main__":
             "include_in_frontier": True,  # Include in frontier analysis
             "class": "transformer",
             "hidden_dim": 160,
+        },
+        # 256
+        {
+            "name": "256d transformer scaling further",
+            "csv_path": "../experimental_data_folder/transformer_scaling/swiglu_256d_transformer_bs64.csv",
+            "marker": "o",
+            "include_in_frontier": True,  # Include in frontier analysis
+            "class": "transformer",
+            "hidden_dim": 256,
         },
         # sgd scaling further
         {
@@ -1852,7 +1862,7 @@ if __name__ == "__main__":
             # "optimal_lr_sgd_transformer",
             "transformer",
             # "lstm",
-            "2017 Transformer",
+            # "2017 Transformer",
             # "sgd",
             # "vanilla_transformer_rmsprop",
         ],

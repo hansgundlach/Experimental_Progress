@@ -9,7 +9,7 @@ from typing import List, Dict, Tuple, Optional
 import warnings
 
 
-IRREDUCIBLE_LOSS = 3.2
+IRREDUCIBLE_LOSS = 1.8
 
 # Toggle between theoretical_flops and total_flops_profiler
 USE_THEORETICAL_FLOPS = (
@@ -671,7 +671,195 @@ if __name__ == "__main__":
             "class": "transformer",
             "color": "tab:orange",
             "hidden_dim": 64,
-        }
+        },
+        {
+            "name": "swiglu 32d transformer scaling further",
+            "csv_path": "../experimental_data_folder/transformer_scaling/swiglu_32d_transformer_bs64.csv",
+            "marker": "o",
+            "include_in_frontier": True,  # Include in frontier analysis
+            "color": "tab:orange",
+            "class": "transformer",
+            "hidden_dim": 32,
+        },
+        {
+            "name": "swiglu 48d transformer scaling further",
+            "csv_path": "../experimental_data_folder/transformer_scaling/swiglu_48d_transformer_bs64.csv",
+            "marker": "o",
+            "include_in_frontier": True,  # Include in frontier analysis
+            "color": "tab:orange",
+            "class": "transformer",
+            "hidden_dim": 48,
+        },
+        {
+            "name": "swiglu64d transformer scaling further",
+            "csv_path": "../experimental_data_folder/transformer_scaling/swiglu_64d_transformer_bs64.csv",
+            "marker": "o",
+            "include_in_frontier": True,  # Include in frontier analysis
+            "color": "tab:orange",
+            "class": "transformer",
+            "hidden_dim": 64,
+        },
+        {
+            "name": "swiglu 128d transformer scaling further",
+            "csv_path": "../experimental_data_folder/transformer_scaling/swiglu_128d_transformer_bs64.csv",
+            "marker": "o",
+            "include_in_frontier": True,  # Include in frontier analysis
+            "color": "tab:orange",
+            "class": "transformer",
+            "hidden_dim": 128,
+        },
+        {
+            "name": "swiglu 160d transformer scaling further",
+            "csv_path": "../experimental_data_folder/transformer_scaling/swiglu_160d_transformer_bs64.csv",
+            "marker": "o",
+            "include_in_frontier": True,  # Include in frontier analysis
+            "color": "tab:orange",
+            "class": "transformer",
+            "hidden_dim": 160,
+        },
+        # 256
+        {
+            "name": "swiglu 256d transformer scaling further",
+            "csv_path": "../experimental_data_folder/transformer_scaling/swiglu_256d_transformer_bs64.csv",
+            "marker": "o",
+            "include_in_frontier": True,  # Include in frontier analysis
+            "color": "tab:orange",
+            "class": "transformer",
+            "hidden_dim": 256,
+        },
+        # non swiglu transformers
+        {
+            "name": "32d transformer scaling further",
+            "csv_path": "../experimental_data_folder/transformer_scaling/32d_transformer_bs64.csv",
+            "marker": "o",
+            "include_in_frontier": True,  # Include in frontier analysis
+            "color": "tab:purple",
+            "class": "transformer",
+            "hidden_dim": 32,
+        },
+        {
+            "name": "48d transformer scaling further",
+            "csv_path": "../experimental_data_folder/transformer_scaling/48d_transformer_bs64.csv",
+            "marker": "o",
+            "include_in_frontier": True,  # Include in frontier analysis
+            "color": "tab:purple",
+            "class": "transformer",
+            "hidden_dim": 48,
+        },
+        {
+            "name": "64d transformer scaling further",
+            "csv_path": "../experimental_data_folder/transformer_scaling/64d_transformer_bs64.csv",
+            "marker": "o",
+            "include_in_frontier": True,  # Include in frontier analysis
+            "color": "tab:purple",
+            "class": "transformer",
+            "hidden_dim": 64,
+        },
+        # 96
+        {
+            "name": "96d transformer scaling further",
+            "csv_path": "../experimental_data_folder/transformer_scaling/96d_transformer_bs64.csv",
+            "marker": "o",
+            "include_in_frontier": True,  # Include in frontier analysis
+            "color": "tab:purple",
+            "class": "transformer",
+            "hidden_dim": 96,
+        },
+        {
+            "name": "128d transformer scaling further",
+            "csv_path": "../experimental_data_folder/transformer_scaling/128d_transformer_bs64.csv",
+            "marker": "o",
+            "include_in_frontier": True,  # Include in frontier analysis
+            "color": "tab:purple",
+            "class": "transformer",
+            "hidden_dim": 128,
+        },
+        {
+            "name": "160d transformer scaling further",
+            "csv_path": "../experimental_data_folder/transformer_scaling/160d_transformer_bs64.csv",
+            "marker": "o",
+            "include_in_frontier": True,  # Include in frontier analysis
+            "color": "tab:purple",
+            "class": "transformer",
+            "hidden_dim": 160,
+        },
+        # 256
+        {
+            "name": "256d transformer scaling further",
+            "csv_path": "../experimental_data_folder/transformer_scaling/256d_transformer_bs64.csv",
+            "marker": "o",
+            "include_in_frontier": True,  # Include in frontier analysis
+            "color": "tab:purple",
+            "class": "transformer",
+            "hidden_dim": 256,
+        },
+        # 2017 transformer
+        {
+            "name": "32d 2017 transformer",
+            "csv_path": "../experimental_data_folder/historical_experiments/p32transformer_2017_bs64.csv",
+            "marker": "o",
+            "include_in_frontier": True,  # Include in frontier analysis
+            "color": "cyan",
+            "class": "2017 Transformer",
+            "hidden_dim": 32,
+        },
+        # 40
+        {
+            "name": "48d 2017 transformer",
+            "csv_path": "../experimental_data_folder/historical_experiments/p48transformer_2017_bs64.csv",
+            "marker": "o",
+            "include_in_frontier": True,  # Include in frontier analysis
+            "color": "cyan",
+            "class": "2017 Transformer",
+            "hidden_dim": 40,
+        },
+        {
+            "name": "64d 2017 transformer",
+            "csv_path": "../experimental_data_folder/historical_experiments/p64transformer_2017_bs64.csv",
+            "marker": "o",
+            "include_in_frontier": True,  # Include in frontier analysis
+            "color": "cyan",
+            "class": "2017 Transformer",
+            "hidden_dim": 64,
+        },
+        # 80
+        {
+            "name": "80d 2017 transformer",
+            "csv_path": "../experimental_data_folder/historical_experiments/p80transformer_2017_bs64.csv",
+            "marker": "o",
+            "include_in_frontier": True,  # Include in frontier analysis
+            "color": "cyan",
+            "class": "2017 Transformer",
+            "hidden_dim": 80,
+        },
+        # 96
+        {
+            "name": "96d 2017 transformer",
+            "csv_path": "../experimental_data_folder/historical_experiments/p96transformer_2017_bs64.csv",
+            "marker": "o",
+            "include_in_frontier": True,  # Include in frontier analysis
+            "color": "cyan",
+            "class": "2017 Transformer",
+            "hidden_dim": 96,
+        },
+        {
+            "name": "128d 2017 transformer",
+            "csv_path": "../experimental_data_folder/historical_experiments/p128transformer_2017_bs64.csv",
+            "marker": "o",
+            "include_in_frontier": True,  # Include in frontier analysis
+            "color": "cyan",
+            "class": "2017 Transformer",
+            "hidden_dim": 128,
+        },
+        {
+            "name": "160d 2017 transformer",
+            "csv_path": "../experimental_data_folder/historical_experiments/p160transformer_2017_bs64.csv",
+            "marker": "o",
+            "include_in_frontier": True,  # Include in frontier analysis
+            "color": "cyan",
+            "class": "2017 Transformer",
+            "hidden_dim": 160,
+        },
         # transformer scaling diagnostic
         # {
         #     "name": "64d sin more heads",
@@ -717,7 +905,7 @@ if __name__ == "__main__":
     analyzer.plot_training_curves(
         show_all_curves=True,
         show_frontier_only=False,
-        show_power_law_fit=True,
+        show_power_law_fit=False,
         fit_type="irreducible_subtracted",
         save_path="Figures/universal_scaling_law_study.png",
     )
@@ -725,13 +913,13 @@ if __name__ == "__main__":
     # option for full_model or irreducible_subtracted
 
     # Plot results with full model fit (E + A*C^alpha)
-    analyzer.plot_training_curves(
-        show_all_curves=True,
-        show_frontier_only=False,
-        show_power_law_fit=True,
-        fit_type="irreducible_subtracted",
-        save_path="Figures/universal_scaling_law_study_full_model.png",
-    )
+    # analyzer.plot_training_curves(
+    #     show_all_curves=True,
+    #     show_frontier_only=False,
+    #     show_power_law_fit=True,
+    #     fit_type="irreducible_subtracted",
+    #     save_path="Figures/universal_scaling_law_study_full_model.png",
+    # )
 
 # %
 # %%
