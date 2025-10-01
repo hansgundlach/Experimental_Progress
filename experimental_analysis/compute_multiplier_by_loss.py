@@ -286,10 +286,10 @@ def analyze_loss_ranges(
 
 
 # %%
-target_loss = 5.4
+
 
 # %%
-
+target_loss = 5.2
 # Example usage and testing
 # Example usage - you would replace these with actual file paths
 example_file_a = "../experimental_data_folder/alg_mult/64d_swiglu_123.csv"
@@ -303,7 +303,7 @@ multiplier, details = compute_multiplier_by_loss(
 )
 # %%
 # rotary vs sinusoidal
-target_loss = 5.3
+
 
 # Example usage and testing
 # Example usage - you would replace these with actual file paths
@@ -319,9 +319,7 @@ multiplier, details = compute_multiplier_by_loss(
     verbose=True,
 )
 # %%
-
-
-target_loss = 5.3
+target_loss = 5.5
 
 # Example usage and testing
 # Example usage - you would replace these with actual file paths
@@ -336,6 +334,52 @@ multiplier, details = compute_multiplier_by_loss(
     target_loss,
     verbose=True,
 )
+#%%
+
+# Example usage and testing
+# Example usage - you would replace these with actual file paths
+example_file_a = "../experimental_data_folder/alg_mult/64d_rotary_456.csv"
+example_file_b = (
+    "../experimental_data_folder/alg_mult/64d_sinusoidal_456.csv"  # hypothetical
+)
+
+multiplier, details = compute_multiplier_by_loss(
+    example_file_a,
+    example_file_b,  # Using same file for demo
+    target_loss,
+    verbose=True,
+)
+
+#%%
+
+target_loss = 4.6
+# Example usage and testing
+# Example usage - you would replace these with actual file paths
+example_file_a = "../experimental_data_folder/debug_historical_experiments/modern_128.csv"
+example_file_b = (
+    "../experimental_data_folder/debug_historical_experiments/radford_128.csv"  # hypothetical
+)
+
+multiplier, details = compute_multiplier_by_loss(
+    example_file_a,
+    example_file_b,  # Using same file for demo
+    target_loss,
+    verbose=True,
+)
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 # %%
@@ -410,7 +454,6 @@ except Exception as e:
 # %%
 # Updated Generic Stacked Bar Plot Function with Correct Multiplicative Effects
 
-
 def create_stacked_comparison_plot(
     components_data, comparison_data, title="Stacked vs Single Comparison"
 ):
@@ -426,9 +469,10 @@ def create_stacked_comparison_plot(
 
     # ===== EASILY ADJUSTABLE FONT SIZES =====
     title_fontsize = 20
-    axis_label_fontsize = 18
-    tick_label_fontsize = 16
-    legend_fontsize = 18
+    axis_label_fontsize = 20
+    tick_label_fontsize = 20
+    ytick_label_fontsize = 20  # Added y-axis tick font size
+    legend_fontsize = 20
     component_label_fontsize = 12
     value_label_fontsize = 16
     total_label_fontsize = 18
@@ -554,6 +598,7 @@ def create_stacked_comparison_plot(
     plt.xticks(
         x_positions, labels, rotation=0, ha="center", fontsize=tick_label_fontsize
     )
+    plt.yticks(fontsize=ytick_label_fontsize)  # Set y-axis tick font size
     plt.ylabel(
         "Compute Effect Multiplier", fontsize=axis_label_fontsize, fontweight="bold"
     )
@@ -625,7 +670,7 @@ components_data_2 = [
 comparison_data_2 = [("Current vs 2017 Transformer", 1.677, "#e74c3c")]
 
 create_stacked_comparison_plot(
-    components_data_2, comparison_data_2, "Transformer Components vs RNN"
+    components_data_2, comparison_data_2, "Transformer Components Effects vs Overall Increase"
 )
 
 # %%

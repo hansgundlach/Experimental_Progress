@@ -1,3 +1,6 @@
+
+
+#%%
 #!/usr/bin/env python3
 """
 Test script to demonstrate the new colormap color specification functionality.

@@ -558,7 +558,7 @@ def get_base_config():
         "min_lr_multiplier": 0.1,
         "lr_schedule": "cosine_warmup",
         "warmup_frac": 0.1,
-        "weight_decay": 0.0,
+        "weight_decay": 0.01,
         "hidden_dim": 64,  # Base hidden dimension
         "num_layers": 4,  # Base number of layers
         "num_heads": 4,

@@ -1,6 +1,21 @@
 # Model Organism of Algorithmic Progress
 
-Ultra efficient transformers for benchmarking the impact of algorithmic improvements. 
+How much influence have new AI algorithms had on improveements in training efficiency? 
+
+#Here We Examine a Few Important Improvements
+activation functions: ReLU, GeLU, SwiGLU
+optimizers: sgd(heavy ball momentum), adam, adamW
+positional encodings: sinusoidal, learned, and rotary encodings
+learning rate schedules: linear decay, cosine decay 
+normalization: layernorm, rmsnorm 
+architectures: LSTM, Transformer
+
+
+## Stack 
+- pytorch 
+- weights and biases
+- MIT supercloud V100s
+
 
 
 # Current Optionality
@@ -25,10 +40,6 @@ RMSNorm, LayerNorm
 - data loading optimization: keeping workers alive, pinning memory, prefetch factor
 
 
-## Stack 
-- pytorch 
-- weights and biases
-- MIT supercloud V100s
 
 ## Running guidlines 
 run setup_dataset.py to setup wikitext and GTP2Tokenizer

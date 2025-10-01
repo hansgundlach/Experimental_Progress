@@ -6,6 +6,7 @@ from experiment_utils import (
     get_base_config,
 )
 
+
 LR_ADHOC = [10 ** (-4), 10 ** (-3.5)]
 NARROW_LR_SWEEP = [
     10 ** (-3),
@@ -25,7 +26,7 @@ SGD_LR_SWEEP = [
     10 ** (-1.5),
 ]
 SEEDS = [123, 456, 789, 101]
-TRANSFORMER_SWEEP = [10 ** (-2.5), 10 ** (-2), 10 ** (-1.5)]
+TRANSFORMER_SWEEP = [10 ** (-3.5), 10 ** (-3), 10 ** (-2.5), 10 ** (-2), 10 ** (-1.5)]
 
 
 # optimizer variation experiments ?
@@ -87,66 +88,66 @@ TRANSFORMER_SWEEP = [10 ** (-2.5), 10 ** (-2), 10 ** (-1.5)]
 SGD_SCALING = (
     gen_experim(
         32,
-        label="32d_sgdbs64",
+        label="swiglu_32d_sgdbs64",
         folder_name="sgd_scaling",
-        learning_rate=10 ** (-0.5),
+        learning_rate=10 ** (-1.5),
         optimizer="sgd",
         sgd_momentum=0.98,
     )
     + gen_experim(
         48,
-        label="48d_sgdbs64",
+        label="swiglu_48d_sgdbs64",
         folder_name="sgd_scaling",
-        learning_rate=10 ** (-0.5),
+        learning_rate=10 ** (-1.5),
         optimizer="sgd",
         sgd_momentum=0.98,
     )
     + gen_experim(
         64,
-        label="64d_sgdbs64",
+        label="swiglu_64d_sgdbs64",
         folder_name="sgd_scaling",
-        learning_rate=10 ** (-0.5),
+        learning_rate=10 ** (-1.5),
         optimizer="sgd",
         sgd_momentum=0.98,
     )
     # setu 96 128 160 192 224 256
     + gen_experim(
         96,
-        label="96d_sgdbs64",
+        label="swiglu_96d_sgdbs64",
         folder_name="sgd_scaling",
-        learning_rate=10 ** (-0.5),
+        learning_rate=10 ** (-1.5),
         optimizer="sgd",
         sgd_momentum=0.98,
     )
     + gen_experim(
         128,
-        label="128d_sgdbs64",
+        label="swiglu_128d_sgdbs64",
         folder_name="sgd_scaling",
-        learning_rate=10 ** (-0.5),
+        learning_rate=10 ** (-1.5),
         optimizer="sgd",
         sgd_momentum=0.98,
     )
     + gen_experim(
         160,
-        label="160d_sgdbs64",
+        label="swiglu_160d_sgdbs64",
         folder_name="sgd_scaling",
-        learning_rate=10 ** (-0.5),
+        learning_rate=10 ** (-1.5),
         optimizer="sgd",
         sgd_momentum=0.98,
     )
     + gen_experim(
         192,
-        label="192d_sgdbs64",
+        label="swiglu_192d_sgdbs64",
         folder_name="sgd_scaling",
-        learning_rate=10 ** (-0.5),
+        learning_rate=10 ** (-1.5),
         optimizer="sgd",
         sgd_momentum=0.98,
     )
     + gen_experim(
         256,
-        label="256d_sgdbs64",
+        label="swiglu_256d_sgdbs64",
         folder_name="sgd_scaling",
-        learning_rate=10 ** (-0.5),
+        learning_rate=10 ** (-1.5),
         optimizer="sgd",
         sgd_momentum=0.98,
     )
@@ -307,7 +308,7 @@ TRANSFORMER_SCALING = (
         64,
         label="swiglu_64d_transformer_bs64",
         folder_name="transformer_scaling",
-        learning_rate=10 ** (-2.5),
+        learning_rate=10 ** (-2),
     )
     # setu 96 128 160 192 224 256
     + gen_experim(
@@ -338,9 +339,10 @@ TRANSFORMER_SCALING = (
         256,
         label="swiglu_256d_transformer_bs64",
         folder_name="transformer_scaling",
-        learning_rate=10 ** (-2.5),
+        learning_rate=10 ** (-3),
     )
 )
+
 
 SIN_SCALING = (
     gen_experim(
@@ -625,84 +627,85 @@ SGD_STABILIZATION_EXPERIMENTS = gen_experim(
 # )
 
 
-HISTORICAL_EXPERIMENTS = (
-    gen_experim(
-        64,
-        label="64transformer_2017_bs64",
-        folder_name="historical_experiments",
-        learning_rate=10 ** (-3),
-        activation="gelu",
-        norm_placement="post",
-        lr_schedule="inverse_sqrt",
-        pos_encoding="sinusoidal",
-    )
-    + gen_experim(
-        64,
-        label="64transformer_2022_bs64",
-        folder_name="historical_experiments",
-        learning_rate=10 ** (-2),
-        activation="swiglu",
-        norm_type="rms",
-    )
-    + gen_experim(
-        128,
-        label="128transformer_2017_bs64",
-        folder_name="historical_experiments",
-        learning_rate=10 ** (-3.5),
-        activation="gelu",
-        norm_placement="post",
-        lr_schedule="inverse_sqrt",
-        pos_encoding="sinusoidal",
-    )
-    + gen_experim(
-        160,
-        label="160transformer_2022_bs64",
-        folder_name="historical_experiments",
-        learning_rate=10 ** (-2.5),
-        activation="swiglu",
-        norm_type="rms",
-    )
-)
+# were these the orginal no scaling experiments
+# HISTORICAL_EXPERIMENTS = (
+#     gen_experim(
+#         64,
+#         label="64transformer_2017_bs64",
+#         folder_name="historical_experiments",
+#         learning_rate=10 ** (-2.5),
+#         activation="gelu",
+#         norm_placement="post",
+#         lr_schedule="inverse_sqrt",
+#         pos_encoding="sinusoidal",
+#     )
+#     + gen_experim(
+#         64,
+#         label="64transformer_2022_bs64",
+#         folder_name="historical_experiments",
+#         learning_rate=10 ** (-2.5),
+#         activation="swiglu",
+#         norm_type="rms",
+#     )
+#     + gen_experim(
+#         128,
+#         label="128transformer_2017_bs64",
+#         folder_name="historical_experiments",
+#         learning_rate=10 ** (-3.5),
+#         activation="gelu",
+#         norm_placement="post",
+#         lr_schedule="inverse_sqrt",
+#         pos_encoding="sinusoidal",
+#     )
+#     + gen_experim(
+#         160,
+#         label="160transformer_2022_bs64",
+#         folder_name="historical_experiments",
+#         learning_rate=10 ** (-2.5),
+#         activation="swiglu",
+#         norm_type="rms",
+#     )
+# )
 
 
 # HISTORICAL SCALING
 
 
 HISTORICAL_EXPERIMENTS_SCALING = (
-    # gen_experim(
-    #     32,
-    #     label="p32transformer_2017_bs64",
-    #     folder_name="historical_experiments",
-    #     learning_rate=10 ** (-2.5),
-    #     activation="gelu",
-    #     norm_placement="post",
-    #     lr_schedule="inverse_sqrt",
-    #     pos_encoding="sinusoidal",
-    # )
     gen_experim(
+        32,
+        label="t_newold_32transformer_2017_bs64",
+        folder_name="retry_historical_experiments",
+        learning_rate=10 ** (-2.5),
+        activation="gelu",
+        norm_placement="post",
+        lr_schedule="inverse_sqrt",
+        pos_encoding="sinusoidal",
+    )
+    + gen_experim(
         48,
-        label="p48transformer_2017_bs64",
-        folder_name="historical_experiments",
+        label="t_newold_p48transformer_2017_bs64",
+        folder_name="retry_historical_experiments",
         learning_rate=10 ** (-3),
         activation="gelu",
         norm_placement="post",
         lr_schedule="inverse_sqrt",
         pos_encoding="sinusoidal",
     )
-    # + gen_experim(
-    #     64,
-    #     label="p64transformer_2017_bs64",
-    #     folder_name="historical_experiments",
-    #     learning_rate=10 ** (-3),
-    #     activation="gelu",
-    #     norm_placement="post",
-    #     lr_schedule="inverse_sqrt",
-    #     pos_encoding="sinusoidal",
-    # )
+    + gen_experim(
+        64,
+        label="t_newold_64transformer_2017_bs64",
+        folder_name="retry_historical_experiments",
+        learning_rate=10 ** (-3),
+        activation="gelu",
+        norm_placement="post",
+        lr_schedule="inverse_sqrt",
+        pos_encoding="sinusoidal",
+    )
     + gen_experim(
         80,
-        label="p80transformer_2017_bs64",
-        folder_name="historical_experiments",
+        label="t_newold_p80transformer_2017_bs64",
+        folder_name="retry_historical_experiments",
         learning_rate=10 ** (-3),
         activation="gelu",
         norm_placement="post",
@@ -711,37 +714,216 @@ HISTORICAL_EXPERIMENTS_SCALING = (
     )
     + gen_experim(
         96,
-        label="p96transformer_2017_bs64",
-        folder_name="historical_experiments",
+        label="t_newold_p96transformer_2017_bs64",
+        folder_name="retry_historical_experiments",
         learning_rate=10 ** (-3),
         activation="gelu",
         norm_placement="post",
         lr_schedule="inverse_sqrt",
         pos_encoding="sinusoidal",
     )
-    # + gen_experim(
-    #     128,
-    #     label="p128transformer_2017_bs64",
-    #     folder_name="historical_experiments",
-    #     learning_rate=10 ** (-3.5),
-    #     activation="gelu",
-    #     norm_placement="post",
-    #     lr_schedule="inverse_sqrt",
-    #     pos_encoding="sinusoidal",
-    # )
-    # + gen_experim(
-    #     160,
-    #     label="p160transformer_2017_bs64",
-    #     folder_name="historical_experiments",
-    #     learning_rate=10 ** (-3.5),
-    #     activation="gelu",
-    #     norm_placement="post",
-    #     lr_schedule="inverse_sqrt",
-    #     pos_encoding="sinusoidal",
-    # )
+    + gen_experim(
+        128,
+        label="t_newold_p128transformer_2017_bs64",
+        folder_name="retry_historical_experiments",
+        learning_rate=10 ** (-3),
+        activation="gelu",
+        norm_placement="post",
+        lr_schedule="inverse_sqrt",
+        pos_encoding="sinusoidal",
+    )
+    + gen_experim(
+        160,
+        label="t_newold_p160transformer_2017_bs64",
+        folder_name="retry_historical_experiments",
+        learning_rate=10 ** (-3.5),
+        activation="gelu",
+        norm_placement="post",
+        lr_schedule="inverse_sqrt",
+        pos_encoding="sinusoidal",
+    )
+    + gen_experim(
+        256,
+        label="t_newold_p256transformer_2017_bs64",
+        folder_name="retry_historical_experiments",
+        learning_rate=10 ** (-3.5),
+        activation="gelu",
+        norm_placement="post",
+        lr_schedule="inverse_sqrt",
+        pos_encoding="sinusoidal",
+    )
 )
+
+
+HISTORICAL_EXPERIMENTS_VASWANI = (
+    gen_experim(
+        32,
+        label="vaswani_32transformer_2017_bs64",
+        folder_name="debug_historical_experiments",
+        learning_rate=1,
+        activation="gelu",
+        norm_placement="post",
+        lr_schedule="transformer",
+        pos_encoding="sinusoidal",
+        dropout=0.1,
+        label_smoothing=0.1,
+        optimizer="adam",
+        adam_beta1=0.9,
+        adam_beta2=0.98,
+        adam_epsilon=1e-8,
+    )
+    + gen_experim(
+        48,
+        label="vaswani_p48transformer_2017_bs64",
+        folder_name="debug_historical_experiments",
+        activation="gelu",
+        norm_placement="post",
+        lr_schedule="transformer",
+        learning_rate=1,
+        pos_encoding="sinusoidal",
+        dropout=0.1,
+        label_smoothing=0.1,
+        optimizer="adam",
+        adam_beta1=0.9,
+        adam_beta2=0.98,
+        adam_epsilon=1e-8,
+    )
+    + gen_experim(
+        64,
+        label="vaswani_64transformer_2017_bs64",
+        folder_name="debug_historical_experiments",
+        activation="gelu",
+        norm_placement="post",
+        lr_schedule="transformer",
+        learning_rate=1,
+        pos_encoding="sinusoidal",
+        dropout=0.1,
+        label_smoothing=0.1,
+        optimizer="adam",
+        adam_beta1=0.9,
+        adam_beta2=0.98,
+        adam_epsilon=1e-8,
+    )
+)
+
+HISTORICAL_EXPERIMENTS_RADFORD = (
+    gen_experim(
+        32,
+        label="radford_32transformer_2018_bs64",
+        folder_name="debug_historical_experiments",
+        learning_rate=10 ** (-2),
+        activation="gelu",
+        norm_placement="post",
+        lr_schedule="linear_warmup",
+        weight_decay=0.01,
+        pos_encoding="learned",
+        dropout=0.1,
+        optimizer="adam",
+    )
+    + gen_experim(
+        48,
+        label="radford_48transformer_2018_bs64",
+        folder_name="debug_historical_experiments",
+        learning_rate=10 ** (-2.5),
+        activation="gelu",
+        norm_placement="post",
+        lr_schedule="linear_warmup",
+        pos_encoding="learned",
+        weight_decay=0.01,
+        dropout=0.1,
+        optimizer="adam",
+    )
+    + gen_experim(
+        64,
+        label="radford_64transformer_2018_bs64",
+        folder_name="debug_historical_experiments",
+        learning_rate=10 ** (-2.5),
+        activation="gelu",
+        norm_placement="post",
+        lr_schedule="linear_warmup",
+        pos_encoding="learned",
+        weight_decay=0.01,
+        dropout=0.1,
+        optimizer="adam",
+    )
+    + gen_experim(
+        64,
+        label="radford_no_reg",
+        folder_name="debug_historical_experiments",
+        learning_rate=10 ** (-2.5),
+        activation="gelu",
+        norm_placement="post",
+        lr_schedule="linear_warmup",
+        pos_encoding="learned",
+        weight_decay=0.0,
+        dropout=0.0,
+        optimizer="adam",
+    )
+)
+
+
+# radford no-regularization
+
+
 HISTORICAL_EXPERIMENTS_SCALING_LR_TUNE = [10 ** (-2.5), 10 ** (-3), 10 ** (-3.5)]
 
 # GRAND_EXPERIMENT = SIN_SCALING + SGD_SCALING + TRANSFORMER_SCALING
 # GRAND_EXPERIMENT = create_multi_lr_experiments(HISTORICAL_EXPERIMENTS, LR_ADHOC)
-GRAND_EXPERIMENT = TRANSFORMER_SCALING
+# GRAND_EXPERIMENT = gen_experim(
+#     64,
+#     label="radford_no_reg",
+#     folder_name="debug_historical_experiments",
+#     learning_rate=10 ** (-2.5),
+#     activation="gelu",
+#     norm_placement="post",
+#     lr_schedule="linear_warmup",
+#     pos_encoding="learned",
+#     weight_decay=0.0,
+#     dropout=0.0,
+#     optimizer="adam",
+# )
+
+CURRENT_EXPERIMENT = (
+    gen_experim(
+        128,
+        label="radford_128",
+        folder_name="debug_historical_experiments",
+        learning_rate=10 ** (-3),
+        activation="gelu",
+        norm_placement="post",
+        lr_schedule="linear_warmup",
+        pos_encoding="learned",
+        weight_decay=0.01,
+        dropout=0.0,
+        optimizer="adam",
+    )
+    + gen_experim(
+        128,
+        label="modern_128",
+        folder_name="debug_historical_experiments",
+        learning_rate=10 ** (-2.5),
+        activation="swiglu",
+        norm_type="layer",
+        norm_placement="pre",
+        lr_schedule="cosine_warmup",
+        pos_encoding="rotary",
+        weight_decay=0.01,
+        dropout=0.0,
+        optimizer="adamw",
+    )
+    + gen_experim(
+        128,
+        label="radford_sin",
+        folder_name="debug_historical_experiments",
+        learning_rate=10 ** (-3),
+        activation="gelu",
+        norm_placement="post",
+        lr_schedule="linear_warmup",
+        pos_encoding="sinusoidal",
+        dropout=0.0,
+        weight_decay=0.01,
+        optimizer="adam",
+    )
+)
+
+GRAND_EXPERIMENT = CURRENT_EXPERIMENT + HISTORICAL_EXPERIMENTS_RADFORD

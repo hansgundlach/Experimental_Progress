@@ -60,10 +60,10 @@ def main():
         print(f"  - LSTM params: {param_info['lstm_params']:,}")
         print(f"  - Final layer params: {param_info['final_layer_params']:,}")
         print(
-            f"- Character limit: {int(config['max_characters']):,} chars (20x trainable params)"
+            f"- Token limit: {int(config['max_tokens_training']):,} tokens (20x trainable params)"
         )
         print(
-            f"- Token estimate: {int(config['max_characters']) // 4:,} tokens (4:1 char:token ratio)"
+            f"- Character estimate: {int(config['max_tokens_training']) * 4:,} chars (4:1 token:char ratio)"
         )
         print(f"- Gradient accumulation: {config['gradient_accumulation_steps']} steps")
 
