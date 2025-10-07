@@ -254,6 +254,12 @@ MELIS_SCALING = (
         folder_name="lstm_scaling_study",
         learning_rate=10**-2,
     )
+    + gen_lstm_experim(
+        256,
+        label="256melis_stream",
+        folder_name="lstm_scaling_study",
+        learning_rate=10**-2,
+    )
 )
 
 
@@ -569,6 +575,43 @@ MELIS_DEBUG = gen_lstm_experim(
     num_layers=2,
 )
 
+# numb layers scaling
+
+LAYER_VARIATION = (
+    gen_lstm_experim(
+        64,
+        label="64_layer_1_variation",
+        folder_name="lstm_ablation_study",
+        learning_rate=10 ** -(1.5),
+        num_layers=1,
+        max_tokens_training=int(129e6 / 8),
+    )
+    + gen_lstm_experim(
+        64,
+        label="64_layer_2_variation",
+        folder_name="lstm_ablation_study",
+        learning_rate=10 ** -(1.5),
+        num_layers=2,
+        max_tokens_training=int(129e6 / 8),
+    )
+    + gen_lstm_experim(
+        256,
+        label="256_layer_1_variation",
+        folder_name="lstm_ablation_study",
+        learning_rate=10 ** -(2),
+        num_layers=1,
+        max_tokens_training=int(129e6 / 8),
+    )
+    + gen_lstm_experim(
+        256,
+        label="256_layer_2_variation",
+        folder_name="lstm_ablation_study",
+        learning_rate=10 ** -(2),
+        num_layers=2,
+        max_tokens_training=int(129e6 / 8),
+    )
+)
+
 
 # experiments to test
 # appendix ablation study
@@ -652,4 +695,4 @@ APPENDIX_ABALATION_STUDY = (
 # GRAND_EXPERIMENT = create_multi_lr_experiments(
 #     APPENDIX_ABALATION_STUDY, NARROW_LR_SWEEP
 # )s
-GRAND_EXPERIMENT = create_multi_lr_experiments(CORRECTED_MELIS_SCALING, NARROW_LR_SWEEP)
+GRAND_EXPERIMENT = create_multi_lr_experiments(LAYER_VARIATION, NARROW_LR_SWEEP)

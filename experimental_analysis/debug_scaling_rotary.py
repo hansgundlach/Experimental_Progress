@@ -886,90 +886,197 @@ if __name__ == "__main__":
         #     "class": "transformer",
         #     "hidden_dim": 64,
         # },
+
+
+
+
+
+
+
+
+        # {
+        #     "name": "32d radford transformer",
+        #     "csv_path": "../experimental_data_folder/debug_historical_experiments/radford_32transformer_2018_bs64.csv",
+        #     "marker": "o",
+        #     "include_in_frontier": True,  # Include in frontier analysis
+        #     "color": "tab:orange",
+        #     "class": "radford transformer",
+        #     "hidden_dim": 32,
+        # },
+        # {
+        #     "name": "48d radford transformer",
+        #     "csv_path": "../experimental_data_folder/debug_historical_experiments/radford_48transformer_2018_bs64.csv",
+        #     "marker": "o",
+        #     "include_in_frontier": True,  # Include in frontier analysis
+        #     "color": "tab:orange",
+        #     "class": "radford transformer",
+        #     "hidden_dim": 48,
+        # },
+        # {
+        #     "name": "64d radford transformer",
+        #     "csv_path": "../experimental_data_folder/debug_historical_experiments/radford_64transformer_2018_bs64.csv",
+        #     "marker": "o",
+        #     "include_in_frontier": True,  # Include in frontier analysis
+        #     "color": "tab:orange",
+        #     "class": "radford transformer",
+        #     "hidden_dim": 64,
+        # },
+        # #radfofr 80 and 96
+        # {
+        #     "name": "80d radford transformer",
+        #     "csv_path": "../experimental_data_folder/debug_historical_experiments/radford_80transformer_2018_bs64.csv",
+        #     "marker": "o",
+        #     "include_in_frontier": True,  # Include in frontier analysis
+        #     "color": "tab:orange",
+        #     "class": "radford transformer",
+        #     "hidden_dim": 80,
+        # },
+        # {
+        #     "name": "96d radford transformer",
+        #     "csv_path": "../experimental_data_folder/debug_historical_experiments/radford_96transformer_2018_bs64.csv",
+        #     "marker": "o",
+        #     "include_in_frontier": True,  # Include in frontier analysis
+        #     "color": "tab:orange",
+        #     "class": "radford transformer",
+        #     "hidden_dim": 96,
+        # },
+
+        #modern scaling 
         {
-            "name": "32d radford transformer",
-            "csv_path": "../experimental_data_folder/debug_historical_experiments/radford_32transformer_2018_bs64.csv",
+            "name": "32d modern scaling",
+            "csv_path": "../experimental_data_folder/modern_scaling_study/32_modern.csv",
             "marker": "o",
             "include_in_frontier": True,  # Include in frontier analysis
-            "color": "tab:orange",
-            "class": "radford transformer",
+            "color": "red",
+            "class": "modern transformer",
             "hidden_dim": 32,
         },
         {
-            "name": "48d radford transformer",
-            "csv_path": "../experimental_data_folder/debug_historical_experiments/radford_48transformer_2018_bs64.csv",
+            "name": "48d modern scaling",
+            "csv_path": "../experimental_data_folder/modern_scaling_study/48_modern.csv",
             "marker": "o",
             "include_in_frontier": True,  # Include in frontier analysis
-            "color": "tab:orange",
-            "class": "radford transformer",
+            "color": "red",
+            "class": "modern transformer",
             "hidden_dim": 48,
         },
+        # {
+        #     "name": "64d modern scaling",
+        #     "csv_path": "../experimental_data_folder/modern_scaling_study/64_modern.csv",
+        #     "marker": "o",
+        #     "include_in_frontier": True,  # Include in frontier analysis
+        #     "color": "red",
+        #     "class": "modern transformer",
+        #     "hidden_dim": 64,
+        # },
         {
-            "name": "64d radford transformer",
-            "csv_path": "../experimental_data_folder/debug_historical_experiments/radford_64transformer_2018_bs64.csv",
+            "name": "80d modern scaling",
+            "csv_path": "../experimental_data_folder/modern_scaling_study/80_modern.csv",
             "marker": "o",
             "include_in_frontier": True,  # Include in frontier analysis
-            "color": "tab:orange",
-            "class": "radford transformer",
-            "hidden_dim": 64,
+            "color": "red",
+            "class": "modern transformer",
+            "hidden_dim": 80,
         },
-        # radford 128
         {
-            "name": "128d radford transformer",
-            "csv_path": "../experimental_data_folder/debug_historical_experiments/radford_128.csv",
+            "name": "96d modern scaling",
+            "csv_path": "../experimental_data_folder/modern_scaling_study/96_modern.csv",
             "marker": "o",
             "include_in_frontier": True,  # Include in frontier analysis
-            "color": "tab:orange",
-            "class": "radford transformer",
-            "hidden_dim": 128,
+            "color": "yellow",
+            "class": "modern transformer",
+            "hidden_dim": 96,
         },
-        # modern 128
         {
-            "name": "128d modern transformer",
-            "csv_path": "../experimental_data_folder/debug_historical_experiments/modern_128.csv",
+            "name": "128d modern scaling",
+            "csv_path": "../experimental_data_folder/modern_scaling_study/128_modern.csv",
             "marker": "o",
             "include_in_frontier": True,  # Include in frontier analysis
-            "color": "tab:purple",
+            "color": "green",
             "class": "modern transformer",
             "hidden_dim": 128,
         },
         {
-            "name": "32d transformer scaling further",
-            "csv_path": "../experimental_data_folder/transformer_scaling/swiglu_32d_transformer_bs64.csv",
+            "name": "160d modern scaling",
+            "csv_path": "../experimental_data_folder/modern_scaling_study/160_modern.csv",
             "marker": "o",
             "include_in_frontier": True,  # Include in frontier analysis
-            "color": "tab:purple",
-            "class": "transformer",
-            "hidden_dim": 32,
+            "color": "blue",
+            "class": "modern transformer",
+            "hidden_dim": 160,
         },
-        {
-            "name": "48d transformer scaling further",
-            "csv_path": "../experimental_data_folder/transformer_scaling/swiglu_48d_transformer_bs64.csv",
-            "marker": "o",
-            "include_in_frontier": True,  # Include in frontier analysis
-            "color": "tab:purple",
-            "class": "transformer",
-            "hidden_dim": 48,
-        },
-        {
-            "name": "64d transformer scaling further",
-            "csv_path": "../experimental_data_folder/transformer_scaling/swiglu_64d_transformer_bs64.csv",
-            "marker": "o",
-            "include_in_frontier": True,  # Include in frontier analysis
-            "color": "tab:purple",
-            "class": "transformer",
-            "hidden_dim": 64,
-        },
-        # 96 128 160
-        {
-            "name": "96d transformer scaling further",
-            "csv_path": "../experimental_data_folder/transformer_scaling/swiglu_96d_transformer_bs64.csv",
-            "marker": "o",
-            "include_in_frontier": True,  # Include in frontier analysis
-            "color": "tab:purple",
-            "class": "transformer",
-            "hidden_dim": 96,
-        },
+
+
+
+
+
+
+
+
+
+
+            # radford 128
+        # {
+        #     "name": "128d radford transformer",
+        #     "csv_path": "../experimental_data_folder/debug_historical_experiments/radford_128.csv",
+        #     "marker": "o",
+        #     "include_in_frontier": True,  # Include in frontier analysis
+        #     "color": "tab:orange",
+        #     "class": "radford transformer",
+        #     "hidden_dim": 128,
+        # },
+        # # modern 128
+        # {
+        #     "name": "128d modern transformer",
+        #     "csv_path": "../experimental_data_folder/debug_historical_experiments/modern_128.csv",
+        #     "marker": "o",
+        #     "include_in_frontier": True,  # Include in frontier analysis
+        #     "color": "tab:purple",
+        #     "class": "modern transformer",
+        #     "hidden_dim": 128,
+        # },
+        # {
+        #     "name": "32d transformer scaling further",
+        #     "csv_path": "../experimental_data_folder/transformer_scaling/swiglu_32d_transformer_bs64.csv",
+        #     "marker": "o",
+        #     "include_in_frontier": True,  # Include in frontier analysis
+        #     "color": "tab:purple",
+        #     "class": "transformer",
+        #     "hidden_dim": 32,
+        # },
+        # {
+        #     "name": "48d transformer scaling further",
+        #     "csv_path": "../experimental_data_folder/transformer_scaling/swiglu_48d_transformer_bs64.csv",
+        #     "marker": "o",
+        #     "include_in_frontier": True,  # Include in frontier analysis
+        #     "color": "tab:purple",
+        #     "class": "transformer",
+        #     "hidden_dim": 48,
+        # },
+        # {
+        #     "name": "64d transformer scaling further",
+        #     "csv_path": "../experimental_data_folder/transformer_scaling/swiglu_64d_transformer_bs64.csv",
+        #     "marker": "o",
+        #     "include_in_frontier": True,  # Include in frontier analysis
+        #     "color": "tab:purple",
+        #     "class": "transformer",
+        #     "hidden_dim": 64,
+        # },
+        # # 96 128 160
+        # {
+        #     "name": "96d transformer scaling further",
+        #     "csv_path": "../experimental_data_folder/transformer_scaling/swiglu_96d_transformer_bs64.csv",
+        #     "marker": "o",
+        #     "include_in_frontier": True,  # Include in frontier analysis
+        #     "color": "tab:purple",
+        #     "class": "transformer",
+        #     "hidden_dim": 96,
+        # },
+
+
+
+
+        
         # {
         #     "name": "128d transformer scaling further",
         #     "csv_path": "../experimental_data_folder/transformer_scaling/swiglu_128d_transformer_bs64.csv",

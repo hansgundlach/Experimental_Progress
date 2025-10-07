@@ -230,19 +230,17 @@ def evaluate_loss(model, dataloader, criterion, device, vocab_size, use_amp):
 
 # swiglu implmentation adds extra computation so not directly comparable to gelu, relu, silu, glu
 class SwiGLU(nn.Module):
-    def __init__(self, dim, hidden_dim=None, dropout=0.0, use_bias=True):
+    def __init__(self, dim, hidden_dim=None, dropout=0.0):
         super().__init__()
         hidden_dim = hidden_dim or dim * 4
-        # Ensure hidden_dim is an integer (important for non-integer ff_ratio)
-        hidden_dim = int(hidden_dim)
 
         # Use a single linear layer for SwiGLU projections
         self.proj = nn.Linear(
-            dim, hidden_dim * 2, bias=use_bias
+            dim, hidden_dim * 2
         )  # Single projection for both gate and value
         self.act = nn.SiLU()  # Swish activation
         self.dropout = nn.Dropout(dropout)
-        self.to_out = nn.Linear(hidden_dim, dim, bias=use_bias)
+        self.to_out = nn.Linear(hidden_dim, dim)
 
     def forward(self, x):
         # Project input and split into gate and value
@@ -260,15 +258,10 @@ class GLUFeedForward(nn.Module):
         super().__init__()
         # Get ff_ratio from config, default to 4
         ff_ratio = getattr(config, "ff_ratio", 4) if config else 4
-        modern_bias_0 = getattr(config, "modern_bias_0", False) if config else False
-        use_bias = not modern_bias_0
-        # Calculate dimensions and ensure they are integers
-        ff_dim = int(ff_ratio * dim)
-
         # Project to 2*ff_ratio*dim because GLU will halve it to ff_ratio*dim
-        self.linear1 = Linear(dim, 2 * ff_dim, bias=use_bias)
+        self.linear1 = Linear(dim, 2 * ff_ratio * dim)
         # From ff_ratio*dim back to dim
-        self.linear2 = Linear(ff_dim, dim, bias=use_bias)
+        self.linear2 = Linear(ff_ratio * dim, dim)
         self.dropout = Dropout(dropout)
 
     def forward(self, x):
@@ -349,15 +342,10 @@ class SimpleTransformerLayer(nn.Module):
 
         # Choose normalization type
         norm_type = getattr(config, "norm_type", "layer")
-        modern_bias_0 = getattr(config, "modern_bias_0", False)
         if norm_type == "rms":
             norm_layer = RMSNorm
         elif norm_type == "layer":
-            if modern_bias_0:
-                # LayerNorm without bias (only scale parameter)
-                norm_layer = lambda dim: nn.LayerNorm(dim, bias=False)
-            else:
-                norm_layer = nn.LayerNorm
+            norm_layer = nn.LayerNorm
         else:
             valid_norm_types = ["layer", "rms"]
             raise ValueError(
@@ -367,17 +355,13 @@ class SimpleTransformerLayer(nn.Module):
         self.norm1 = norm_layer(hidden_dim)
         self.norm2 = norm_layer(hidden_dim)
 
-        # Determine if we should use bias based on modern_bias_0
-        use_bias = not modern_bias_0  # No bias if modern_bias_0 is True
-
-        self.qkv = Linear(hidden_dim, 3 * hidden_dim, bias=use_bias)
-        self.out_proj = Linear(hidden_dim, hidden_dim, bias=use_bias)
+        self.qkv = Linear(hidden_dim, 3 * hidden_dim)
+        self.out_proj = Linear(hidden_dim, hidden_dim)
 
         if config.activation == "swiglu":
             # SwiGLU is a complete feed-forward module
             ff_ratio = getattr(config, "ff_ratio", 4)
-            ff_dim = int(hidden_dim * ff_ratio)  # Ensure integer dimension
-            self.ff = SwiGLU(hidden_dim, ff_dim, dropout=dropout, use_bias=use_bias)
+            self.ff = SwiGLU(hidden_dim, hidden_dim * ff_ratio, dropout=dropout)
         elif config.activation == "glu":
             self.ff = GLUFeedForward(hidden_dim, dropout=dropout, config=config)
         else:
@@ -394,12 +378,11 @@ class SimpleTransformerLayer(nn.Module):
                 )
 
             ff_ratio = getattr(config, "ff_ratio", 4)
-            ff_dim = int(ff_ratio * hidden_dim)  # Ensure integer dimension
             self.ff = nn.Sequential(
-                Linear(hidden_dim, ff_dim, bias=use_bias),
+                Linear(hidden_dim, ff_ratio * hidden_dim),
                 act_fn,
                 nn.Dropout(dropout),
-                Linear(ff_dim, hidden_dim, bias=use_bias),
+                Linear(ff_ratio * hidden_dim, hidden_dim),
             )
 
         # Check if Flash Attention is available
@@ -573,14 +556,7 @@ class SimpleTransformer(nn.Module):
         )
 
         self.norm = LayerNorm(hidden_dim)
-
-        # Determine if output layer should have bias
-        modern_bias_0 = getattr(config, "modern_bias_0", False)
-        # Output layer has no bias ONLY if modern_bias_0 is True
-        # Original behavior: always had bias regardless of tie_embeddings
-        use_output_bias = not modern_bias_0
-
-        self.fc = Linear(hidden_dim, vocab_size, bias=use_output_bias)
+        self.fc = Linear(hidden_dim, vocab_size)
 
         # Tie input and output embeddings if specified
         if self.tie_embeddings:
@@ -609,15 +585,13 @@ class SimpleTransformer(nn.Module):
             std = 1 / math.sqrt(self.hidden_dim)
             bound = math.sqrt(3.0) * std
             nn.init.uniform_(layer.qkv.weight, -bound, bound)
-            if layer.qkv.bias is not None:
-                nn.init.zeros_(layer.qkv.bias)
+            nn.init.zeros_(layer.qkv.bias)
 
             # Output projection: scale by 1/sqrt(width)
             std = 1 / math.sqrt(self.hidden_dim)
             bound = math.sqrt(3.0) * std
             nn.init.uniform_(layer.out_proj.weight, -bound, bound)
-            if layer.out_proj.bias is not None:
-                nn.init.zeros_(layer.out_proj.bias)
+            nn.init.zeros_(layer.out_proj.bias)
 
             # Feedforward layers: scale by 1/sqrt(width)
             std = 1 / math.sqrt(self.hidden_dim)
@@ -625,20 +599,16 @@ class SimpleTransformer(nn.Module):
 
             if hasattr(layer.ff, "linear1"):
                 nn.init.uniform_(layer.ff.linear1.weight, -bound, bound)
-                if layer.ff.linear1.bias is not None:
-                    nn.init.zeros_(layer.ff.linear1.bias)
+                nn.init.zeros_(layer.ff.linear1.bias)
             if hasattr(layer.ff, "linear2"):
                 nn.init.uniform_(layer.ff.linear2.weight, -bound, bound)
-                if layer.ff.linear2.bias is not None:
-                    nn.init.zeros_(layer.ff.linear2.bias)
+                nn.init.zeros_(layer.ff.linear2.bias)
             if hasattr(layer.ff, "to_out"):
                 nn.init.uniform_(layer.ff.to_out.weight, -bound, bound)
-                if layer.ff.to_out.bias is not None:
-                    nn.init.zeros_(layer.ff.to_out.bias)
+                nn.init.zeros_(layer.ff.to_out.bias)
             if hasattr(layer.ff, "proj"):
                 nn.init.uniform_(layer.ff.proj.weight, -bound, bound)
-                if layer.ff.proj.bias is not None:
-                    nn.init.zeros_(layer.ff.proj.bias)
+                nn.init.zeros_(layer.ff.proj.bias)
 
         # Output layer: scale by 1/width (not sqrt) for muP
         # Only initialize if not tied to embedding
@@ -646,8 +616,7 @@ class SimpleTransformer(nn.Module):
             std = 1 / self.hidden_dim
             bound = math.sqrt(3.0) * std
             nn.init.uniform_(self.fc.weight, -bound, bound)
-        if self.fc.bias is not None:
-            nn.init.zeros_(self.fc.bias)
+        nn.init.zeros_(self.fc.bias)
 
     def forward(self, x):
         B, L = x.shape
@@ -1007,29 +976,23 @@ def train(gpu_id=None, csv_log_path=None):
 
             # Initialize attention weights
             nn.init.normal_(layer.qkv.weight, mean=0.0, std=layer_scale)
-            if layer.qkv.bias is not None:
-                nn.init.zeros_(layer.qkv.bias)
+            nn.init.zeros_(layer.qkv.bias)
             nn.init.normal_(layer.out_proj.weight, mean=0.0, std=layer_scale)
-            if layer.out_proj.bias is not None:
-                nn.init.zeros_(layer.out_proj.bias)
+            nn.init.zeros_(layer.out_proj.bias)
 
             # Initialize feedforward weights based on the type of the feedforward network
             if isinstance(layer.ff, SwiGLU):
                 # Initialize SwiGLU weights
                 nn.init.normal_(layer.ff.proj.weight, mean=0.0, std=layer_scale)
-                if layer.ff.proj.bias is not None:
-                    nn.init.zeros_(layer.ff.proj.bias)
+                nn.init.zeros_(layer.ff.proj.bias)
                 nn.init.normal_(layer.ff.to_out.weight, mean=0.0, std=layer_scale)
-                if layer.ff.to_out.bias is not None:
-                    nn.init.zeros_(layer.ff.to_out.bias)
+                nn.init.zeros_(layer.ff.to_out.bias)
             elif isinstance(layer.ff, GLUFeedForward):
                 # Initialize GLUFeedForward weights
                 nn.init.normal_(layer.ff.linear1.weight, mean=0.0, std=layer_scale)
-                if layer.ff.linear1.bias is not None:
-                    nn.init.zeros_(layer.ff.linear1.bias)
+                nn.init.zeros_(layer.ff.linear1.bias)
                 nn.init.normal_(layer.ff.linear2.weight, mean=0.0, std=layer_scale)
-                if layer.ff.linear2.bias is not None:
-                    nn.init.zeros_(layer.ff.linear2.bias)
+                nn.init.zeros_(layer.ff.linear2.bias)
             elif isinstance(layer.ff, nn.Sequential):
                 # Initialize standard sequential feed-forward weights
                 # First find the Linear layers by iterating through the sequential modules
@@ -1038,8 +1001,7 @@ def train(gpu_id=None, csv_log_path=None):
                 # Initialize each Linear layer found
                 for linear in linear_layers:
                     nn.init.normal_(linear.weight, mean=0.0, std=layer_scale)
-                    if linear.bias is not None:
-                        nn.init.zeros_(linear.bias)
+                    nn.init.zeros_(linear.bias)
             else:
                 print(f"Warning: Unknown feed-forward network type: {type(layer.ff)}")
 

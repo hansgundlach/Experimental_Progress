@@ -334,7 +334,7 @@ multiplier, details = compute_multiplier_by_loss(
     target_loss,
     verbose=True,
 )
-#%%
+# %%
 
 # Example usage and testing
 # Example usage - you would replace these with actual file paths
@@ -350,15 +350,21 @@ multiplier, details = compute_multiplier_by_loss(
     verbose=True,
 )
 
-#%%
+# %%
 
-target_loss = 4.6
+
+# "csv_path": "../experimental_data_folder/debug_historical_experiments/radford_32transformer_2018_bs64.csv",
+
+#           "name": "64d transformer scaling further",
+#         "csv_path": "../experimental_data_folder/transformer_scaling/swiglu_64d_transformer_bs64.csv",
+
+target_loss = 5.5
 # Example usage and testing
 # Example usage - you would replace these with actual file paths
-example_file_a = "../experimental_data_folder/debug_historical_experiments/modern_128.csv"
-example_file_b = (
-    "../experimental_data_folder/debug_historical_experiments/radford_128.csv"  # hypothetical
+example_file_a = (
+    "../experimental_data_folder/transformer_scaling/swiglu_64d_transformer_bs64.csv"
 )
+example_file_b = "../experimental_data_folder/debug_historical_experiments/radford_64transformer_2018_bs64.csv"  # hypothetical
 
 multiplier, details = compute_multiplier_by_loss(
     example_file_a,
@@ -366,20 +372,6 @@ multiplier, details = compute_multiplier_by_loss(
     target_loss,
     verbose=True,
 )
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 
 
 # %%
@@ -454,6 +446,7 @@ except Exception as e:
 # %%
 # Updated Generic Stacked Bar Plot Function with Correct Multiplicative Effects
 
+
 def create_stacked_comparison_plot(
     components_data, comparison_data, title="Stacked vs Single Comparison"
 ):
@@ -474,7 +467,7 @@ def create_stacked_comparison_plot(
     ytick_label_fontsize = 20  # Added y-axis tick font size
     legend_fontsize = 20
     component_label_fontsize = 12
-    value_label_fontsize = 16
+    value_label_fontsize = 20
     total_label_fontsize = 18
     # ========================================
 
@@ -598,7 +591,6 @@ def create_stacked_comparison_plot(
     plt.xticks(
         x_positions, labels, rotation=0, ha="center", fontsize=tick_label_fontsize
     )
-    plt.yticks(fontsize=ytick_label_fontsize)  # Set y-axis tick font size
     plt.ylabel(
         "Compute Effect Multiplier", fontsize=axis_label_fontsize, fontweight="bold"
     )
@@ -608,7 +600,28 @@ def create_stacked_comparison_plot(
 
     # Set y-axis limits
     max_value = max(total_stacked_height, max([comp[1] for comp in comparison_data]))
-    plt.ylim(1, max_value * 2)
+    plt.ylim(1, max_value * 1.4)
+
+    # Fix y-axis tick font sizes - MUST be done AFTER yscale and ylim
+    ax = plt.gca()
+
+    # Control the number of y-axis ticks - set explicit tick locations
+    # Adjust these values based on your data range:
+    # Option 1: Minimal ticks (currently active)
+    ax.set_yticks([1, 2])
+
+    # Remove minor ticks to avoid extra tick marks
+    ax.set_yticks([], minor=True)
+
+    # Option 2: Show 1, 2, 5 pattern (uncomment to use instead)
+    # ax.set_yticks([1, 2, 5])
+    # ax.set_yticks([], minor=True)
+
+    # Option 3: Include more values if needed (uncomment to use instead)
+    # ax.set_yticks([1, 1.5, 2, 2.5, 3])
+    # ax.set_yticks([], minor=True)
+
+    ax.tick_params(axis="y", which="both", labelsize=ytick_label_fontsize)
 
     # Add legend with better positioning
     plt.legend(
@@ -669,31 +682,36 @@ components_data_2 = [
 
 comparison_data_2 = [("Current vs 2017 Transformer", 1.677, "#e74c3c")]
 
+comparison_data_3 = [("Ho et Al", 1e4, "#e74c3c")]
+
+
 create_stacked_comparison_plot(
-    components_data_2, comparison_data_2, "Transformer Components Effects vs Overall Increase"
+    components_data_2,
+    comparison_data_2,
+    "Transformer Components Effects vs Overall Increase",
 )
 
 # %%
-# # Example 3: 5 stacked components vs 3 comparisons
-# components_data_3 = [
-#     ("Optimizer", 2.8, '#e74c3c'),
-#     ("Architecture", 2.2, '#3498db'),
-#     ("Initialization", 1.6, '#2ECC71'),
-#     ("Regularization", 1.3, '#f39c12'),
-#     ("Data Augmentation", 1.2, '#9b59b6')
-# ]
+# Example 3: 5 stacked components vs 3 comparisons
+components_data_3 = [
+    ("Optimizer", 2.8, '#e74c3c'),
+    ("Architecture", 2.2, '#3498db'),
+    ("Initialization", 1.6, '#2ECC71'),
+    ("Regularization", 1.3, '#f39c12'),
+    ("Data Augmentation", 1.2, '#9b59b6')
+]
 
-# comparison_data_3 = [
-#     ("Baseline", 1.0, '#95a5a6'),
-#     ("Partial Improvement", 4.5, '#e67e22'),
-#     ("Full Pipeline", 8.2, '#1abc9c')
-# ]
+comparison_data_3 = [
+    ("Baseline", 1.0, '#95a5a6'),
+    ("Partial Improvement", 4.5, '#e67e22'),
+    ("Full Pipeline", 8.2, '#1abc9c')
+]
 
-# create_stacked_comparison_plot(
-#     components_data_3,
-#     comparison_data_3,
-#     "Complete ML Pipeline Components"
-# )
+create_stacked_comparison_plot(
+    components_data_3,
+    comparison_data_3,
+    "Complete ML Pipeline Components"
+)
 
 
 # %%

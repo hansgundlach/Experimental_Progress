@@ -383,7 +383,7 @@ def get_lstm_base_config():
         "use_streaming": True,  # Enable streaming dataset (Melis/Merity style)
         "streaming_reset_prob": 0.01,  # Probability of randomly resetting hidden state in streaming mode
         "eval_streaming_like_train": True,  # Whether evaluation should use streaming like training
-        "joint_evaluations": True,  # Enable both streaming and non-streaming evaluation
+        "joint_evaluations": False,  # Enable both streaming and non-streaming evaluation
         # SGD parameters
         "sgd_momentum": 0.9,  # Momentum for SGD optimizer
     }
@@ -655,8 +655,8 @@ def create_multi_lr_experiments(
     Returns:
         List of experiment dictionaries with learning rate variations
     """
-    if max_tokens is None:
-        max_tokens = int(129e6 / 4)
+    # if max_tokens is None:
+    #     max_tokens = int(129e6 / 4)
 
     multi_lr_experiments = []
 

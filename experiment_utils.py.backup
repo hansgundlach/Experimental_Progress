@@ -619,5 +619,4 @@ def get_base_config():
         ),  # Fixed number of tokens for validation set (None = use percentage split)
         "char_to_token_ratio": 4.0,  # Character-to-token ratio for dataset loading (e.g., 4.0 = load 4 chars per expected token)
         "ff_ratio": 4,  # Feedforward dimension to model dimension ratio (default: 4)
-        "modern_bias_0": False,  # Modern architecture: remove biases from layers followed by normalization (default: False)
     }

@@ -24,6 +24,8 @@ from non_scaling_experim_def import (
 )
 
 
+
+
 def run_experiments_on_gpu(gpu_id, sub_experiments, project_name_base):
     print(f"\nGPU {gpu_id} STARTING:")
     print(f"Number of experiments on GPU: {len(sub_experiments)}")
