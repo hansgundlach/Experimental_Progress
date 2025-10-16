@@ -327,7 +327,7 @@ def estimate_gpu_memory_and_grad_accum(
     optimizer_memory = params * 4 * 4  # Adam: weights + gradients + 2 momentum terms
 
     # Calculate number of heads (same logic as gen_experim)
-    target_head_dim = 32
+    target_head_dim = 16  # Match gen_experim for consistency
     num_heads = max(1, int(round(hidden_dim / target_head_dim)))
     while hidden_dim % num_heads != 0 and num_heads > 1:
         num_heads -= 1
@@ -425,9 +425,9 @@ def gen_experim(
     """
     # Get base config
     base_config = get_base_config()
-    # this stuff
 
-    # Calculate scaled parameters
+    # Get pos_encoding early (needed for num_heads calculation)
+    pos_encoding = overrides.get("pos_encoding", base_config["pos_encoding"])
 
     # 1. Scale num_layers proportionally with hidden_dim
     # Use a base ratio: for 32d -> 2 layers, so ratio = 2/32 = 1/16
@@ -440,12 +440,19 @@ def gen_experim(
     target_head_dim = 16
     num_heads = max(1, int(round(hidden_dim / target_head_dim)))
     # Ensure hidden_dim is divisible by num_heads
+    # AND that head_dim is even (required for rotary embeddings)
     while hidden_dim % num_heads != 0 and num_heads > 1:
         num_heads -= 1
+    # If using rotary encoding, ensure head_dim is even
+    if pos_encoding == "rotary":
+        while (hidden_dim // num_heads) % 2 != 0 and num_heads > 1:
+            num_heads -= 1
+            # Re-check divisibility after adjustment
+            while hidden_dim % num_heads != 0 and num_heads > 1:
+                num_heads -= 1
 
     # 3. Calculate total parameters and scale max_tokens to 20x parameters
-    # Use user overrides for pos_encoding, tie_embeddings, and ff_ratio if provided
-    pos_encoding = overrides.get("pos_encoding", base_config["pos_encoding"])
+    # Use user overrides for tie_embeddings and ff_ratio if provided
     tie_embeddings = overrides.get("tie_embeddings", base_config["tie_embeddings"])
     ff_ratio = overrides.get("ff_ratio", base_config["ff_ratio"])
 

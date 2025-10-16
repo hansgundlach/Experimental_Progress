@@ -886,14 +886,6 @@ if __name__ == "__main__":
         #     "class": "transformer",
         #     "hidden_dim": 64,
         # },
-
-
-
-
-
-
-
-
         # {
         #     "name": "32d radford transformer",
         #     "csv_path": "../experimental_data_folder/debug_historical_experiments/radford_32transformer_2018_bs64.csv",
@@ -921,7 +913,7 @@ if __name__ == "__main__":
         #     "class": "radford transformer",
         #     "hidden_dim": 64,
         # },
-        # #radfofr 80 and 96
+        # # radfofr 80 and 96
         # {
         #     "name": "80d radford transformer",
         #     "csv_path": "../experimental_data_folder/debug_historical_experiments/radford_80transformer_2018_bs64.csv",
@@ -940,82 +932,90 @@ if __name__ == "__main__":
         #     "class": "radford transformer",
         #     "hidden_dim": 96,
         # },
-
-        #modern scaling 
+        # modern scaling
         {
-            "name": "32d modern scaling",
+            "name": "32d ",
             "csv_path": "../experimental_data_folder/modern_scaling_study/32_modern.csv",
             "marker": "o",
             "include_in_frontier": True,  # Include in frontier analysis
             "color": "red",
-            "class": "modern transformer",
+            "class": "transformer variation",
             "hidden_dim": 32,
         },
         {
-            "name": "48d modern scaling",
+            "name": "48d",
             "csv_path": "../experimental_data_folder/modern_scaling_study/48_modern.csv",
             "marker": "o",
             "include_in_frontier": True,  # Include in frontier analysis
             "color": "red",
-            "class": "modern transformer",
+            "class": "transformer variation",
             "hidden_dim": 48,
         },
-        # {
-        #     "name": "64d modern scaling",
-        #     "csv_path": "../experimental_data_folder/modern_scaling_study/64_modern.csv",
-        #     "marker": "o",
-        #     "include_in_frontier": True,  # Include in frontier analysis
-        #     "color": "red",
-        #     "class": "modern transformer",
-        #     "hidden_dim": 64,
-        # },
         {
-            "name": "80d modern scaling",
-            "csv_path": "../experimental_data_folder/modern_scaling_study/80_modern.csv",
+            "name": "64d ",
+            "csv_path": "../experimental_data_folder/modern_scaling_study/64_modern.csv",
             "marker": "o",
             "include_in_frontier": True,  # Include in frontier analysis
             "color": "red",
-            "class": "modern transformer",
-            "hidden_dim": 80,
+            "class": "transformer variation",
+            "hidden_dim": 64,
         },
         {
-            "name": "96d modern scaling",
-            "csv_path": "../experimental_data_folder/modern_scaling_study/96_modern.csv",
+            "name": "80d ",
+            "csv_path": "../experimental_data_folder/modern_scaling_study/80_modern.csv",
             "marker": "o",
             "include_in_frontier": True,  # Include in frontier analysis
-            "color": "yellow",
-            "class": "modern transformer",
+            "color": "tab:blue",
+            "class": "transformer variation",
+            "hidden_dim": 80,
+        },
+        # 88 #104
+        {
+            "name": "88d ",
+            "csv_path": "../experimental_data_folder/modern_scaling_study/88_modern.csv",
+            "marker": "o",
+            "include_in_frontier": True,  # Include in frontier analysis
+            "color": "red",
+            "class": "transformer variation",
+            "hidden_dim": 88,
+        },
+        {
+            "name": "104d ",
+            "csv_path": "../experimental_data_folder/modern_scaling_study/104_modern.csv",
+            "marker": "o",
+            "include_in_frontier": True,  # Include in frontier analysis
+            "color": "red",
+            "class": "transformer variation",
+            "hidden_dim": 104,
+        },
+        {
+            "name": "96d ",
+            "csv_path": "../experimental_data_folder/modern_scaling_study/96_modern_2.csv",
+            "marker": "o",
+            "include_in_frontier": True,  # Include in frontier analysis
+            "color": "tab:purple",
+            "class": "transformer variation",
             "hidden_dim": 96,
         },
         {
-            "name": "128d modern scaling",
+            "name": "128d ",
             "csv_path": "../experimental_data_folder/modern_scaling_study/128_modern.csv",
             "marker": "o",
             "include_in_frontier": True,  # Include in frontier analysis
             "color": "green",
-            "class": "modern transformer",
+            "class": "transformer variation",
             "hidden_dim": 128,
         },
         {
-            "name": "160d modern scaling",
+            "name": "160d",
             "csv_path": "../experimental_data_folder/modern_scaling_study/160_modern.csv",
             "marker": "o",
             "include_in_frontier": True,  # Include in frontier analysis
             "color": "blue",
-            "class": "modern transformer",
+            "class": "transformer variation",
             "hidden_dim": 160,
         },
-
-
-
-
-
-
-
-
-
-
-            # radford 128
+        # radford 128
         # {
         #     "name": "128d radford transformer",
         #     "csv_path": "../experimental_data_folder/debug_historical_experiments/radford_128.csv",
@@ -1072,11 +1072,6 @@ if __name__ == "__main__":
         #     "class": "transformer",
         #     "hidden_dim": 96,
         # },
-
-
-
-
-        
         # {
         #     "name": "128d transformer scaling further",
         #     "csv_path": "../experimental_data_folder/transformer_scaling/swiglu_128d_transformer_bs64.csv",

@@ -1095,26 +1095,159 @@ MODERN_SCALING_STUDY = (
 )
 
 
-GRAND_EXPERIMENT = create_multi_lr_experiments(
-    gen_experim(
-        96,
-        label="96_modern",
-        folder_name="modern_scaling_study",
-        learning_rate=10**-2.5,
-        modern_bias_0=True,
-        ff_ratio=4,
-        norm_type="rms",
-    ),
-    [10**-2.25],
-) + create_multi_lr_experiments(
+# GRAND_EXPERIMENT = (
+#     create_multi_lr_experiments(
+#         gen_experim(
+#             96,
+#             label="96_modern",
+#             folder_name="modern_scaling_study",
+#             learning_rate=10**-2.5,
+#             modern_bias_0=True,
+#             ff_ratio=4,
+#             norm_type="rms",
+#         ),
+#         [10**-2.75],
+#     )
+#     + create_multi_lr_experiments(
+#         gen_experim(
+#             160,
+#             label="160_modern",
+#             folder_name="modern_scaling_study",
+#             learning_rate=10**-2.5,
+#             modern_bias_0=True,
+#             ff_ratio=4,
+#             norm_type="rms",
+#         ),
+#         [10**-2.25],
+#     )
+#     + create_multi_lr_experiments(
+#         gen_experim(
+#             128,
+#             label="128_modern",
+#             folder_name="modern_scaling_study",
+#             learning_rate=10**-2.5,
+#             modern_bias_0=True,
+#             ff_ratio=4,
+#             norm_type="rms",
+#         ),
+#         [10**-2.25, 10**-2.75],
+#     )
+# )
+
+GRAND_EXPERIMENT = (
+    # gen experiment 88 and 104
+    # gen_experim(
+    #     88,
+    #     label="88_modern",
+    #     folder_name="modern_scaling_study",
+    #     learning_rate=10**-2,
+    #     modern_bias_0=True,
+    #     ff_ratio=4,
+    #     norm_type="rms",
+    # )
+    # + gen_experim(
+    #     104,
+    #     label="104_modern",
+    #     folder_name="modern_scaling_study",
+    #     learning_rate=10**-2.5,
+    #     modern_bias_0=True,
+    #     ff_ratio=4,
+    #     norm_type="rms",
+    # )
     gen_experim(
         160,
-        label="160_modern",
+        label="160_modern_225",
+        folder_name="modern_scaling_study",
+        learning_rate=10**-2.25,
+        modern_bias_0=True,
+        ff_ratio=4,
+        norm_type="rms",
+    )
+    + gen_experim(
+        160,
+        label="160_modern_275",
+        folder_name="modern_scaling_study",
+        learning_rate=10**-2.75,
+        modern_bias_0=True,
+        ff_ratio=4,
+        norm_type="rms",
+    )
+    + gen_experim(
+        152,
+        label="152_modern_25",
         folder_name="modern_scaling_study",
         learning_rate=10**-2.5,
         modern_bias_0=True,
         ff_ratio=4,
         norm_type="rms",
-    ),
-    [10**-2.75],
+    )
 )
+
+
+# gen_experim(
+#     96,
+#     label="96_modern_15",
+#     folder_name="modern_scaling_study",
+#     learning_rate=10**-2,
+#     modern_bias_0=True,
+#     ff_ratio=4,
+#     norm_type="rms",
+# )
+# gen_experim(
+#     96,
+#     label="96_modern_layer_init",
+#     folder_name="modern_scaling_study",
+#     learning_rate=10**-2,
+#     modern_bias_0=True,
+#     ff_ratio=4,
+#     norm_type="rms",
+#     init_scheme="transformer_scaled",
+# )
+# + gen_experim(
+#     96,
+#     label="96_modern_no_weight_decay",
+#     folder_name="modern_scaling_study",
+#     learning_rate=10**-2,
+#     modern_bias_0=True,
+#     ff_ratio=4,
+#     norm_type="rms",
+#     weight_decay=0.00,
+# )
+# + gen_experim(
+#     96,
+#     label="96_modern_no_weight_decay",
+#     folder_name="modern_scaling_study",
+#     learning_rate=10**-2,
+#     modern_bias_0=True,
+#     ff_ratio=4,
+#     norm_type="rms",
+#     weight_decay=0.00,
+# )
+# + gen_experim(
+#     96,
+#     label="96_modern_275",
+#     folder_name="modern_scaling_study",
+#     learning_rate=10**-2.75,
+#     modern_bias_0=True,
+#     ff_ratio=4,
+#     norm_type="rms",
+# )
+# + gen_experim(
+#     96,
+#     label="96_modern_3",
+#     folder_name="modern_scaling_study",
+#     learning_rate=10**-3,
+#     modern_bias_0=True,
+#     ff_ratio=4,
+#     norm_type="rms",
+# )
+
+# GRAND_EXPERIMENT = gen_experim(
+#     96,
+#     label="96_modern_15",
+#     folder_name="modern_scaling_study",
+#     learning_rate=10**-1.5,
+#     modern_bias_0=True,
+#     ff_ratio=4,
+#     norm_type="rms",
+# )

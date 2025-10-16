@@ -324,13 +324,13 @@ def get_lstm_base_config():
         ),  # Maximum tokens for training (converted from characters using 4:1 ratio)
         "sequence_length": 128,
         "target_effective_batch_size": 64,  # Target effective batch size for optimization
-        "batch_size": 32,  # Default per-step batch size (will be overridden by gen_lstm_experim)
+        "batch_size": 64,  # Default per-step batch size (will be overridden by gen_lstm_experim)
         "hidden_size": 16,  # Base hidden dimension
         "num_layers": 2,  # Base number of layers
         "dropout": 0.0,
         "learning_rate": 0.001 * math.sqrt(4),  # Scale by sqrt of accumulation steps
         "lr_schedule": "cosine_warmup",
-        "warmup_frac": 0.05,  # 5% warmup steps
+        "warmup_frac": 0.1,  # 10% warmup steps
         "min_lr_multiplier": 0.1,  # Min LR as 10% of base LR
         "min_lr": 0.0,  # Absolute minimum learning rate (alternative to min_lr_multiplier)
         # "scheduler_type": "step",

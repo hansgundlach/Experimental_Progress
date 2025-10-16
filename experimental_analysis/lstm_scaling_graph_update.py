@@ -56,10 +56,10 @@ FONT_CONFIG = {
     "title_size": 20,
     "title_weight": "bold",
     # Tick labels
-    "major_tick_size": 16,
-    "minor_tick_size": 14,
+    "major_tick_size": 20,
+    "minor_tick_size": 20,
     # Legend
-    "legend_size": 14,
+    "legend_size": 20,
     # Power law fit labels
     "fit_label_size": 12,
     # Theoretical scaling law labels
@@ -1133,7 +1133,7 @@ class TrainingCurveAnalyzer:
         ax.set_xscale("log")
         ax.grid(True, alpha=0.3)
         ax.set_title(
-            "Transformer Scaling Analysis",
+            "Transformer vs LSTM Scaling Analysis",
             fontsize=FONT_CONFIG["title_size"],
             fontweight=FONT_CONFIG["title_weight"],
         )
@@ -1589,12 +1589,6 @@ if __name__ == "__main__":
         #     "hidden_dim": 128,
         # },
         # transformer scaling further
-
-
-
-
-
-
         # results with swiglu
         # {
         #     "name": "32d transformer scaling further",
@@ -1620,7 +1614,6 @@ if __name__ == "__main__":
         #     "class": "transformer",
         #     "hidden_dim": 64,
         # },
-
         # # 96 128 160
         # {
         #     "name": "96d transformer scaling further",
@@ -1655,11 +1648,7 @@ if __name__ == "__main__":
         #     "class": "transformer",
         #     "hidden_dim": 256,
         # },
-
-
-
-
-         {
+        {
             "name": "32d transformer scaling further",
             "csv_path": "../experimental_data_folder/transformer_scaling/32d_transformer_bs64.csv",
             "marker": "o",
@@ -1683,7 +1672,6 @@ if __name__ == "__main__":
             "class": "transformer",
             "hidden_dim": 64,
         },
-
         # # 96 128 160
         # {
         #     "name": "96d transformer scaling further",
@@ -1718,27 +1706,6 @@ if __name__ == "__main__":
             "class": "transformer",
             "hidden_dim": 256,
         },
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
         # sgd scaling further
         {
             "name": "orig 32d sgd scaling further",

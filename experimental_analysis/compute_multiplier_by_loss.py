@@ -358,13 +358,28 @@ multiplier, details = compute_multiplier_by_loss(
 #           "name": "64d transformer scaling further",
 #         "csv_path": "../experimental_data_folder/transformer_scaling/swiglu_64d_transformer_bs64.csv",
 
-target_loss = 5.5
+# target_loss = 5.1
+# # Example usage and testing
+# # Example usage - you would replace these with actual file paths
+# example_file_a = (
+#     "../experimental_data_folder/transformer_scaling/swiglu_64d_transformer_bs64.csv"
+# )
+# example_file_b = "../experimental_data_folder/debug_historical_experiments/radford_64transformer_2018_bs64.csv"  # hypothetical
+
+# multiplier, details = compute_multiplier_by_loss(
+#     example_file_a,
+#     example_file_b,  # Using same file for demo
+#     target_loss,
+#     verbose=True,
+# )
+
+target_loss = 5.1
 # Example usage and testing
 # Example usage - you would replace these with actual file paths
 example_file_a = (
     "../experimental_data_folder/transformer_scaling/swiglu_64d_transformer_bs64.csv"
 )
-example_file_b = "../experimental_data_folder/debug_historical_experiments/radford_64transformer_2018_bs64.csv"  # hypothetical
+example_file_b = "../experimental_data_folder/debug_historical_experiments/radford_128.csv"  # hypothetical
 
 multiplier, details = compute_multiplier_by_loss(
     example_file_a,
@@ -372,6 +387,20 @@ multiplier, details = compute_multiplier_by_loss(
     target_loss,
     verbose=True,
 )
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 # %%
@@ -395,7 +424,7 @@ multiplier, details = compute_multiplier_by_loss(
 # %%
 
 
-target_loss = 5.3
+target_loss = 5.9
 
 # Example usage and testing
 # Example usage - you would replace these with actual file paths
@@ -403,6 +432,26 @@ example_file_b = (
     "../experimental_data_folder/historical_experiments/p64transformer_2017_bs64.csv"
 )
 example_file_a = "../experimental_data_folder/historical_experiments/64transformer_2022_bs64.csv"  # hypothetical
+
+multiplier, details = compute_multiplier_by_loss(
+    example_file_a,
+    example_file_b,  # Using same file for demo
+    target_loss,
+    verbose=True,
+)
+
+
+# %%
+# trying a diffenret historical run
+
+target_loss = 5.1
+
+# Example usage and testing
+# Example usage - you would replace these with actual file paths
+example_file_b = "../experimental_data_folder/debug_historical_experiments/radford_64transformer_2018_bs64.csv"
+example_file_a = (
+    "../experimental_data_folder/modern_scaling_study/64_modern.csv"  # hypothetical
+)
 
 multiplier, details = compute_multiplier_by_loss(
     example_file_a,
@@ -448,15 +497,19 @@ except Exception as e:
 
 
 def create_stacked_comparison_plot(
-    components_data, comparison_data, title="Stacked vs Single Comparison"
+    stacked_groups, comparison_data, title="Stacked vs Single Comparison"
 ):
     """
-    Create a stacked bar plot comparing multiple stacked components vs single values.
-    Each level shows cumulative multiplicative effects.
+    Create a bar plot with multiple stacked bars and multiple single-value bars.
+    Each stacked bar shows cumulative multiplicative effects.
 
     Args:
-        components_data: List of tuples (name, value, color) for stacked components
-        comparison_data: List of tuples (name, value, color) for comparison bars
+        stacked_groups: List of lists, where each inner list contains tuples
+                       (name, value, color) for one stacked bar.
+                       Example: [[("A", 1.2, "#fff"), ("B", 1.3, "#eee")],
+                                [("C", 1.1, "#ddd")]]
+                       This creates 2 stacked bars.
+        comparison_data: List of tuples (name, value, color) for non-stacked comparison bars
         title: Plot title
     """
 
@@ -476,76 +529,101 @@ def create_stacked_comparison_plot(
     sns.set_palette("viridis")
 
     # Set up bar positions
-    n_stacked = len(components_data)
+    n_stacked_groups = len(stacked_groups)
     n_comparison = len(comparison_data)
-    total_bars = 1 + n_comparison  # 1 stacked bar + comparison bars
+    total_bars = n_stacked_groups + n_comparison
 
     x_positions = list(range(total_bars))
 
-    # Create labels
-    stacked_label = "Stacked Components\n" + " × ".join(
-        [comp[0] for comp in components_data]
-    )
+    # Create labels for each bar
+    labels = []
+
+    # Labels for stacked bars
+    for components_data in stacked_groups:
+        stacked_label = "Stacked:\n" + " \n × ".join(
+            [comp[0] for comp in components_data]
+        )
+        labels.append(stacked_label)
+
+    # Labels for comparison bars
     comparison_labels = [comp[0] for comp in comparison_data]
-    labels = [stacked_label] + comparison_labels
+    labels.extend(comparison_labels)
 
     plt.figure(figsize=(14, 10))  # Made figure larger
 
-    # Calculate cumulative multiplicative heights for stacking
-    # Each level represents the total efficiency gain up to that point
-    cumulative_heights = [0.0]  # Start at 0
-    running_product = 1.0  # Track the running product of multipliers
+    # Plot each stacked bar group
+    all_max_values = []  # Track all heights for y-axis scaling
 
-    for comp in components_data:
-        multiplier = comp[1]
-        running_product *= multiplier
-        cumulative_heights.append(running_product)
+    for bar_idx, components_data in enumerate(stacked_groups):
+        # Calculate cumulative multiplicative heights for this stacked bar
+        cumulative_heights = [0.0]  # Start at 0
+        running_product = 1.0  # Track the running product of multipliers
 
-    total_stacked_height = cumulative_heights[-1]
+        for comp in components_data:
+            multiplier = comp[1]
+            running_product *= multiplier
+            cumulative_heights.append(running_product)
 
-    # Generate viridis colors for components
-    viridis_colors = sns.color_palette("viridis", n_colors=len(components_data))
+        total_stacked_height = cumulative_heights[-1]
+        all_max_values.append(total_stacked_height)
 
-    # Plot stacked components with cumulative multiplicative effects
-    for i, (name, value, color) in enumerate(components_data):
-        bottom = cumulative_heights[i]
-        top = cumulative_heights[i + 1]
-        segment_height = top - bottom
+        # Generate viridis colors for components in this bar
+        viridis_colors = sns.color_palette("viridis", n_colors=len(components_data))
 
-        # Use viridis colors instead of provided colors
-        viridis_color = viridis_colors[i]
-        bar = plt.bar(
-            x_positions[0],
-            segment_height,
-            bottom=bottom,
-            color=viridis_color,
-            width=0.6,
-            label=f"{name} ({value:.2f}x)",
-            alpha=0.85,
-            edgecolor="black",
-            linewidth=0.5,
-        )
+        # Plot stacked components with cumulative multiplicative effects
+        for i, (name, value, color) in enumerate(components_data):
+            bottom = cumulative_heights[i]
+            top = cumulative_heights[i + 1]
+            segment_height = top - bottom
 
-        # Add component labels in the middle of each segment
-        if segment_height > 0.1:  # Only add label if segment is large enough
-            # For the first segment, position text higher to be visible above y=1
-            if i == 0 and bottom < 1.0:
-                text_y = max(
-                    1.2, bottom + segment_height / 2
-                )  # Position at least at y=1.2
-            else:
+            # Use viridis colors instead of provided colors
+            viridis_color = viridis_colors[i]
+            bar = plt.bar(
+                x_positions[bar_idx],
+                segment_height,
+                bottom=bottom,
+                color=viridis_color,
+                width=0.6,
+                label=(
+                    f"{name} ({value:.2f}x)" if bar_idx == 0 else ""
+                ),  # Only label first occurrence
+                alpha=0.85,
+                edgecolor="black",
+                linewidth=0.5,
+            )
+
+            # Add component labels in the middle of each segment
+            if segment_height > 0.1:  # Only add label if segment is large enough
+                # Position text in the middle of the segment
                 text_y = bottom + segment_height / 2
 
-            plt.text(
-                x_positions[0],
-                text_y,
-                f"{name}\n{value:.2f}x",
-                ha="center",
-                va="center",
-                fontsize=component_label_fontsize,
-                fontweight="bold",
-                color="white" if i % 2 == 0 else "black",
-            )
+                # Ensure text is visible on log scale (at least at y=1.1)
+                # But only adjust if the segment actually crosses the y=1 threshold
+                if bottom < 1.0 and text_y < 1.1 and top > 1.0:
+                    text_y = 1.1
+
+                plt.text(
+                    x_positions[bar_idx],
+                    text_y,
+                    f"{name}\n{value:.2f}x",
+                    ha="center",
+                    va="center",
+                    fontsize=component_label_fontsize,
+                    fontweight="bold",
+                    color="white" if i % 2 == 0 else "black",
+                )
+
+        # Add total height label for this stacked bar
+        plt.text(
+            x_positions[bar_idx],
+            total_stacked_height + 0.2,
+            f"Total: {total_stacked_height:.2f}x",
+            ha="center",
+            va="bottom",
+            fontsize=total_label_fontsize,
+            fontweight="bold",
+            color="black",
+        )
 
     # Generate viridis colors for comparison bars
     comparison_viridis = sns.color_palette("viridis", n_colors=len(comparison_data))
@@ -554,7 +632,7 @@ def create_stacked_comparison_plot(
     for i, (name, value, color) in enumerate(comparison_data):
         viridis_color = comparison_viridis[i]
         bar = plt.bar(
-            x_positions[i + 1],
+            x_positions[n_stacked_groups + i],
             value,
             color=viridis_color,
             width=0.6,
@@ -564,9 +642,11 @@ def create_stacked_comparison_plot(
             linewidth=0.5,
         )
 
+        all_max_values.append(value)
+
         # Add value labels on top
         plt.text(
-            x_positions[i + 1],
+            x_positions[n_stacked_groups + i],
             value + 0.1,
             f"{value:.2f}x",
             ha="center",
@@ -574,18 +654,6 @@ def create_stacked_comparison_plot(
             fontsize=value_label_fontsize,
             fontweight="bold",
         )
-
-    # Add total height label for stacked bar
-    plt.text(
-        x_positions[0],
-        total_stacked_height + 0.2,
-        f"Total: {total_stacked_height:.2f}x",
-        ha="center",
-        va="bottom",
-        fontsize=total_label_fontsize,
-        fontweight="bold",
-        color="black",
-    )
 
     # Customize plot with seaborn styling
     plt.xticks(
@@ -599,7 +667,7 @@ def create_stacked_comparison_plot(
     plt.yscale("log")
 
     # Set y-axis limits
-    max_value = max(total_stacked_height, max([comp[1] for comp in comparison_data]))
+    max_value = max(all_max_values) if all_max_values else 2.0
     plt.ylim(1, max_value * 1.4)
 
     # Fix y-axis tick font sizes - MUST be done AFTER yscale and ylim
@@ -638,14 +706,28 @@ def create_stacked_comparison_plot(
 
     # Print summary
     print(f"\nSummary:")
-    print(f"Stacked components total: {total_stacked_height:.2f}x")
-    print("Cumulative breakdown:")
-    for i, (name, value, _) in enumerate(components_data):
-        cumulative = cumulative_heights[i + 1]
-        print(f"  After {name}: {cumulative:.2f}x (×{value:.2f})")
-    print(f"\nComparison values:")
-    for name, value, _ in comparison_data:
-        print(f"  {name}: {value:.2f}x")
+
+    # Print each stacked group
+    for group_idx, components_data in enumerate(stacked_groups):
+        # Recalculate cumulative heights for printing
+        cumulative_heights = [0.0]
+        running_product = 1.0
+        for comp in components_data:
+            running_product *= comp[1]
+            cumulative_heights.append(running_product)
+
+        total_stacked_height = cumulative_heights[-1]
+
+        print(f"\nStacked Group {group_idx + 1} - Total: {total_stacked_height:.2f}x")
+        print("  Cumulative breakdown:")
+        for i, (name, value, _) in enumerate(components_data):
+            cumulative = cumulative_heights[i + 1]
+            print(f"    After {name}: {cumulative:.2f}x (×{value:.2f})")
+
+    if comparison_data:
+        print(f"\nComparison values:")
+        for name, value, _ in comparison_data:
+            print(f"  {name}: {value:.2f}x")
 
 
 # %%
@@ -674,44 +756,89 @@ def create_stacked_comparison_plot(
 #     ("Cosine Scheduler", 1.2, "#1abc9c"),
 # ]
 # %%
-# Example 2: 4 stacked components vs 1 comparison
-components_data_2 = [
-    ("Rotary Encoding", 1.4, "#9b59b6"),
-    ("SwiGLU", 1.1, "#e67e22"),
+# Example 2: Multiple stacked bars and multiple comparison bars
+# Now you can have multiple stacked groups!
+
+# Define stacked groups - each inner list is one stacked bar
+stacked_groups = [
+    # First stacked bar: Rotary + SwiGLU
+    [
+        ("Rotary Encoding", 1.4, "#9b59b6"),
+        ("SwiGLU", 1.1, "#e67e22"),
+    ],
+    # Second stacked bar: Another combination (optional, remove if not needed)
+    # [
+    #     ("Component A", 1.2, "#1abc9c"),
+    #     ("Component B", 1.15, "#3498db"),
+    # ],
 ]
 
-comparison_data_2 = [("Current vs 2017 Transformer", 1.677, "#e74c3c")]
+# Define comparison bars - these are single (non-stacked) bars
+comparison_data = [
+    ("Current vs 2017 Transformer", 1.677, "#e74c3c"),
+    # ("Ho et Al", 1.5, "#f39c12"),  # Uncomment to add more comparison bars
+]
 
-comparison_data_3 = [("Ho et Al", 1e4, "#e74c3c")]
-
+# This creates: 1 stacked bar (with 2 components) + 1 non-stacked bar = 2 total bars
+# To get 4 bars, you could do:
+# - 2 stacked groups + 2 comparison bars, OR
+# - 1 stacked group + 3 comparison bars, OR
+# - 3 stacked groups + 1 comparison bar, etc.
 
 create_stacked_comparison_plot(
-    components_data_2,
-    comparison_data_2,
+    stacked_groups,
+    comparison_data,
     "Transformer Components Effects vs Overall Increase",
 )
 
 # %%
-# Example 3: 5 stacked components vs 3 comparisons
-components_data_3 = [
-    ("Optimizer", 2.8, '#e74c3c'),
-    ("Architecture", 2.2, '#3498db'),
-    ("Initialization", 1.6, '#2ECC71'),
-    ("Regularization", 1.3, '#f39c12'),
-    ("Data Augmentation", 1.2, '#9b59b6')
+# Example 3: Create exactly 4 bars (2 stacked + 2 non-stacked)
+stacked_groups_4bars = [
+    # First stacked bar
+    [
+        ("Rotary Encoding", 1.4, "#9b59b6"),
+        ("SwiGLU", 1.1, "#e67e22"),
+    ],
+    # Second stacked bar
+    [
+        ("C", 1.2, "#1abc9c"),
+        ("Component B", 1.3, "#3498db"),
+        ("Component C", 1.1, "#e67e22"),
+    ],
 ]
 
-comparison_data_3 = [
-    ("Baseline", 1.0, '#95a5a6'),
-    ("Partial Improvement", 4.5, '#e67e22'),
-    ("Full Pipeline", 8.2, '#1abc9c')
+comparison_data_4bars = [
+    ("Current vs 2017", 1.677, "#e74c3c"),
+    ("Ho et Al", 2.5, "#f39c12"),
 ]
 
 create_stacked_comparison_plot(
-    components_data_3,
-    comparison_data_3,
-    "Complete ML Pipeline Components"
+    stacked_groups_4bars,
+    comparison_data_4bars,
+    "Example: 4 Total Bars (2 Stacked + 2 Non-Stacked)",
 )
+
+# %%
+# # Example 4: 5 stacked components vs 3 comparisons
+# components_data_3 = [
+#     ("Optimizer", 2.8, '#e74c3c'),
+#     ("Architecture", 2.2, '#3498db'),
+#     ("Initialization", 1.6, '#2ECC71'),
+#     ("Regularization", 1.3, '#f39c12'),
+#     ("Data Augmentation", 1.2, '#9b59b6')
+# ]
+
+# comparison_data_3 = [
+#     ("Baseline", 1.0, '#95a5a6'),
+#     ("Partial Improvement", 4.5, '#e67e22'),
+#     ("Full Pipeline", 8.2, '#1abc9c')
+# ]
+
+# create_stacked_comparison_plot(
+#     components_data_3,
+#     comparison_data_3,
+#     "Complete ML Pipeline Components"
+# )
 
 
 # %%

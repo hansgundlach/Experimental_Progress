@@ -62,10 +62,10 @@ LOSS_COLUMN = "validation_loss"
 CONFIDENCE_INTERVALS = False  # Set to True to display error bars
 
 # Plot font sizes (kept consistent with alg_mult_error_bar.py)
-TITLE_FONTSIZE = 14
+TITLE_FONTSIZE = 20
 AXIS_LABEL_FONTSIZE = 14
 X_TICK_LABEL_FONTSIZE = 12
-Y_TICK_LABEL_FONTSIZE = 12
+Y_TICK_LABEL_FONTSIZE = 16
 LEGEND_FONTSIZE = 15
 VALUE_LABEL_FONTSIZE = 12
 X_TICK_ROTATION = 45
