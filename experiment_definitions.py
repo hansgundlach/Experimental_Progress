@@ -818,7 +818,7 @@ HISTORICAL_EXPERIMENTS_RADFORD = (
         32,
         label="radford_32transformer_2018_bs64",
         folder_name="debug_historical_experiments",
-        learning_rate=10 ** (-2.5),
+        learning_rate=5.6e-3,
         activation="gelu",
         norm_placement="post",
         lr_schedule="linear_warmup",
@@ -833,7 +833,7 @@ HISTORICAL_EXPERIMENTS_RADFORD = (
         48,
         label="radford_48transformer_2018_bs64",
         folder_name="debug_historical_experiments",
-        learning_rate=10 ** (-2.5),
+        learning_rate=2.9e-3,
         activation="gelu",
         norm_placement="post",
         lr_schedule="linear_warmup",
@@ -848,7 +848,7 @@ HISTORICAL_EXPERIMENTS_RADFORD = (
         64,
         label="radford_64transformer_2018_bs64",
         folder_name="debug_historical_experiments",
-        learning_rate=10 ** (-2.5),
+        learning_rate=1.86e-3,
         activation="gelu",
         norm_placement="post",
         lr_schedule="linear_warmup",
@@ -863,7 +863,7 @@ HISTORICAL_EXPERIMENTS_RADFORD = (
         80,
         label="radford_80transformer_2018_bs64",
         folder_name="debug_historical_experiments",
-        learning_rate=10 ** (-3),
+        learning_rate=1.30e-3,
         activation="gelu",
         norm_placement="post",
         lr_schedule="linear_warmup",
@@ -878,7 +878,7 @@ HISTORICAL_EXPERIMENTS_RADFORD = (
         96,
         label="radford_96transformer_2018_bs64",
         folder_name="debug_historical_experiments",
-        learning_rate=10 ** (-3),
+        learning_rate=9.79e-4,
         activation="gelu",
         norm_placement="post",
         lr_schedule="linear_warmup",
@@ -889,10 +889,149 @@ HISTORICAL_EXPERIMENTS_RADFORD = (
         modern_bias_0=False,
         ff_ratio=4,
     )
+    # continue scaling experiments 104, 128, 160, 256
+    + gen_experim(
+        104,
+        label="radford_104transformer_2018_bs64",
+        folder_name="debug_historical_experiments",
+        learning_rate=8.62e-4,
+        activation="gelu",
+        norm_placement="post",
+        lr_schedule="linear_warmup",
+        pos_encoding="learned",
+        weight_decay=0.01,
+        dropout=0.0,
+        optimizer="adam",
+        modern_bias_0=False,
+        ff_ratio=4,
+    )
+    + gen_experim(
+        128,
+        label="radford_128transformer_2018_bs64",
+        folder_name="debug_historical_experiments",
+        learning_rate=6.1996e-4,
+        activation="gelu",
+        norm_placement="post",
+        lr_schedule="linear_warmup",
+        pos_encoding="learned",
+        weight_decay=0.01,
+        dropout=0.0,
+        optimizer="adam",
+        modern_bias_0=False,
+        ff_ratio=4,
+    )
+    + gen_experim(
+        160,
+        label="radford_160transformer_2018_bs64",
+        folder_name="debug_historical_experiments",
+        learning_rate=4.34e-4,
+        activation="gelu",
+        norm_placement="post",
+        lr_schedule="linear_warmup",
+        pos_encoding="learned",
+        weight_decay=0.01,
+        dropout=0.0,
+        optimizer="adam",
+        modern_bias_0=False,
+        ff_ratio=4,
+    )
+    # + gen_experim(
+    #     256,
+    #     label="radford_256transformer_2018_bs64",
+    #     folder_name="debug_historical_experiments",
+    #     learning_rate=10 ** (-3.5),
+    #     activation="gelu",
+    #     norm_placement="post",
+    #     lr_schedule="linear_warmup",
+    #     pos_encoding="learned",
+    #     weight_decay=0.01,
+    #     dropout=0.0,
+    #     optimizer="adam",
+    #     modern_bias_0=False,
+    #     ff_ratio=4,
+    # )
 )
 
-
-# radford no-regularization
+HISTORICAL_LR_STUDY = create_multi_lr_experiments(
+    gen_experim(
+        160,
+        label="radford_160_2018_bs64",
+        folder_name="historical_lr_study",
+        learning_rate=10 ** (-3.5),
+        activation="gelu",
+        norm_placement="post",
+        lr_schedule="linear_warmup",
+        pos_encoding="learned",
+        weight_decay=0.01,
+        dropout=0.0,
+        optimizer="adam",
+        modern_bias_0=False,
+        ff_ratio=4,
+    )
+    + gen_experim(
+        256,
+        label="radford_256_2018_bs64",
+        folder_name="historical_lr_study",
+        learning_rate=10 ** (-3.5),
+        activation="gelu",
+        norm_placement="post",
+        lr_schedule="linear_warmup",
+        pos_encoding="learned",
+        weight_decay=0.01,
+        dropout=0.0,
+        optimizer="adam",
+        modern_bias_0=False,
+        ff_ratio=4,
+    ),
+    [10**-3.25, 10**-3.5, 10**-3.75],
+) + create_multi_lr_experiments(
+    gen_experim(
+        32,
+        label="radford_32_2018_bs64",
+        folder_name="historical_lr_study",
+        learning_rate=10 ** (-2.5),
+        activation="gelu",
+        norm_placement="post",
+        lr_schedule="linear_warmup",
+        weight_decay=0.01,
+        pos_encoding="learned",
+        dropout=0.0,
+        optimizer="adam",
+        modern_bias_0=False,
+        ff_ratio=4,
+    )
+    + gen_experim(
+        64,
+        label="radford_64_2018_bs64",
+        folder_name="historical_lr_study",
+        learning_rate=10 ** (-2.5),
+        activation="gelu",
+        norm_placement="post",
+        lr_schedule="linear_warmup",
+        pos_encoding="learned",
+        weight_decay=0.01,
+        dropout=0.0,
+        optimizer="adam",
+        modern_bias_0=False,
+        ff_ratio=4,
+    )
+    + gen_experim(
+        96,
+        label="radford_96_2018_bs64",
+        folder_name="historical_lr_study",
+        learning_rate=10 ** (-3),
+        activation="gelu",
+        norm_placement="post",
+        lr_schedule="linear_warmup",
+        pos_encoding="learned",
+        weight_decay=0.01,
+        dropout=0.0,
+        optimizer="adam",
+        modern_bias_0=False,
+        ff_ratio=4,
+    ),
+    [10**-2.25, 10**-2.5, 10**-2.75, 10**-3, 10**-3.25],
+)
 
 
 HISTORICAL_EXPERIMENTS_SCALING_LR_TUNE = [10 ** (-2.5), 10 ** (-3), 10 ** (-3.5)]
@@ -1032,64 +1171,115 @@ MODERN_SCALING_STUDY = (
     gen_experim(
         32,
         label="32_modern",
-        folder_name="modern_scaling_study",
-        learning_rate=10**-2,
+        folder_name="new_modern_scaling_study",
+        learning_rate=9.95e-3,
         modern_bias_0=True,
-        ff_ratio=4,
+        ff_ratio=2.5,
         norm_type="rms",
     )
-    + gen_experim(
-        48,
-        label="48_modern",
-        folder_name="modern_scaling_study",
-        learning_rate=10**-2,
-        modern_bias_0=True,
-        ff_ratio=4,
-        norm_type="rms",
-    )
+    # + gen_experim(
+    #     48,
+    #     label="48_modern",
+    #     folder_name="modern_scaling_study",
+    #     learning_rate=10**-2,
+    #     modern_bias_0=True,
+    #     ff_ratio=4,
+    #     norm_type="rms",
+    # )
     + gen_experim(
         64,
         label="64_modern",
-        folder_name="modern_scaling_study",
-        learning_rate=10**-2,
+        folder_name="new_modern_scaling_study",
+        learning_rate=5.79e-3,
         modern_bias_0=True,
-        ff_ratio=4,
+        ff_ratio=2.5,
         norm_type="rms",
     )
     + gen_experim(
         80,
         label="80_modern",
-        folder_name="modern_scaling_study",
-        learning_rate=10**-2,
+        folder_name="new_modern_scaling_study",
+        learning_rate=4.87e-3,
         modern_bias_0=True,
-        ff_ratio=4,
+        ff_ratio=2.5,
         norm_type="rms",
     )
     + gen_experim(
         96,
         label="96_modern",
-        folder_name="modern_scaling_study",
-        learning_rate=10**-2.5,
+        folder_name="new_modern_scaling_study",
+        learning_rate=4.23e-3,
         modern_bias_0=True,
-        ff_ratio=4,
+        ff_ratio=2.5,
+        norm_type="rms",
+    )
+    + gen_experim(
+        104,
+        label="104_modern",
+        folder_name="new_modern_scaling_study",
+        learning_rate=4.23e-3,
+        modern_bias_0=True,
+        ff_ratio=2.5,
         norm_type="rms",
     )
     + gen_experim(
         128,
         label="128_modern",
-        folder_name="modern_scaling_study",
-        learning_rate=10**-2.5,
+        folder_name="new_modern_scaling_study",
+        learning_rate=3.37e-3,
         modern_bias_0=True,
-        ff_ratio=4,
+        ff_ratio=2.5,
         norm_type="rms",
     )
     + gen_experim(
         160,
         label="160_modern",
-        folder_name="modern_scaling_study",
+        folder_name="new_modern_scaling_study",
+        learning_rate=2.83e-3,
+        modern_bias_0=True,
+        ff_ratio=2.5,
+        norm_type="rms",
+    )
+)
+
+# learning rate study
+# modern variation scaling study
+LR_STUDY = (
+    # 32 48 64 80 96 128 160
+    gen_experim(
+        32,
+        label="32_modern",
+        folder_name="lr_scaling_study",
+        learning_rate=10**-2,
+        modern_bias_0=True,
+        ff_ratio=2.5,
+        norm_type="rms",
+    )
+    + gen_experim(
+        64,
+        label="64_modern",
+        folder_name="lr_scaling_study",
+        learning_rate=10**-2,
+        modern_bias_0=True,
+        ff_ratio=2.5,
+        norm_type="rms",
+    )
+    + gen_experim(
+        80,
+        label="80_modern",
+        folder_name="lr_scaling_study",
+        learning_rate=10**-2,
+        modern_bias_0=True,
+        ff_ratio=2.5,
+        norm_type="rms",
+    )
+    + gen_experim(
+        160,
+        label="160_modern",
+        folder_name="lr_scaling_study",
         learning_rate=10**-2.5,
         modern_bias_0=True,
-        ff_ratio=4,
+        ff_ratio=2.5,
         norm_type="rms",
     )
 )
@@ -1183,6 +1373,103 @@ GRAND_EXPERIMENT = (
     )
 )
 
+GRAND_EXPERIMENT = (
+    gen_experim(
+        96,
+        label="96_init_try2",
+        folder_name="modern_scaling_study",
+        learning_rate=10**-2.25,
+        modern_bias_0=True,
+        ff_ratio=4,
+        norm_type="rms",
+        init_scheme="transformer_scaled",
+    )
+    + gen_experim(
+        96,
+        label="96_modern_ff25",
+        folder_name="modern_scaling_study",
+        learning_rate=10**-2.25,
+        modern_bias_0=True,
+        ff_ratio=2.5,
+        norm_type="rms",
+        init_scheme="transformer_scaled",
+    )
+    + gen_experim(
+        96,
+        label="96_modern_layer2",
+        folder_name="modern_scaling_study",
+        learning_rate=10**-2.25,
+        modern_bias_0=True,
+        ff_ratio=4,
+        norm_type="rms",
+        num_layers=2,
+    )
+)
+
+
+# setup mup learning rate experiments at hidden dimension 64, 96, 128, 160
+# GRAND_EXPERIMENT = create_multi_lr_experiments(
+#     gen_experim(
+#         64,
+#         label="64_modern_mup",
+#         folder_name="modern_scaling_study",
+#         learning_rate=10**-1,
+#         modern_bias_0=True,
+#         ff_ratio=4,
+#         norm_type="rms",
+#         use_mup=True,
+#         mup_base_width=64,
+#     ),
+#     NARROW_LR_SWEEP,
+# )
+
+# set up series of mup experiments from 64 to 160
+# GRAND_EXPERIMENT = (
+#     gen_experim(
+#         64,
+#         label="64_modern_mup",
+#         folder_name="modern_scaling_study",
+#         learning_rate=10**-1,
+#         modern_bias_0=True,
+#         ff_ratio=4,
+#         norm_type="rms",
+#         use_mup=True,
+#         mup_base_width=64,
+#     )
+#     + gen_experim(
+#         96,
+#         label="96_modern_mup",
+#         folder_name="modern_scaling_study",
+#         learning_rate=10**-1,
+#         modern_bias_0=True,
+#         ff_ratio=4,
+#         norm_type="rms",
+#         use_mup=True,
+#         mup_base_width=64,
+#     )
+#     + gen_experim(
+#         128,
+#         label="128_modern_mup",
+#         folder_name="modern_scaling_study",
+#         learning_rate=10**-1,
+#         modern_bias_0=True,
+#         ff_ratio=4,
+#         norm_type="rms",
+#         use_mup=True,
+#         mup_base_width=64,
+#     )
+#     + gen_experim(
+#         160,
+#         label="160_modern_mup",
+#         folder_name="modern_scaling_study",
+#         learning_rate=10**-1,
+#         modern_bias_0=True,
+#         ff_ratio=4,
+#         norm_type="rms",
+#         use_mup=True,
+#         mup_base_width=64,
+#     )
+# )
 
 # gen_experim(
 #     96,
@@ -1251,3 +1538,15 @@ GRAND_EXPERIMENT = (
 #     ff_ratio=4,
 #     norm_type="rms",
 # )
+
+# GRAND_EXPERIMENT = HISTORICAL_EXPERIMENTS_RADFORD
+
+
+# GRAND_EXPERIMENT = create_multi_lr_experiments(
+#     LR_STUDY, [10**-2.75, 10**-2.5, 10**-2.25, 10**-2, 10**-1.75]
+# )
+
+
+# great width 256
+#
+GRAND_EXPERIMENT = HISTORICAL_EXPERIMENTS_RADFORD

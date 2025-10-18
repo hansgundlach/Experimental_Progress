@@ -326,7 +326,7 @@ def get_lstm_base_config():
         "target_effective_batch_size": 64,  # Target effective batch size for optimization
         "batch_size": 64,  # Default per-step batch size (will be overridden by gen_lstm_experim)
         "hidden_size": 16,  # Base hidden dimension
-        "num_layers": 2,  # Base number of layers
+        "num_layers": 1,  # Base number of layers
         "dropout": 0.0,
         "learning_rate": 0.001 * math.sqrt(4),  # Scale by sqrt of accumulation steps
         "lr_schedule": "cosine_warmup",
@@ -359,7 +359,7 @@ def get_lstm_base_config():
         "gradient_accumulation_steps": 16,  # Base gradient accumulation
         "use_compile": False,
         "seed": 123,
-        "optimizer": "adam",
+        "optimizer": "adamw",
         "weight_decay": 1e-4,
         "adam_beta1": 0.0,
         "adam_beta2": 0.999,

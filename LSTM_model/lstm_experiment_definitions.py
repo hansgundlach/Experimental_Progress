@@ -691,8 +691,52 @@ APPENDIX_ABALATION_STUDY = (
     )
 )
 
+# LSTM_LR_STUDY
+
+LSTM_LR_STUDY = (
+    gen_lstm_experim(
+        32,
+        label="32_lr_study",
+        folder_name="lstm_lr_study",
+        learning_rate=10 ** -(1.5),
+    )
+    + gen_lstm_experim(
+        64,
+        label="64_lr_study",
+        folder_name="lstm_lr_study",
+        learning_rate=10 ** -(1.5),
+    )
+    + gen_lstm_experim(
+        128,
+        label="128_lr_study",
+        folder_name="lstm_lr_study",
+        learning_rate=10 ** -(1.5),
+    )
+    # 160
+    + gen_lstm_experim(
+        160,
+        label="160_lr_study",
+        folder_name="lstm_lr_study",
+        learning_rate=10 ** -(1.5),
+    )
+    + gen_lstm_experim(
+        256,
+        label="256_lr_study",
+        folder_name="lstm_lr_study",
+        learning_rate=10 ** -(1.5),
+    )
+)
+
 
 # GRAND_EXPERIMENT = create_multi_lr_experiments(
 #     APPENDIX_ABALATION_STUDY, NARROW_LR_SWEEP
 # )s
-GRAND_EXPERIMENT = create_multi_lr_experiments(LAYER_VARIATION, NARROW_LR_SWEEP)
+GRAND_EXPERIMENT = create_multi_lr_experiments(
+    gen_lstm_experim(
+        48,
+        label="48_lr_study",
+        folder_name="lstm_lr_study",
+        learning_rate=10**-1.5,
+    ),
+    [10**-1.75, 10**-2, 10**-2.25, 10**-2.5, 10**-2.75, 10**-3],
+)

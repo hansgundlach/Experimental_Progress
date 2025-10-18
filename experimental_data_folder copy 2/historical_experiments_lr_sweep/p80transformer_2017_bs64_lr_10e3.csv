@@ -1,9 +1,0 @@
-step,training_loss,validation_loss,total_flops_profiler,theoretical_flops,tokens
-200,nan,nan,4.33e+13,4.38e+13,1638400
-400,nan,nan,8.66e+13,8.77e+13,3276800
-600,nan,nan,1.30e+14,1.32e+14,4915200
-800,nan,nan,1.73e+14,1.75e+14,6553600
-1000,nan,nan,2.17e+14,2.19e+14,8192000
-1200,nan,nan,2.60e+14,2.63e+14,9830400
-1400,nan,nan,3.03e+14,3.07e+14,11468800
-1600,nan,nan,3.46e+14,3.51e+14,13107200

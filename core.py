@@ -41,18 +41,19 @@ def get_mup_learning_rates_transformer(
     # Calculate scaling factor
     if hasattr(model, "module"):  # Handle DataParallel/DDP
         hidden_dim = model.module.hidden_dim
-        mup_scale = hidden_dim / mup_base_width
         embedding = model.module.embedding
         layers = model.module.layers
         fc = model.module.fc
         pos_emb = getattr(model.module, "pos_emb", None)
     else:
         hidden_dim = model.hidden_dim
-        mup_scale = hidden_dim / mup_base_width
         embedding = model.embedding
         layers = model.layers
         fc = model.fc
         pos_emb = getattr(model, "pos_emb", None)
+
+    # Calculate width ratio for muP scaling
+    width_ratio = hidden_dim / mup_base_width
 
     # Check if embeddings are tied
     tie_embeddings = getattr(
@@ -61,13 +62,18 @@ def get_mup_learning_rates_transformer(
 
     param_groups = []
 
+    # Correct muP learning rate scaling:
+    # - Embedding parameters: base_lr (no scaling)
+    # - Hidden layer parameters: base_lr / width_ratio
+    # - Output layer parameters: base_lr / width_ratio
+    embedding_lr = base_lr  # No scaling for embeddings
+    layer_lr = base_lr / width_ratio  # Scale hidden layers by 1/width
+    output_lr = base_lr / width_ratio  # Scale output layer by 1/width
+
     # Handle embedding parameters based on weight tying
     if tie_embeddings:
-        # When weight tying is enabled, tied weights serve both embedding and output functions
-        # Use geometric mean of embedding scaling (1/scale) and output scaling (1.0)
-        embedding_lr = base_lr / mup_scale  # What embedding would use
-        output_lr = base_lr  # What output would use
-        tied_lr = (embedding_lr * output_lr) ** 0.5  # Geometric mean
+        # When weights are tied, use output layer scaling since same weights serve both functions
+        tied_lr = output_lr
 
         embedding_params = list(embedding.parameters())
         if pos_emb is not None:
@@ -81,29 +87,26 @@ def get_mup_learning_rates_transformer(
         if pos_emb is not None:
             embedding_params.append(pos_emb)
         param_groups.append(
-            {"params": embedding_params, "lr": base_lr / mup_scale, "name": "embedding"}
+            {"params": embedding_params, "lr": embedding_lr, "name": "embedding"}
         )
-        # Output layer parameters: no scaling (base lr)
+        # Output layer parameters: scaled by 1/width
         param_groups.append(
-            {"params": fc.parameters(), "lr": base_lr, "name": "output"}
+            {"params": fc.parameters(), "lr": output_lr, "name": "output"}
         )
 
-    # Transformer layer parameters: lr scaled by 1/scale
+    # Transformer layer parameters: lr scaled by 1/width
     layer_params = []
     for layer in layers:
         layer_params.extend(list(layer.parameters()))
-    param_groups.append(
-        {"params": layer_params, "lr": base_lr / mup_scale, "name": "layers"}
-    )
+    param_groups.append({"params": layer_params, "lr": layer_lr, "name": "layers"})
 
     if tie_embeddings:
-        tied_lr = (base_lr / mup_scale * base_lr) ** 0.5  # Recalculate for printing
         print(
-            f"muP learning rates (tied): embedding/output={tied_lr:.6f} (geometric mean), layers={base_lr/mup_scale:.6f}"
+            f"muP learning rates (tied): embedding/output={tied_lr:.6f}, layers={layer_lr:.6f}"
         )
     else:
         print(
-            f"muP learning rates: embedding={base_lr/mup_scale:.6f}, layers={base_lr/mup_scale:.6f}, output={base_lr:.6f}"
+            f"muP learning rates: embedding={embedding_lr:.6f}, layers={layer_lr:.6f}, output={output_lr:.6f}"
         )
 
     return param_groups
@@ -537,9 +540,6 @@ class SimpleTransformer(nn.Module):
         self.mup_base_width = mup_base_width
         self.tie_embeddings = tie_embeddings
 
-        # Calculate muP scaling factor
-        self.mup_scale = hidden_dim / mup_base_width if use_mup else 1.0
-
         self.embedding = nn.Embedding(vocab_size, hidden_dim)
 
         # MODIFY THIS SECTION - Add positional embeddings based on config
@@ -592,60 +592,57 @@ class SimpleTransformer(nn.Module):
 
     def _apply_mup_init(self):
         """Apply muP (Maximal Update Parametrization) initialization"""
-        # Embedding layer: scale by 1/sqrt(width), use uniform distribution
-        std = 1 / math.sqrt(self.hidden_dim)
-        bound = math.sqrt(3.0) * std  # Convert to uniform bound
-        nn.init.uniform_(self.embedding.weight, -bound, bound)
+
+        # Correct muP initialization scaling:
+        # - Embedding: std = 1/sqrt(width) (matches hidden layers)
+        # - Hidden layers: std = 1/sqrt(width)
+        # - Output layer: std = 1/width (not 1/sqrt(width))
+
+        # Calculate standard deviation for initialization
+        hidden_std = 1.0 / math.sqrt(self.hidden_dim)
+
+        # Embedding layer: scale by 1/sqrt(width)
+        nn.init.normal_(self.embedding.weight, mean=0.0, std=hidden_std)
 
         # Learned positional embeddings: scale by 1/sqrt(width)
         if self.pos_encoding == "learned" and hasattr(self, "pos_emb"):
-            std = 1 / math.sqrt(self.hidden_dim)
-            bound = math.sqrt(3.0) * std
-            nn.init.uniform_(self.pos_emb, -bound, bound)
+            nn.init.normal_(self.pos_emb, mean=0.0, std=hidden_std)
 
-        # Transformer layers: scale attention and feedforward weights
+        # Transformer layers: scale by 1/sqrt(width)
         for layer in self.layers:
             # QKV projection: scale by 1/sqrt(width)
-            std = 1 / math.sqrt(self.hidden_dim)
-            bound = math.sqrt(3.0) * std
-            nn.init.uniform_(layer.qkv.weight, -bound, bound)
+            nn.init.normal_(layer.qkv.weight, mean=0.0, std=hidden_std)
             if layer.qkv.bias is not None:
                 nn.init.zeros_(layer.qkv.bias)
 
             # Output projection: scale by 1/sqrt(width)
-            std = 1 / math.sqrt(self.hidden_dim)
-            bound = math.sqrt(3.0) * std
-            nn.init.uniform_(layer.out_proj.weight, -bound, bound)
+            nn.init.normal_(layer.out_proj.weight, mean=0.0, std=hidden_std)
             if layer.out_proj.bias is not None:
                 nn.init.zeros_(layer.out_proj.bias)
 
             # Feedforward layers: scale by 1/sqrt(width)
-            std = 1 / math.sqrt(self.hidden_dim)
-            bound = math.sqrt(3.0) * std
-
             if hasattr(layer.ff, "linear1"):
-                nn.init.uniform_(layer.ff.linear1.weight, -bound, bound)
+                nn.init.normal_(layer.ff.linear1.weight, mean=0.0, std=hidden_std)
                 if layer.ff.linear1.bias is not None:
                     nn.init.zeros_(layer.ff.linear1.bias)
             if hasattr(layer.ff, "linear2"):
-                nn.init.uniform_(layer.ff.linear2.weight, -bound, bound)
+                nn.init.normal_(layer.ff.linear2.weight, mean=0.0, std=hidden_std)
                 if layer.ff.linear2.bias is not None:
                     nn.init.zeros_(layer.ff.linear2.bias)
             if hasattr(layer.ff, "to_out"):
-                nn.init.uniform_(layer.ff.to_out.weight, -bound, bound)
+                nn.init.normal_(layer.ff.to_out.weight, mean=0.0, std=hidden_std)
                 if layer.ff.to_out.bias is not None:
                     nn.init.zeros_(layer.ff.to_out.bias)
             if hasattr(layer.ff, "proj"):
-                nn.init.uniform_(layer.ff.proj.weight, -bound, bound)
+                nn.init.normal_(layer.ff.proj.weight, mean=0.0, std=hidden_std)
                 if layer.ff.proj.bias is not None:
                     nn.init.zeros_(layer.ff.proj.bias)
 
-        # Output layer: scale by 1/width (not sqrt) for muP
+        # Output layer: scale by 1/width (not 1/sqrt(width)) for muP
         # Only initialize if not tied to embedding
         if not self.tie_embeddings:
-            std = 1 / self.hidden_dim
-            bound = math.sqrt(3.0) * std
-            nn.init.uniform_(self.fc.weight, -bound, bound)
+            output_std = 1.0 / self.hidden_dim  # Note: 1/width, not 1/sqrt(width)
+            nn.init.normal_(self.fc.weight, mean=0.0, std=output_std)
         if self.fc.bias is not None:
             nn.init.zeros_(self.fc.bias)
 
@@ -667,10 +664,7 @@ class SimpleTransformer(nn.Module):
         x = self.norm(x)
         x = self.fc(x)
 
-        # Apply muP output scaling
-        if self.use_mup:
-            x = x * self.mup_scale
-
+        # No output scaling needed for muP - the learning rate scaling handles the parametrization
         return x
 
 
@@ -1054,7 +1048,8 @@ def train(gpu_id=None, csv_log_path=None):
         nn.init.normal_(
             model.fc.weight, mean=0.0, std=init_scale / math.sqrt(num_layers)
         )
-        nn.init.zeros_(model.fc.bias)
+        if model.fc.bias is not None:
+            nn.init.zeros_(model.fc.bias)
 
     elif config.init_scheme == "bert_gpt":
         # BERT/GPT-style initialization
