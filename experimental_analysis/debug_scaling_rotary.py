@@ -1052,6 +1052,95 @@ if __name__ == "__main__":
             "class": "transformer variation",
             "hidden_dim": 160,
         },
+
+        #lstm experiments
+        {
+            "name": "32d lstm",
+            "csv_path": "../experimental_data_folder/lstm_layer1/32d.csv",
+            "marker": "o",
+            "include_in_frontier": True,  # Include in frontier analysis
+            "class": "lstm",
+            "hidden_dim": 32,   
+            "color": "deeppink",
+        },
+        {
+            "name": "48d lstm",
+            "csv_path": "../experimental_data_folder/lstm_layer1/48d.csv",
+            "marker": "o",
+            "include_in_frontier": True,  # Include in frontier analysis
+            "class": "lstm",
+            "hidden_dim": 48,
+            "color": "deeppink",
+        },
+        {
+            "name": "64d lstm",
+            "csv_path": "../experimental_data_folder/lstm_layer1/64d.csv",
+            "marker": "o",
+            "include_in_frontier": True,  # Include in frontier analysis
+            "class": "lstm",
+            "hidden_dim": 64,
+            "color": "deeppink",
+        },
+        {
+            "name": "80d lstm",
+            "csv_path": "../experimental_data_folder/lstm_layer1/80d.csv",
+            "marker": "o",
+            "include_in_frontier": True,  # Include in frontier analysis
+            "class": "lstm",
+            "hidden_dim": 80,
+            "color": "deeppink",
+        },
+        {
+            "name": "96d lstm",
+            "csv_path": "../experimental_data_folder/lstm_layer1/96d.csv",
+            "marker": "o",
+            "include_in_frontier": True,  # Include in frontier analysis
+            "class": "lstm",
+            "hidden_dim": 96,
+            "color": "deeppink",
+        },
+        {
+            "name": "104d lstm",
+            "csv_path": "../experimental_data_folder/lstm_layer1/104d.csv",
+            "marker": "o",
+            "include_in_frontier": True,  # Include in frontier analysis
+            "class": "lstm",
+            "hidden_dim": 104,
+            "color": "deeppink",
+        },
+        {
+            "name": "128d lstm",
+            "csv_path": "../experimental_data_folder/lstm_layer1/128d.csv",
+            "marker": "o",
+            "include_in_frontier": True,  # Include in frontier analysis
+            "class": "lstm",
+            "hidden_dim": 128,
+            "color": "deeppink",
+        },
+        {
+            "name": "160d lstm",
+            "csv_path": "../experimental_data_folder/lstm_layer1/160d.csv",
+            "marker": "o",
+            "include_in_frontier": True,  # Include in frontier analysis
+            "class": "lstm",
+            "hidden_dim": 160,
+            "color": "deeppink",
+        },
+        {
+            "name": "256d lstm",
+            "csv_path": "../experimental_data_folder/lstm_layer1/256.csv",
+            "marker": "o",
+            "include_in_frontier": True,  # Include in frontier analysis
+            "class": "lstm",
+            "hidden_dim": 256,
+            "color": "deeppink",
+        },
+
+
+
+
+
+
         # radford 128
         # {
         #     "name": "128d radford transformer",

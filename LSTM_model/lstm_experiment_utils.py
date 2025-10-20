@@ -215,24 +215,21 @@ def gen_lstm_experim(
 
     # Calculate scaled parameters
 
-    # 1. Scale num_layers proportionally with hidden_size
-    # Use a base ratio: for 16d -> 2 layers, so ratio = 2/16 = 1/8
-    base_hidden_size = 16
-    base_num_layers = 2
-    layer_scale_ratio = base_num_layers / base_hidden_size
-    num_layers = max(1, int(round(hidden_size * layer_scale_ratio)))
+    # 1. Get num_layers from overrides or base config (no automatic scaling)
+    num_layers = overrides.get("num_layers", base_config["num_layers"])
 
-    # 2. Calculate total trainable parameters and scale token limit to 20x parameters
+    # 2. Calculate total trainable parameters and scale token limit based on token_to_param_ratio
     param_info = calculate_lstm_params(
         hidden_size,
         num_layers,
         tie_embeddings=base_config["tie_embeddings"],
     )
     trainable_params = param_info["trainable_params"]
-    # Calculate training tokens based on Chinchilla scaling (20x params)
-    max_tokens_training = int(
-        20 * trainable_params
-    )  # 20x params in tokens for training
+    # Calculate training tokens based on token_to_param_ratio
+    token_to_param_ratio = overrides.get(
+        "token_to_param_ratio", base_config["token_to_param_ratio"]
+    )
+    max_tokens_training = int(token_to_param_ratio * trainable_params)
     # Note: Dataset loading will convert this to characters (4:1 ratio) automatically
 
     # 3. Estimate gradient accumulation based on GPU memory and single-GPU setup
@@ -386,6 +383,7 @@ def get_lstm_base_config():
         "joint_evaluations": False,  # Enable both streaming and non-streaming evaluation
         # SGD parameters
         "sgd_momentum": 0.9,  # Momentum for SGD optimizer
+        "token_to_param_ratio": 20,  # Number of training tokens per parameter (Chinchilla optimal is ~20)
     }
 
 

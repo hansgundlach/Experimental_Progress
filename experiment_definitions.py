@@ -1176,6 +1176,7 @@ MODERN_SCALING_STUDY = (
         modern_bias_0=True,
         ff_ratio=2.5,
         norm_type="rms",
+        
     )
     # + gen_experim(
     #     48,

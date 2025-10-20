@@ -463,7 +463,10 @@ def gen_experim(
         tie_embeddings=tie_embeddings,
         ff_ratio=ff_ratio,
     )
-    max_tokens_training = int(20 * total_params)
+    token_to_param_ratio = overrides.get(
+        "token_to_param_ratio", base_config["token_to_param_ratio"]
+    )
+    max_tokens_training = int(token_to_param_ratio * total_params)
 
     # 4. Estimate gradient accumulation based on GPU memory
     # Use target_effective_batch_size for optimization goals
@@ -627,4 +630,5 @@ def get_base_config():
         "char_to_token_ratio": 4.0,  # Character-to-token ratio for dataset loading (e.g., 4.0 = load 4 chars per expected token)
         "ff_ratio": 4,  # Feedforward dimension to model dimension ratio (default: 4)
         "modern_bias_0": False,  # Modern architecture: remove biases from layers followed by normalization (default: False)
+        "token_to_param_ratio": 20,  # Number of training tokens per parameter (Chinchilla optimal is ~20)
     }

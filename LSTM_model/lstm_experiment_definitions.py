@@ -697,46 +697,151 @@ LSTM_LR_STUDY = (
     gen_lstm_experim(
         32,
         label="32_lr_study",
-        folder_name="lstm_lr_study",
+        folder_name="lstm_lr",
         learning_rate=10 ** -(1.5),
     )
     + gen_lstm_experim(
         64,
         label="64_lr_study",
-        folder_name="lstm_lr_study",
+        folder_name="lstm_lr",
         learning_rate=10 ** -(1.5),
     )
     + gen_lstm_experim(
         128,
         label="128_lr_study",
-        folder_name="lstm_lr_study",
+        folder_name="lstm_lr",
         learning_rate=10 ** -(1.5),
     )
     # 160
     + gen_lstm_experim(
         160,
         label="160_lr_study",
-        folder_name="lstm_lr_study",
+        folder_name="lstm_lr",
         learning_rate=10 ** -(1.5),
     )
     + gen_lstm_experim(
         256,
         label="256_lr_study",
-        folder_name="lstm_lr_study",
+        folder_name="lstm_lr",
         learning_rate=10 ** -(1.5),
     )
 )
 
 
+# LSTM SCALING STUDY
+# 32 48 64 80 104 128 160 256
+LSTM_SCALING_STUDY = (
+    gen_lstm_experim(
+        32,
+        label="32d",
+        folder_name="lstm_layer1",
+        learning_rate=5.6234e-2,
+        token_to_param_ratio=40,
+    )
+    + gen_lstm_experim(
+        48,
+        label="48d",
+        folder_name="lstm_layer1",
+        learning_rate=4.0157e-2,
+        token_to_param_ratio=40,
+    )
+    + gen_lstm_experim(
+        64,
+        label="64d",
+        folder_name="lstm_layer1",
+        learning_rate=3.1623e-2,
+        token_to_param_ratio=40,
+    )
+    + gen_lstm_experim(
+        80,
+        label="80d",
+        folder_name="lstm_layer1",
+        learning_rate=2.627e-2,
+        token_to_param_ratio=40,
+    )
+    + gen_lstm_experim(
+        104,
+        label="104d",
+        folder_name="lstm_layer1",
+        learning_rate=2.1130e-2,
+        token_to_param_ratio=40,
+    )
+    + gen_lstm_experim(
+        128,
+        label="128d",
+        folder_name="lstm_layer1",
+        learning_rate=1.7783e-2,
+        token_to_param_ratio=40,
+    )
+    + gen_lstm_experim(
+        160,
+        label="160d",
+        folder_name="lstm_layer1",
+        learning_rate=1.4775e-2,
+        token_to_param_ratio=40,
+    )
+    + gen_lstm_experim(
+        256,
+        label="25d",
+        folder_name="lstm_layer1",
+        learning_rate=1.0e-2,
+        token_to_param_ratio=40,
+    )
+)
+
 # GRAND_EXPERIMENT = create_multi_lr_experiments(
 #     APPENDIX_ABALATION_STUDY, NARROW_LR_SWEEP
 # )s
-GRAND_EXPERIMENT = create_multi_lr_experiments(
-    gen_lstm_experim(
-        48,
-        label="48_lr_study",
-        folder_name="lstm_lr_study",
-        learning_rate=10**-1.5,
-    ),
-    [10**-1.75, 10**-2, 10**-2.25, 10**-2.5, 10**-2.75, 10**-3],
+# GRAND_EXPERIMENT = create_multi_lr_experiments(
+#     gen_lstm_experim(
+#         48,
+#         label="48_lr_study",
+#         folder_name="lstm_lr_study",
+#         learning_rate=10**-1.5,
+#     ),
+#     [10**-1.75, 10**-2, 10**-2.25, 10**-2.5, 10**-2.75, 10**-3],
+# )
+
+# GRAND_EXPERIMENT = (
+#     + gen_lstm_experim(
+#         32,
+#         label="32_layer_1",
+#         folder_name="new_junk_folder",
+#         learning_rate=10**-1.5,
+#     )
+#     + gen_lstm_experim(
+#         32,
+#         label="32_layer_2",
+#         folder_name="new_junk_folder",
+#         learning_rate=10**-1.5,
+#         num_layers=2,
+#     )
+# )
+
+# GRAND_EXPERIMENT = create_multi_lr_experiments(
+#     LSTM_LR_STUDY, [10**-1.5, 10**-1.75, 10**-2, 10**-2.25, 10**-2.5, 10**-2.75, 10**-3]
+# )
+
+# maybe this is the paper that recommended 0 momentum : https://proceedings.mlr.press/v37/jozefowicz15.pdf
+SGD_EXPERIMENT = gen_lstm_experim(
+    64,
+    label="new32_sgd_0_momentum",
+    folder_name="lstm_sgd",
+    learning_rate=10**-1.5,
+    optimizer="sgd",
+    sgd_momentum=0.0,
+) + gen_lstm_experim(
+    64,
+    label="new32_sgd_09_momentum",
+    folder_name="lstm_sgd",
+    learning_rate=10**-1.5,
+    optimizer="sgd",
+    sgd_momentum=0.9,
 )
+
+# SGD experimetns
+GRAND_EXPERIMENT = create_multi_lr_experiments(
+    SGD_EXPERIMENT, [10**-1, 10**-1.5, 10**-2, 10**-2.5, 10**-3, 10**-3.5]
+)
+
+GRAND_EXPERIMENT = LSTM_SCALING_STUDY
