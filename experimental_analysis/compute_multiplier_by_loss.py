@@ -389,20 +389,6 @@ multiplier, details = compute_multiplier_by_loss(
 )
 
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 # %%
 # OVerall multiplier
 
@@ -497,7 +483,10 @@ except Exception as e:
 
 
 def create_stacked_comparison_plot(
-    stacked_groups, comparison_data, title="Stacked vs Single Comparison"
+    stacked_groups,
+    comparison_data,
+    title="Stacked vs Single Comparison",
+    bar_order=None,
 ):
     """
     Create a bar plot with multiple stacked bars and multiple single-value bars.
@@ -511,15 +500,19 @@ def create_stacked_comparison_plot(
                        This creates 2 stacked bars.
         comparison_data: List of tuples (name, value, color) for non-stacked comparison bars
         title: Plot title
+        bar_order: Optional list specifying the order of bars.
+                   Format: ["stacked_0", "comparison_0", "stacked_1", "comparison_1", ...]
+                   where "stacked_X" refers to stacked_groups[X] and "comparison_X" refers to comparison_data[X]
+                   If None, uses default order: all stacked bars first, then all comparison bars
     """
 
     # ===== EASILY ADJUSTABLE FONT SIZES =====
-    title_fontsize = 20
-    axis_label_fontsize = 20
+    title_fontsize = 25
+    axis_label_fontsize = 23
     tick_label_fontsize = 20
     ytick_label_fontsize = 20  # Added y-axis tick font size
     legend_fontsize = 20
-    component_label_fontsize = 12
+    component_label_fontsize = 18
     value_label_fontsize = 20
     total_label_fontsize = 18
     # ========================================
@@ -528,132 +521,159 @@ def create_stacked_comparison_plot(
     sns.set_style("whitegrid")
     sns.set_palette("viridis")
 
-    # Set up bar positions
+    # Set up bar positions and ordering
     n_stacked_groups = len(stacked_groups)
     n_comparison = len(comparison_data)
     total_bars = n_stacked_groups + n_comparison
 
+    # Handle custom bar ordering
+    if bar_order is None:
+        # Default order: all stacked bars first, then all comparison bars
+        bar_order = [f"stacked_{i}" for i in range(n_stacked_groups)] + [
+            f"comparison_{i}" for i in range(n_comparison)
+        ]
+
+    # Validate bar_order
+    valid_orders = [f"stacked_{i}" for i in range(n_stacked_groups)] + [
+        f"comparison_{i}" for i in range(n_comparison)
+    ]
+    if not all(order in valid_orders for order in bar_order):
+        raise ValueError(f"Invalid bar_order. Must contain only: {valid_orders}")
+    if len(bar_order) != total_bars:
+        raise ValueError(
+            f"bar_order must have {total_bars} elements, got {len(bar_order)}"
+        )
+
     x_positions = list(range(total_bars))
 
-    # Create labels for each bar
+    # Create labels for each bar in the specified order
     labels = []
+    for order in bar_order:
+        if order.startswith("stacked_"):
+            idx = int(order.split("_")[1])
+            components_data = stacked_groups[idx]
+            stacked_label = "Stacked:\n" + " \n × ".join(
+                [comp[0] for comp in components_data]
+            )
+            labels.append(stacked_label)
+        elif order.startswith("comparison_"):
+            idx = int(order.split("_")[1])
+            comparison_label = comparison_data[idx][0]
+            labels.append(comparison_label)
 
-    # Labels for stacked bars
-    for components_data in stacked_groups:
-        stacked_label = "Stacked:\n" + " \n × ".join(
-            [comp[0] for comp in components_data]
-        )
-        labels.append(stacked_label)
+    plt.figure(figsize=(16, 8))  # Wide figure for two-column layout
 
-    # Labels for comparison bars
-    comparison_labels = [comp[0] for comp in comparison_data]
-    labels.extend(comparison_labels)
-
-    plt.figure(figsize=(14, 10))  # Made figure larger
-
-    # Plot each stacked bar group
+    # Plot bars in the specified order
     all_max_values = []  # Track all heights for y-axis scaling
 
-    for bar_idx, components_data in enumerate(stacked_groups):
-        # Calculate cumulative multiplicative heights for this stacked bar
-        cumulative_heights = [0.0]  # Start at 0
-        running_product = 1.0  # Track the running product of multipliers
+    for bar_idx, order in enumerate(bar_order):
+        if order.startswith("stacked_"):
+            stacked_idx = int(order.split("_")[1])
+            components_data = stacked_groups[stacked_idx]
 
-        for comp in components_data:
-            multiplier = comp[1]
-            running_product *= multiplier
-            cumulative_heights.append(running_product)
+            # Calculate cumulative multiplicative heights for this stacked bar
+            cumulative_heights = [0.0]  # Start at 0
+            running_product = 1.0  # Track the running product of multipliers
 
-        total_stacked_height = cumulative_heights[-1]
-        all_max_values.append(total_stacked_height)
+            for comp in components_data:
+                multiplier = comp[1]
+                running_product *= multiplier
+                cumulative_heights.append(running_product)
 
-        # Generate viridis colors for components in this bar
-        viridis_colors = sns.color_palette("viridis", n_colors=len(components_data))
+            total_stacked_height = cumulative_heights[-1]
+            all_max_values.append(total_stacked_height)
 
-        # Plot stacked components with cumulative multiplicative effects
-        for i, (name, value, color) in enumerate(components_data):
-            bottom = cumulative_heights[i]
-            top = cumulative_heights[i + 1]
-            segment_height = top - bottom
+            # Generate viridis colors for components in this bar
+            viridis_colors = sns.color_palette("viridis", n_colors=len(components_data))
 
-            # Use viridis colors instead of provided colors
-            viridis_color = viridis_colors[i]
+            # Plot stacked components with cumulative multiplicative effects
+            for i, (name, value, color) in enumerate(components_data):
+                bottom = cumulative_heights[i]
+                top = cumulative_heights[i + 1]
+                segment_height = top - bottom
+
+                # Use viridis colors instead of provided colors
+                viridis_color = viridis_colors[i]
+                bar = plt.bar(
+                    x_positions[bar_idx],
+                    segment_height,
+                    bottom=bottom,
+                    color=viridis_color,
+                    width=0.6,
+                    label=(
+                        f"{name} ({value:.2f}x)" if bar_idx == 0 else ""
+                    ),  # Only label first occurrence
+                    alpha=0.85,
+                    edgecolor="black",
+                    linewidth=0.5,
+                )
+
+                # Add component labels in the middle of each segment
+                if segment_height > 0.1:  # Only add label if segment is large enough
+                    # Position text in the middle of the segment
+                    text_y = bottom + segment_height / 2
+
+                    # Ensure text is visible on log scale (at least at y=1.1)
+                    # But only adjust if the segment actually crosses the y=1 threshold
+                    if bottom < 1.0 and text_y < 1.1 and top > 1.0:
+                        text_y = 1.1
+
+                    plt.text(
+                        x_positions[bar_idx],
+                        text_y,
+                        f"{name}\n{value:.2f}x",
+                        ha="center",
+                        va="center",
+                        fontsize=component_label_fontsize,
+                        fontweight="bold",
+                        color="white" if i % 2 == 0 else "black",
+                    )
+
+            # Add total height label for this stacked bar
+            plt.text(
+                x_positions[bar_idx],
+                total_stacked_height + 0.2,
+                f"Total: {total_stacked_height:.2f}x",
+                ha="center",
+                va="bottom",
+                fontsize=total_label_fontsize,
+                fontweight="bold",
+                color="black",
+            )
+
+        elif order.startswith("comparison_"):
+            comparison_idx = int(order.split("_")[1])
+            name, value, color = comparison_data[comparison_idx]
+
+            # Generate viridis colors for comparison bars
+            comparison_viridis = sns.color_palette(
+                "viridis", n_colors=len(comparison_data)
+            )
+            viridis_color = comparison_viridis[comparison_idx % len(comparison_viridis)]
+
             bar = plt.bar(
                 x_positions[bar_idx],
-                segment_height,
-                bottom=bottom,
+                value,
                 color=viridis_color,
                 width=0.6,
-                label=(
-                    f"{name} ({value:.2f}x)" if bar_idx == 0 else ""
-                ),  # Only label first occurrence
+                label=f"{name} ({value:.2f}x)",
                 alpha=0.85,
                 edgecolor="black",
                 linewidth=0.5,
             )
 
-            # Add component labels in the middle of each segment
-            if segment_height > 0.1:  # Only add label if segment is large enough
-                # Position text in the middle of the segment
-                text_y = bottom + segment_height / 2
+            all_max_values.append(value)
 
-                # Ensure text is visible on log scale (at least at y=1.1)
-                # But only adjust if the segment actually crosses the y=1 threshold
-                if bottom < 1.0 and text_y < 1.1 and top > 1.0:
-                    text_y = 1.1
-
-                plt.text(
-                    x_positions[bar_idx],
-                    text_y,
-                    f"{name}\n{value:.2f}x",
-                    ha="center",
-                    va="center",
-                    fontsize=component_label_fontsize,
-                    fontweight="bold",
-                    color="white" if i % 2 == 0 else "black",
-                )
-
-        # Add total height label for this stacked bar
-        plt.text(
-            x_positions[bar_idx],
-            total_stacked_height + 0.2,
-            f"Total: {total_stacked_height:.2f}x",
-            ha="center",
-            va="bottom",
-            fontsize=total_label_fontsize,
-            fontweight="bold",
-            color="black",
-        )
-
-    # Generate viridis colors for comparison bars
-    comparison_viridis = sns.color_palette("viridis", n_colors=len(comparison_data))
-
-    # Plot comparison bars
-    for i, (name, value, color) in enumerate(comparison_data):
-        viridis_color = comparison_viridis[i]
-        bar = plt.bar(
-            x_positions[n_stacked_groups + i],
-            value,
-            color=viridis_color,
-            width=0.6,
-            label=f"{name} ({value:.2f}x)",
-            alpha=0.85,
-            edgecolor="black",
-            linewidth=0.5,
-        )
-
-        all_max_values.append(value)
-
-        # Add value labels on top
-        plt.text(
-            x_positions[n_stacked_groups + i],
-            value + 0.1,
-            f"{value:.2f}x",
-            ha="center",
-            va="bottom",
-            fontsize=value_label_fontsize,
-            fontweight="bold",
-        )
+            # Add value labels on top
+            plt.text(
+                x_positions[bar_idx],
+                value + 0.1,
+                f"{value:.2f}x",
+                ha="center",
+                va="bottom",
+                fontsize=value_label_fontsize,
+                fontweight="bold",
+            )
 
     # Customize plot with seaborn styling
     plt.xticks(
@@ -691,10 +711,11 @@ def create_stacked_comparison_plot(
 
     ax.tick_params(axis="y", which="both", labelsize=ytick_label_fontsize)
 
-    # Add legend with better positioning
+    # Add legend below the plot
     plt.legend(
-        bbox_to_anchor=(1.05, 1),
-        loc="upper left",
+        loc="upper center",
+        bbox_to_anchor=(0.5, -0.5),
+        ncol=3,
         frameon=True,
         fancybox=True,
         shadow=True,
@@ -816,6 +837,47 @@ create_stacked_comparison_plot(
     stacked_groups_4bars,
     comparison_data_4bars,
     "Example: 4 Total Bars (2 Stacked + 2 Non-Stacked)",
+)
+
+# %%
+# Example: Custom bar ordering
+# You can now specify the exact order of bars on the x-axis
+
+# Define your data
+stacked_groups_custom = [
+    [("Rotary Encoding", 1.4, "#9b59b6"), ("SwiGLU", 1.1, "#e67e22")],
+    [("Component A", 1.2, "#1abc9c"), ("Component B", 1.15, "#3498db")],
+]
+
+comparison_data_custom = [
+    ("Current vs 2017", 1.677, "#e74c3c"),
+    ("Ho et Al", 2.5, "#f39c12"),
+]
+
+# Example 1: Default order (all stacked first, then all comparison)
+print("Default order:")
+create_stacked_comparison_plot(
+    stacked_groups_custom,
+    comparison_data_custom,
+    "Default Order: All Stacked First, Then All Comparison",
+)
+
+# Example 2: Custom order - mix stacked and comparison bars
+print("\nCustom order - alternating:")
+create_stacked_comparison_plot(
+    stacked_groups_custom,
+    comparison_data_custom,
+    "Custom Order: Alternating Stacked and Comparison Bars",
+    bar_order=["stacked_0", "comparison_0", "stacked_1", "comparison_1"],
+)
+
+# Example 3: Custom order - comparison bars first
+print("\nCustom order - comparison first:")
+create_stacked_comparison_plot(
+    stacked_groups_custom,
+    comparison_data_custom,
+    "Custom Order: Comparison Bars First",
+    bar_order=["comparison_0", "comparison_1", "stacked_0", "stacked_1"],
 )
 
 # %%

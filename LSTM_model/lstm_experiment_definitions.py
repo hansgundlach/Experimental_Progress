@@ -826,22 +826,31 @@ LSTM_SCALING_STUDY = (
 SGD_EXPERIMENT = gen_lstm_experim(
     64,
     label="new32_sgd_0_momentum",
-    folder_name="lstm_sgd",
+    folder_name="new_lstm_sgd",
     learning_rate=10**-1.5,
     optimizer="sgd",
     sgd_momentum=0.0,
 ) + gen_lstm_experim(
     64,
     label="new32_sgd_09_momentum",
-    folder_name="lstm_sgd",
+    folder_name="new_lstm_sgd",
     learning_rate=10**-1.5,
     optimizer="sgd",
     sgd_momentum=0.9,
 )
 
 # SGD experimetns
-GRAND_EXPERIMENT = create_multi_lr_experiments(
-    SGD_EXPERIMENT, [10**-1, 10**-1.5, 10**-2, 10**-2.5, 10**-3, 10**-3.5]
-)
+# GRAND_EXPERIMENT = create_multi_lr_experiments(
+#     SGD_EXPERIMENT, [10**-1, 10**-1.5, 10**-2, 10**-2.5, 10**-3, 10**-3.5]
+# )
 
-GRAND_EXPERIMENT = LSTM_SCALING_STUDY
+
+GRAND_EXPERIMENT = gen_lstm_experim(
+    128,
+    label="128_32_batch_size",
+    folder_name="new_lstm_sgd",
+    learning_rate=10**-1,
+    optimizer="sgd",
+    sgd_momentum=0.9,
+    target_effective_batch_size=32,
+)

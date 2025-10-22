@@ -1592,7 +1592,7 @@ if __name__ == "__main__":
         # results with swiglu
         {
             "name": "32d transformer scaling further",
-            "csv_path": "../experimental_data_folder/transformer_scaling/swiglu_32d_transformer_bs64.csv",
+            "csv_path": "../experimental_data_folder/transformer_scaling/new_modern_scaling_study/32_modern.csv",
             "marker": "o",
             "include_in_frontier": True,  # Include in frontier analysis
             "class": "transformer",
@@ -1600,7 +1600,7 @@ if __name__ == "__main__":
         },
         {
             "name": "48d transformer scaling further",
-            "csv_path": "../experimental_data_folder/transformer_scaling/swiglu_48d_transformer_bs64.csv",
+            "csv_path": "../experimental_data_folder/transformer_scaling/new_modern_scaling_study/48_modern.csv",
             "marker": "o",
             "include_in_frontier": True,  # Include in frontier analysis
             "class": "transformer",
@@ -1608,7 +1608,7 @@ if __name__ == "__main__":
         },
         {
             "name": "64d transformer scaling further",
-            "csv_path": "../experimental_data_folder/transformer_scaling/swiglu_64d_transformer_bs64.csv",
+            "csv_path": "../experimental_data_folder/transformer_scaling/new_modern_scaling_study/64_modern.csv",
             "marker": "o",
             "include_in_frontier": True,  # Include in frontier analysis
             "class": "transformer",
@@ -1617,23 +1617,23 @@ if __name__ == "__main__":
         # 96 128 160
         {
             "name": "96d transformer scaling further",
-            "csv_path": "../experimental_data_folder/transformer_scaling/swiglu_96d_transformer_bs64.csv",
+            "csv_path": "../experimental_data_folder/transformer_scaling/new_modern_scaling_study/96_modern.csv",
             "marker": "o",
             "include_in_frontier": True,  # Include in frontier analysis
             "class": "transformer",
             "hidden_dim": 96,
         },
-        # {
-        #     "name": "128d transformer scaling further",
-        #     "csv_path": "../experimental_data_folder/transformer_scaling/swiglu_128d_transformer_bs64.csv",
-        #     "marker": "o",
-        #     "include_in_frontier": True,  # Include in frontier analysis
-        #     "class": "transformer",
-        #     "hidden_dim": 128,
-        # },
+        {
+            "name": "128d transformer scaling further",
+            "csv_path": "../experimental_data_folder/transformer_scaling/new_modern_scaling_study/128_modern.csv",
+            "marker": "o",
+            "include_in_frontier": True,  # Include in frontier analysis
+            "class": "transformer",
+            "hidden_dim": 128,
+        },
         {
             "name": "160d transformer scaling further",
-            "csv_path": "../experimental_data_folder/transformer_scaling/swiglu_160d_transformer_bs64.csv",
+            "csv_path": "../experimental_data_folder/transformer_scaling/new_modern_scaling_study/160_modern.csv",
             "marker": "o",
             "include_in_frontier": True,  # Include in frontier analysis
             "class": "transformer",
@@ -1642,7 +1642,7 @@ if __name__ == "__main__":
         # 256
         {
             "name": "256d transformer scaling further",
-            "csv_path": "../experimental_data_folder/transformer_scaling/swiglu_256d_transformer_bs64.csv",
+            "csv_path": "../experimental_data_folder/transformer_scaling/new_modern_scaling_study/256_modern.csv",
             "marker": "o",
             "include_in_frontier": True,  # Include in frontier analysis
             "class": "transformer",

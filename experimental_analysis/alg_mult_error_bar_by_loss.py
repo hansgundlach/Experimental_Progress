@@ -63,7 +63,7 @@ CONFIDENCE_INTERVALS = False  # Set to True to display error bars
 
 # Plot font sizes (kept consistent with alg_mult_error_bar.py)
 TITLE_FONTSIZE = 20
-AXIS_LABEL_FONTSIZE = 14
+AXIS_LABEL_FONTSIZE = 20
 X_TICK_LABEL_FONTSIZE = 12
 Y_TICK_LABEL_FONTSIZE = 16
 LEGEND_FONTSIZE = 15
@@ -312,13 +312,32 @@ print(cosine_v_linear_estimate)
 
 
 # %%
+# compare lstm to modern transformer
+
+lstm_modern_transformer_estimate = compute_multiplier_estimate_by_loss(
+    "new_modern_scaling_study/64_modern",
+    "/lstm_layer1/64d",
+    target_loss=TARGET_LOSS,
+)
+print(lstm_modern_transformer_estimate)
+# %%
+# lstm to old transforem
+lstm_modern_transformer_estimate = compute_multiplier_estimate_by_loss(
+    "debug_historical_experiments/radford_64transformer_2018_bs64",
+    "/lstm_layer1/64d",
+    target_loss=TARGET_LOSS,
+)
+print(lstm_modern_transformer_estimate)
+
+
+# %%
 # Create bar plot of compute multiplier estimates with error bars
 estimates_data = [
     # ("Rotary vs Learned", rotary_learned_estimate),
     ("Rotary vs Sinusoidal", [1.4, 0]),  # manual override retained
     ("SwiGLU vs ReLU", [1.1, 0]),  # manual override retained
     ("GELU vs ReLU", gelu_relu_estimate),
-    ("Transformer vs LSTM", transformer_lstm_estimate),
+    ("Transformer vs LSTM", [3.109, 0]),
     ("Learned vs Sinusoidal", learned_vs_sinusoidal_estimate),
     ("Cosine Warmup vs Inverse Sqrt", cosine_inverse_sqrt_estimate),
     ("Cosine Warmup vs Linear", cosine_v_linear_estimate),
@@ -380,7 +399,12 @@ if valid_estimates:
         fontsize=x_tick_label_fontsize,  # Use separate parameter
         fontweight="bold",
     )
-    plt.yticks(fontsize=y_tick_label_fontsize)  # Use separate parameter
+
+    # Fix y-axis tick label sizes for log scale
+    ax = plt.gca()
+    ax.tick_params(axis="y", which="major", labelsize=y_tick_label_fontsize)
+    ax.tick_params(axis="y", which="minor", labelsize=y_tick_label_fontsize)
+
     plt.grid(axis="y", alpha=0.3, linestyle="--")
 
     # Add value labels on top of bars
@@ -408,12 +432,16 @@ if valid_estimates:
                 color="black",
             )
 
+    # Set log scale before setting limits
+    plt.yscale("log")
+
     # Add a horizontal line at y=1 for reference (no improvement)
     plt.axhline(
         y=1, color="red", linestyle="--", alpha=0.5, label="No improvement (1.0x)"
     )
-    plt.yscale("log")
-    plt.ylim(0, 4)
+
+    # Set y-axis limits appropriate for log scale (cannot start at 0)
+    plt.ylim(0.8, 5)
     plt.legend(fontsize=legend_fontsize)
 
     plt.tight_layout()

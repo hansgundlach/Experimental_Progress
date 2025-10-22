@@ -821,7 +821,7 @@ HISTORICAL_EXPERIMENTS_RADFORD = (
         learning_rate=5.6e-3,
         activation="gelu",
         norm_placement="post",
-        lr_schedule="linear_warmup",
+        lr_schedule="cosine_warmup",
         weight_decay=0.01,
         pos_encoding="learned",
         dropout=0.0,
@@ -836,7 +836,7 @@ HISTORICAL_EXPERIMENTS_RADFORD = (
         learning_rate=2.9e-3,
         activation="gelu",
         norm_placement="post",
-        lr_schedule="linear_warmup",
+        lr_schedule="cosine_warmup",
         pos_encoding="learned",
         weight_decay=0.01,
         dropout=0.0,
@@ -851,7 +851,7 @@ HISTORICAL_EXPERIMENTS_RADFORD = (
         learning_rate=1.86e-3,
         activation="gelu",
         norm_placement="post",
-        lr_schedule="linear_warmup",
+        lr_schedule="cosine_warmup",
         pos_encoding="learned",
         weight_decay=0.01,
         dropout=0.0,
@@ -866,7 +866,7 @@ HISTORICAL_EXPERIMENTS_RADFORD = (
         learning_rate=1.30e-3,
         activation="gelu",
         norm_placement="post",
-        lr_schedule="linear_warmup",
+        lr_schedule="cosine_warmup",
         pos_encoding="learned",
         weight_decay=0.01,
         dropout=0.0,
@@ -881,7 +881,7 @@ HISTORICAL_EXPERIMENTS_RADFORD = (
         learning_rate=9.79e-4,
         activation="gelu",
         norm_placement="post",
-        lr_schedule="linear_warmup",
+        lr_schedule="cosine_warmup",
         pos_encoding="learned",
         weight_decay=0.01,
         dropout=0.0,
@@ -897,7 +897,7 @@ HISTORICAL_EXPERIMENTS_RADFORD = (
         learning_rate=8.62e-4,
         activation="gelu",
         norm_placement="post",
-        lr_schedule="linear_warmup",
+        lr_schedule="cosine_warmup",
         pos_encoding="learned",
         weight_decay=0.01,
         dropout=0.0,
@@ -912,7 +912,7 @@ HISTORICAL_EXPERIMENTS_RADFORD = (
         learning_rate=6.1996e-4,
         activation="gelu",
         norm_placement="post",
-        lr_schedule="linear_warmup",
+        lr_schedule="cosine_warmup",
         pos_encoding="learned",
         weight_decay=0.01,
         dropout=0.0,
@@ -927,7 +927,7 @@ HISTORICAL_EXPERIMENTS_RADFORD = (
         learning_rate=4.34e-4,
         activation="gelu",
         norm_placement="post",
-        lr_schedule="linear_warmup",
+        lr_schedule="cosine_warmup",
         pos_encoding="learned",
         weight_decay=0.01,
         dropout=0.0,
@@ -935,21 +935,21 @@ HISTORICAL_EXPERIMENTS_RADFORD = (
         modern_bias_0=False,
         ff_ratio=4,
     )
-    # + gen_experim(
-    #     256,
-    #     label="radford_256transformer_2018_bs64",
-    #     folder_name="debug_historical_experiments",
-    #     learning_rate=10 ** (-3.5),
-    #     activation="gelu",
-    #     norm_placement="post",
-    #     lr_schedule="linear_warmup",
-    #     pos_encoding="learned",
-    #     weight_decay=0.01,
-    #     dropout=0.0,
-    #     optimizer="adam",
-    #     modern_bias_0=False,
-    #     ff_ratio=4,
-    # )
+    + gen_experim(
+        256,
+        label="radford_256transformer_2018_bs64",
+        folder_name="debug_historical_experiments",
+        learning_rate=10 ** (-3.5),
+        activation="gelu",
+        norm_placement="post",
+        lr_schedule="cosine_warmup",
+        pos_encoding="learned",
+        weight_decay=0.01,
+        dropout=0.0,
+        optimizer="adam",
+        modern_bias_0=False,
+        ff_ratio=4,
+    )
 )
 
 HISTORICAL_LR_STUDY = create_multi_lr_experiments(
@@ -1176,7 +1176,6 @@ MODERN_SCALING_STUDY = (
         modern_bias_0=True,
         ff_ratio=2.5,
         norm_type="rms",
-        
     )
     # + gen_experim(
     #     48,
@@ -1550,4 +1549,22 @@ GRAND_EXPERIMENT = (
 
 # great width 256
 #
-GRAND_EXPERIMENT = HISTORICAL_EXPERIMENTS_RADFORD
+GRAND_EXPERIMENT = gen_experim(
+    256,
+    label="radford256_40t_to_p",
+    folder_name="debug_historical_experiments",
+    learning_rate=2.0613e-4,
+    activation="gelu",
+    norm_placement="post",
+    lr_schedule="linear_warmup",
+    pos_encoding="learned",
+    weight_decay=0.01,
+    dropout=0.0,
+    optimizer="adam",
+    modern_bias_0=False,
+    ff_ratio=4,
+    token_to_param_ratio=40,
+)
+
+
+# GRAND_EXPERIMENT = HISTORICAL_EXPERIMENTS_RADFORD

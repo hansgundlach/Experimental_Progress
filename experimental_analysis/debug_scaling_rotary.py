@@ -1128,7 +1128,7 @@ if __name__ == "__main__":
         },
         {
             "name": "256d lstm",
-            "csv_path": "../experimental_data_folder/lstm_layer1/256.csv",
+            "csv_path": "../experimental_data_folder/lstm_layer1/25d.csv",
             "marker": "o",
             "include_in_frontier": True,  # Include in frontier analysis
             "class": "lstm",
