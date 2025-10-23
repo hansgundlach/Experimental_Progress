@@ -1825,7 +1825,18 @@ if __name__ == "__main__":
             "class": "2017 Transformer",
             "hidden_dim": 160,
         },
+        {
+            "name": "256d 2017 transformer",
+            "csv_path": "../experimental_data_folder/debug_historical_experiments/radford256_40t_to_p.csv",
+            "marker": "o",
+            "include_in_frontier": True,  # Include in frontier analysis
+            "class": "2017 Transformer",
+            "hidden_dim": 256,
+        },
     ]
+
+    #     debug_historical_experiments/radford256_40t_to_p.csv
+    # ]
 
     #   {
     #         "name": "lstm 16d optimal",
