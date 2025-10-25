@@ -15,6 +15,7 @@ from experiment_utils import (
     calculate_transformer_params,
     gen_experim,
     get_base_config,
+    generate_lr_sweep_summary,
 )
 from experiment_definitions import (
     GRAND_EXPERIMENT,
@@ -318,3 +319,38 @@ if __name__ == "__main__":
     print(f"Number of sub-experiments: {len(all_sub_experiments)}")
     if args.total_jobs > 1:
         print(f"THIS JOB RAN: {len(my_sub_experiments)} sub-experiments.")
+    
+    # Generate LR sweep summary if this was a learning rate sweep experiment
+    if args.total_jobs == 1:  # Only generate summary for single-job runs (avoid conflicts)
+        try:
+            # Check if any experiment has summary info (indicates lr sweep with generate_summary=True)
+            summary_info = None
+            for exp in EXPERIMENTS:
+                if hasattr(exp, '_summary_info') or '_summary_info' in exp:
+                    summary_info = exp.get('_summary_info')
+                    break
+            
+            if summary_info and summary_info.get('generate_summary', False):
+                print("\n" + "="*50)
+                print("Generating Learning Rate Sweep Summary...")
+                print("="*50)
+                
+                # Get the base results folder from config
+                results_base_folder = base_config.get("results_folder", "new_experiments_folder_1")
+                
+                summary_path = generate_lr_sweep_summary(summary_info, results_base_folder)
+                if summary_path:
+                    print(f"✅ LR sweep summary generated successfully!")
+                else:
+                    print("⚠️  LR sweep summary generation failed or no valid results found")
+            else:
+                # Check if experiment name suggests it's an LR sweep (fallback detection)
+                for exp in EXPERIMENTS:
+                    if "_lr_sweep" in exp["name"]:
+                        print(f"Note: Detected LR sweep experiment '{exp['name']}' but generate_summary was not enabled.")
+                        print("To enable automatic summary generation, use generate_summary=True in create_multi_lr_experiments()")
+                        break
+        except Exception as e:
+            print(f"Error during LR sweep summary generation: {e}")
+            import traceback
+            traceback.print_exc()

@@ -20,6 +20,9 @@ from lstm_experiment_utils import (
     create_multi_lr_experiments,
     create_multi_seed_experiments,
 )
+# Import LR sweep summary function from parent experiment_utils
+sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+from experiment_utils import generate_lr_sweep_summary
 
 # Configuration
 # has 1.66 total params
@@ -201,3 +204,40 @@ if __name__ == "__main__":
         print(f"Completed LSTM experiment: {run_name}")
 
     print(f"\nNode {args.job_id} has completed all its assigned experiments.")
+    
+    # Generate LR sweep summary if this was a learning rate sweep experiment
+    if args.total_jobs == 1:  # Only generate summary for single-job runs (avoid conflicts)
+        try:
+            # Check if any experiment has summary info (indicates lr sweep with generate_summary=True)
+            summary_info = None
+            for exp in GRAND_EXPERIMENT:
+                if hasattr(exp, '_summary_info') or '_summary_info' in exp:
+                    summary_info = exp.get('_summary_info')
+                    break
+            
+            if summary_info and summary_info.get('generate_summary', False):
+                print("\n" + "="*50)
+                print("Generating Learning Rate Sweep Summary...")
+                print("="*50)
+                
+                # Get the base results folder from LSTM config
+                lstm_base_config = get_lstm_base_config()
+                results_base_folder = lstm_base_config.get("results_folder", "new_experiments_folder_1")
+                
+                summary_path = generate_lr_sweep_summary(summary_info, results_base_folder)
+                if summary_path:
+                    print(f"✅ LR sweep summary generated successfully!")
+                    print(f"📄 Summary saved to: {summary_path}")
+                else:
+                    print("⚠️  LR sweep summary generation failed or no valid results found")
+            else:
+                # Check if experiment name suggests it's an LR sweep (fallback detection)
+                for exp in GRAND_EXPERIMENT:
+                    if "_lr_sweep" in exp["name"]:
+                        print(f"Note: Detected LR sweep experiment '{exp['name']}' but generate_summary was not enabled.")
+                        print("To enable automatic summary generation, use generate_summary=True in create_multi_lr_experiments()")
+                        break
+        except Exception as e:
+            print(f"Error during LR sweep summary generation: {e}")
+            import traceback
+            traceback.print_exc()

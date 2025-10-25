@@ -823,34 +823,65 @@ LSTM_SCALING_STUDY = (
 # )
 
 # maybe this is the paper that recommended 0 momentum : https://proceedings.mlr.press/v37/jozefowicz15.pdf
-SGD_EXPERIMENT = gen_lstm_experim(
-    64,
-    label="new32_sgd_0_momentum",
-    folder_name="new_lstm_sgd",
-    learning_rate=10**-1.5,
-    optimizer="sgd",
-    sgd_momentum=0.0,
-) + gen_lstm_experim(
-    64,
-    label="new32_sgd_09_momentum",
-    folder_name="new_lstm_sgd",
-    learning_rate=10**-1.5,
-    optimizer="sgd",
-    sgd_momentum=0.9,
+SGD_EXPERIMENT = create_multi_lr_experiments(
+    gen_lstm_experim(
+        64,
+        label="new32_sgd_0_momentum_nowd",
+        folder_name="new_lstm_sgd",
+        learning_rate=10**-1.5,
+        optimizer="sgd",
+        sgd_momentum=0.0,
+        weight_decay=0.0,
+    )
+    + gen_lstm_experim(
+        64,
+        label="new32_sgd_09_momentum_nowd",
+        folder_name="new_lstm_sgd",
+        learning_rate=10**-1.5,
+        optimizer="sgd",
+        sgd_momentum=0.9,
+        weight_decay=0.0,
+    ),
+    [
+        10**-1,
+        10**-1.5,
+        10**-2,
+        10**-2.5,
+        10**-3,
+        10**-3.5,
+    ],
+    generate_summary=True,
 )
 
-# SGD experimetns
+
+GRAND_EXPERIMENT = gen_lstm_experim(
+    64,
+    label="new32_sgd_0_momentum_nowd",
+    folder_name="new_lstm_sgd",
+    learning_rate=10**-1,
+    optimizer="sgd",
+    sgd_momentum=0.0,
+    weight_decay=0.0,
+) + gen_lstm_experim(
+    64,
+    label="new32_sgd_09_momentum_nowd",
+    folder_name="new_lstm_sgd",
+    learning_rate=10**-1,
+    optimizer="sgd",
+    sgd_momentum=0.9,
+    weight_decay=0.0,
+)
 # GRAND_EXPERIMENT = create_multi_lr_experiments(
 #     SGD_EXPERIMENT, [10**-1, 10**-1.5, 10**-2, 10**-2.5, 10**-3, 10**-3.5]
 # )
 
 
-GRAND_EXPERIMENT = gen_lstm_experim(
-    128,
-    label="128_32_batch_size",
-    folder_name="new_lstm_sgd",
-    learning_rate=10**-1,
-    optimizer="sgd",
-    sgd_momentum=0.9,
-    target_effective_batch_size=32,
-)
+# GRAND_EXPERIMENT = gen_lstm_experim(
+#     128,
+#     label="128_32_batch_size",
+#     folder_name="new_lstm_sgd",
+#     learning_rate=10**-1,
+#     optimizer="sgd",
+#     sgd_momentum=0.9,
+#     target_effective_batch_size=32,
+# )

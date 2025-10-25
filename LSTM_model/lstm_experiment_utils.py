@@ -2,6 +2,12 @@
 import copy
 import math
 import torch
+import sys
+from pathlib import Path
+
+# Add parent directory to path to import from experiment_utils
+sys.path.insert(0, str(Path(__file__).parent.parent))
+from experiment_utils import create_multi_lr_experiments
 
 
 def calculate_lstm_params(
@@ -634,132 +640,8 @@ def subset_experiments(experiment_list, wanted_labels):
 #     return multi_lr_experiments
 
 
-# reducing lr expeirment max tokens to 129e6 / 8 to save time
-def create_multi_lr_experiments(
-    base_experiments,
-    learning_rates,
-    max_tokens=int(129e6 / 8),
-    csv_log_interval_lr_sweep=200,
-):
-    """
-    Create multiple versions of experiments with different learning rates.
-    Similar to create_multi_seed_experiments but for learning rates.
-
-    Args:
-        base_experiments: List of experiment dictionaries (e.g., LSTM_HIDDEN_DIM_EXPERIMENTS)
-        learning_rates: List of learning rate values (e.g., [1e-4, 1e-3, 1e-2])
-        max_tokens: Maximum number of tokens to use for max_tokens (default: 129e6 / 4)
-
-    Returns:
-        List of experiment dictionaries with learning rate variations
-    """
-    # if max_tokens is None:
-    #     max_tokens = int(129e6 / 4)
-
-    multi_lr_experiments = []
-
-    for experiment in base_experiments:
-        # Check if any sub-experiment has a custom results folder
-        custom_folder = None
-        for sub_exp in experiment["subexperiments"]:
-            if "overrides" in sub_exp:
-                # Check for both folder_name and results_folder
-                custom_folder = sub_exp["overrides"].get("folder_name") or sub_exp[
-                    "overrides"
-                ].get("results_folder")
-                if custom_folder:
-                    break
-            elif "config" in sub_exp:
-                custom_folder = sub_exp["config"].get("folder_name") or sub_exp[
-                    "config"
-                ].get("results_folder")
-                if custom_folder:
-                    break
-
-        # Create a new experiment group name
-        if custom_folder:
-            # If there's a custom folder, create the name to put results in "custom_folder_lr_sweep/"
-            new_experiment_name = f"{custom_folder}_lr_sweep"
-        else:
-            # Otherwise use the original experiment name with lr_sweep suffix
-            new_experiment_name = f"{experiment['name']}_lr_sweep"
-
-        new_experiment = {
-            "name": new_experiment_name,
-            "subexperiments": [],
-        }
-
-        # For each subexperiment in the base experiment
-        for sub_exp in experiment["subexperiments"]:
-            # Create a version for each learning rate
-            for lr in learning_rates:
-                # Create new subexperiment with lr suffix
-                new_sub_exp = copy.deepcopy(sub_exp)
-
-                # Add learning rate to the label
-                original_label = sub_exp["label"]
-                # Format learning rate for filename-safe label with clear scientific notation
-                import math
-
-                if lr >= 1:
-                    lr_str = f"{lr:.0f}"
-                else:
-                    # Use clear scientific notation: 10e-1, 10e-2, 10e-3, etc.
-                    log_lr = math.log10(lr)
-
-                    # Check if it's close to a nice power of 10
-                    if (
-                        abs(log_lr - round(log_lr)) < 0.01
-                    ):  # Very close to integer power
-                        exponent = int(round(log_lr))
-                        lr_str = f"10e{exponent:+d}"  # +d ensures +/- sign
-                    else:
-                        # For non-integer powers, use coefficient notation
-                        exponent = math.floor(log_lr)
-                        coefficient = lr / (10**exponent)
-                        if abs(coefficient - round(coefficient)) < 0.01:
-                            lr_str = f"{round(coefficient):.0f}e{exponent:+d}"
-                        else:
-                            lr_str = f"{coefficient:.1f}e{exponent:+d}"
-
-                new_sub_exp["label"] = f"{original_label}_lr_{lr_str}"
-
-                # Add learning rate, max_tokens_training, and csv_log_interval to overrides, and update folder settings
-                if "overrides" in new_sub_exp:
-                    new_sub_exp["overrides"]["learning_rate"] = lr
-                    new_sub_exp["overrides"]["max_tokens_training"] = max_tokens
-                    new_sub_exp["overrides"][
-                        "csv_log_interval"
-                    ] = csv_log_interval_lr_sweep
-                    # Remove custom folder settings - let the experiment name handle the directory
-                    if custom_folder:
-                        new_sub_exp["overrides"].pop("folder_name", None)
-                        new_sub_exp["overrides"].pop("results_folder", None)
-                elif "config" in new_sub_exp:
-                    new_sub_exp["config"]["learning_rate"] = lr
-                    new_sub_exp["config"]["max_tokens_training"] = max_tokens
-                    new_sub_exp["config"][
-                        "csv_log_interval"
-                    ] = csv_log_interval_lr_sweep
-                    # Remove custom folder settings - let the experiment name handle the directory
-                    if custom_folder:
-                        new_sub_exp["config"].pop("folder_name", None)
-                        new_sub_exp["config"].pop("results_folder", None)
-                else:
-                    # If neither exists, create overrides with learning rate, max_tokens_training, and csv_log_interval
-                    overrides_dict = {
-                        "learning_rate": lr,
-                        "max_tokens_training": max_tokens,
-                        "csv_log_interval": 200,
-                    }
-                    # Don't add custom folder for new overrides - let experiment name handle it
-                    new_sub_exp["overrides"] = overrides_dict
-
-                new_experiment["subexperiments"].append(new_sub_exp)
-
-        multi_lr_experiments.append(new_experiment)
-
-    return multi_lr_experiments
+# Note: create_multi_lr_experiments is now imported from experiment_utils.py
+# This ensures consistent behavior between transformer and LSTM experiments
 
 
 def create_multi_seed_experiments(base_experiments, seeds):

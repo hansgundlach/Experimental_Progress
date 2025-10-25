@@ -47,12 +47,14 @@ def create_multi_seed_experiments(base_experiments, seeds):
     return multi_seed_experiments
 
 
-# reducing lr expeirment max tokens to 129e6 / 8 to save time
+# LR sweep experiments use the maximum of a fixed budget (129e6/8) or 5% of full training
 def create_multi_lr_experiments(
     base_experiments,
     learning_rates,
-    max_tokens=int(129e6 / 8),
+    min_tokens=None,
     csv_log_interval_lr_sweep=200,
+    min_training_fraction=0.05,
+    generate_summary=False,
 ):
     """
     Create multiple versions of experiments with different learning rates.
@@ -61,14 +63,20 @@ def create_multi_lr_experiments(
     Args:
         base_experiments: List of experiment dictionaries (e.g., LSTM_HIDDEN_DIM_EXPERIMENTS)
         learning_rates: List of learning rate values (e.g., [1e-4, 1e-3, 1e-2])
-        max_tokens: Maximum number of tokens to use for max_tokens_training (default: 129e6 / 8)
+        min_tokens: Minimum number of tokens to use for max_tokens_training
+                   (default: max of 129e6/8 or 5% of full training)
+        csv_log_interval_lr_sweep: CSV log interval for LR sweep experiments (default: 200)
+        min_training_fraction: Minimum fraction of full training to use (default: 0.05 = 5%)
+        generate_summary: If True, create a summary CSV showing best LR for each experiment (default: False)
 
     Returns:
         List of experiment dictionaries with learning rate variations
-    """
-    if max_tokens is None:
-        max_tokens = int(129e6 / 8)
 
+    Note:
+        If generate_summary=True, after all experiments complete, a summary file will be created
+        named "summary_{folder_name}_{timestamp}.csv" containing the best learning rate for each
+        base experiment based on lowest final validation loss.
+    """
     multi_lr_experiments = []
 
     for experiment in base_experiments:
@@ -104,6 +112,25 @@ def create_multi_lr_experiments(
 
         # For each subexperiment in the base experiment
         for sub_exp in experiment["subexperiments"]:
+            # Get full training tokens from the subexperiment
+            full_training_tokens = None
+            if "overrides" in sub_exp:
+                full_training_tokens = sub_exp["overrides"].get("max_tokens_training")
+            elif "config" in sub_exp:
+                full_training_tokens = sub_exp["config"].get("max_tokens_training")
+
+            # Calculate the tokens to use for this LR sweep
+            if min_tokens is not None:
+                tokens_for_lr_sweep = min_tokens
+            else:
+                # Use maximum of fixed budget (129e6/8) or 5% of full training
+                fixed_budget = int(129e6 / 8)
+                if full_training_tokens is not None:
+                    fraction_tokens = int(full_training_tokens * min_training_fraction)
+                    tokens_for_lr_sweep = max(fixed_budget, fraction_tokens)
+                else:
+                    tokens_for_lr_sweep = fixed_budget
+
             # Create a version for each learning rate
             for lr in learning_rates:
                 # Create new subexperiment with lr suffix
@@ -140,7 +167,9 @@ def create_multi_lr_experiments(
                 # Add learning rate, max_tokens_training, and csv_log_interval to overrides, and update folder settings
                 if "overrides" in new_sub_exp:
                     new_sub_exp["overrides"]["learning_rate"] = lr
-                    new_sub_exp["overrides"]["max_tokens_training"] = max_tokens
+                    new_sub_exp["overrides"][
+                        "max_tokens_training"
+                    ] = tokens_for_lr_sweep
                     new_sub_exp["overrides"][
                         "csv_log_interval"
                     ] = csv_log_interval_lr_sweep
@@ -150,7 +179,7 @@ def create_multi_lr_experiments(
                         new_sub_exp["overrides"].pop("results_folder", None)
                 elif "config" in new_sub_exp:
                     new_sub_exp["config"]["learning_rate"] = lr
-                    new_sub_exp["config"]["max_tokens_training"] = max_tokens
+                    new_sub_exp["config"]["max_tokens_training"] = tokens_for_lr_sweep
                     new_sub_exp["config"][
                         "csv_log_interval"
                     ] = csv_log_interval_lr_sweep
@@ -162,7 +191,7 @@ def create_multi_lr_experiments(
                     # If neither exists, create overrides with learning rate, max_tokens_training, and csv_log_interval
                     overrides_dict = {
                         "learning_rate": lr,
-                        "max_tokens_training": max_tokens,
+                        "max_tokens_training": tokens_for_lr_sweep,
                         "csv_log_interval": 200,
                     }
                     # Don't add custom folder for new overrides - let experiment name handle it
@@ -172,7 +201,182 @@ def create_multi_lr_experiments(
 
         multi_lr_experiments.append(new_experiment)
 
+    # Add summary generation metadata if requested
+    if generate_summary:
+        # Store metadata needed for summary generation
+        summary_info = {
+            "generate_summary": True,
+            "folder_name": custom_folder or "lr_sweep",
+            "base_experiments": base_experiments,
+            "learning_rates": learning_rates,
+        }
+        # Add summary info to each experiment for later processing
+        for exp in multi_lr_experiments:
+            exp["_summary_info"] = summary_info
+
     return multi_lr_experiments
+
+
+def generate_lr_sweep_summary(
+    experiment_info, results_base_folder="new_experiments_folder_1"
+):
+    """
+    Generate a summary CSV file showing the best learning rate for each base experiment
+    based on lowest final validation loss.
+
+    Args:
+        experiment_info: Dictionary containing summary metadata from create_multi_lr_experiments
+        results_base_folder: Base folder where results are stored
+
+    Returns:
+        Path to the created summary file or None if generation failed
+    """
+    import pandas as pd
+    import glob
+    import os
+    from datetime import datetime
+
+    try:
+        folder_name = experiment_info["folder_name"]
+        base_experiments = experiment_info["base_experiments"]
+        learning_rates = experiment_info["learning_rates"]
+
+        # Create timestamp for summary file
+        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+        summary_filename = f"summary_{folder_name}_{timestamp}.csv"
+
+        # Determine the folder where lr sweep results are stored
+        lr_sweep_folder = os.path.join(results_base_folder, f"{folder_name}_lr_sweep")
+        summary_path = os.path.join(lr_sweep_folder, summary_filename)
+
+        print(f"Generating LR sweep summary for folder: {lr_sweep_folder}")
+
+        # Extract base experiment labels
+        base_labels = []
+        for exp in base_experiments:
+            for sub_exp in exp["subexperiments"]:
+                base_labels.append(sub_exp["label"])
+
+        summary_results = []
+
+        # For each base experiment, find the best learning rate
+        for base_label in base_labels:
+            best_lr = None
+            best_val_loss = float("inf")
+            lr_results = []
+
+            # Check all learning rates for this base experiment
+            for lr in learning_rates:
+                # Format learning rate for filename matching (same logic as create_multi_lr_experiments)
+                if lr >= 1:
+                    lr_str = f"{lr:.0f}"
+                else:
+                    import math
+
+                    log_lr = math.log10(lr)
+                    if (
+                        abs(log_lr - round(log_lr)) < 0.01
+                    ):  # Very close to integer power
+                        exponent = int(round(log_lr))
+                        lr_str = f"10e{exponent:+d}"
+                    else:
+                        # For non-integer powers, use coefficient notation
+                        exponent = math.floor(log_lr)
+                        coefficient = lr / (10**exponent)
+                        if abs(coefficient - round(coefficient)) < 0.01:
+                            lr_str = f"{round(coefficient):.0f}e{exponent:+d}"
+                        else:
+                            lr_str = f"{coefficient:.1f}e{exponent:+d}"
+
+                # Construct expected CSV filename
+                csv_filename = f"{base_label}_lr_{lr_str}.csv"
+                csv_path = os.path.join(lr_sweep_folder, csv_filename)
+
+                # Read the CSV and get final validation loss
+                if os.path.exists(csv_path):
+                    try:
+                        df = pd.read_csv(csv_path)
+                        if "validation_loss" in df.columns and len(df) > 0:
+                            # Get the final (last) validation loss that's not NaN
+                            valid_losses = df["validation_loss"].dropna()
+                            if len(valid_losses) > 0:
+                                final_val_loss = valid_losses.iloc[-1]
+                                lr_results.append((lr, final_val_loss))
+
+                                # Track best learning rate
+                                if final_val_loss < best_val_loss:
+                                    best_val_loss = final_val_loss
+                                    best_lr = lr
+                            else:
+                                print(
+                                    f"Warning: No valid validation losses found in {csv_filename}"
+                                )
+                        else:
+                            print(
+                                f"Warning: No validation_loss column found in {csv_filename}"
+                            )
+                    except Exception as e:
+                        print(f"Warning: Could not read {csv_filename}: {e}")
+                else:
+                    print(f"Warning: Expected file not found: {csv_path}")
+
+            # Add results for this base experiment
+            if best_lr is not None:
+                summary_results.append(
+                    {
+                        "experiment": base_label,
+                        "best_learning_rate": best_lr,
+                        "best_validation_loss": best_val_loss,
+                        "num_lr_tested": len(lr_results),
+                    }
+                )
+                print(
+                    f"{base_label}: best_lr={best_lr:.2e}, best_val_loss={best_val_loss:.4f}"
+                )
+            else:
+                print(f"Warning: No valid results found for {base_label}")
+                summary_results.append(
+                    {
+                        "experiment": base_label,
+                        "best_learning_rate": "N/A",
+                        "best_validation_loss": "N/A",
+                        "num_lr_tested": 0,
+                    }
+                )
+
+        # Create summary DataFrame and save
+        if summary_results:
+            summary_df = pd.DataFrame(summary_results)
+
+            # Ensure output directory exists
+            os.makedirs(lr_sweep_folder, exist_ok=True)
+
+            # Save summary CSV
+            summary_df.to_csv(summary_path, index=False)
+            print(f"✅ Summary saved to: {summary_path}")
+
+            # Also print summary to console
+            print("\n" + "=" * 60)
+            print("LEARNING RATE SWEEP SUMMARY")
+            print("=" * 60)
+            for _, row in summary_df.iterrows():
+                if row["best_learning_rate"] != "N/A":
+                    print(f"{row['experiment']:30} {row['best_learning_rate']:12.2e}")
+                else:
+                    print(f"{row['experiment']:30} {'N/A':>12}")
+            print("=" * 60)
+
+            return summary_path
+        else:
+            print("Warning: No valid results found for summary generation")
+            return None
+
+    except Exception as e:
+        print(f"Error generating LR sweep summary: {e}")
+        import traceback
+
+        traceback.print_exc()
+        return None
 
 
 def calculate_transformer_params(
@@ -548,6 +752,7 @@ def get_base_config():
         - train_split: Fraction of dataset for training (default: 0.9 = 90%)
         - val_split: Fraction of dataset for validation (default: 0.1 = 10%)
         - fixed_val_tokens: Fixed number of tokens for validation set (default: None)
+        - use_streaming_dataset: Use streaming dataset for large files (default: False)
 
         Model Configuration:
         - hidden_dim, num_layers, num_heads: Model architecture parameters
@@ -567,7 +772,7 @@ def get_base_config():
         - Complete-P and muP scaling parameters
     """
     return {
-        "data_path": "Datasets/c4_subset.txt",  # Actual dataset file path
+        "data_path": "Datasets/c4_subset_large.txt",  # Actual dataset file path
         "max_tokens_training": int(
             5 * 1e7 / 4
         ),  # Maximum number of tokens for training (validation tokens added on top)
@@ -601,7 +806,7 @@ def get_base_config():
         "adam_beta2": 0.999,
         "adam_epsilon": 1e-8,
         "activation": "swiglu",
-        "norm_type": "layer",
+        "norm_type": "rms",
         "norm_placement": "pre",
         "results_folder": "new_experiments_folder_1",
         "csv_log_interval": 50,
@@ -628,7 +833,8 @@ def get_base_config():
             500e3
         ),  # Fixed number of tokens for validation set (None = use percentage split)
         "char_to_token_ratio": 4.0,  # Character-to-token ratio for dataset loading (e.g., 4.0 = load 4 chars per expected token)
-        "ff_ratio": 4,  # Feedforward dimension to model dimension ratio (default: 4)
-        "modern_bias_0": False,  # Modern architecture: remove biases from layers followed by normalization (default: False)
+        "use_streaming_dataset": True,  # Use streaming dataset for large files (default: False = memory-based loading)
+        "ff_ratio": 2.5,  # Feedforward dimension to model dimension ratio (default: 4)
+        "modern_bias_0": True,  # Modern architecture: remove biases from layers followed by normalization (default: False)
         "token_to_param_ratio": 20,  # Number of training tokens per parameter (Chinchilla optimal is ~20)
     }

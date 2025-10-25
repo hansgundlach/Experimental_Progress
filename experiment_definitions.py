@@ -88,70 +88,123 @@ TRANSFORMER_SWEEP = [10 ** (-3.5), 10 ** (-3), 10 ** (-2.5), 10 ** (-2), 10 ** (
 SGD_SCALING = (
     gen_experim(
         32,
-        label="swiglu_32d_sgdbs64",
-        folder_name="sgd_scaling",
-        learning_rate=10 ** (-1.5),
+        label="32d_sgdbs64",
+        folder_name="new_sgd_scaling",
+        learning_rate=10 ** (-1.25),
         optimizer="sgd",
         sgd_momentum=0.98,
     )
-    + gen_experim(
-        48,
-        label="swiglu_48d_sgdbs64",
-        folder_name="sgd_scaling",
-        learning_rate=10 ** (-1.5),
-        optimizer="sgd",
-        sgd_momentum=0.98,
-    )
+    # + gen_experim(
+    #     48,
+    #     label="48d_sgdbs64",
+    #     folder_name="new_sgd_scaling",
+    #     learning_rate=10 ** (-1.5),
+    #     optimizer="sgd",
+    #     sgd_momentum=0.98,
+    # )
     + gen_experim(
         64,
-        label="swiglu_64d_sgdbs64",
-        folder_name="sgd_scaling",
+        label="64d_sgdbs64",
+        folder_name="new_sgd_scaling",
         learning_rate=10 ** (-1.5),
         optimizer="sgd",
         sgd_momentum=0.98,
     )
     # setu 96 128 160 192 224 256
-    + gen_experim(
-        96,
-        label="swiglu_96d_sgdbs64",
-        folder_name="sgd_scaling",
+    # + gen_experim(
+    #     96,
+    #     label="96d_sgdbs64",
+    #     folder_name="new_sgd_scaling",
+    #     learning_rate=10 ** (-1.5),
+    #     optimizer="sgd",
+    #     sgd_momentum=0.98,
+    # )
+    # + gen_experim(
+    #     128,
+    #     label="128d_sgdbs64",
+    #     folder_name="new_sgd_scaling",
+    #     learning_rate=10 ** (-1.5),
+    #     optimizer="sgd",
+    #     sgd_momentum=0.98,
+    # )
+    # + gen_experim(
+    #     160,
+    #     label="160d_sgdbs64",
+    #     folder_name="new_sgd_scaling",
+    #     learning_rate=10 ** (-1.5),
+    #     optimizer="sgd",
+    #     sgd_momentum=0.98,
+    # )
+    # + gen_experim(
+    #     192,
+    #     label="192d_sgdbs64",
+    #     folder_name="new_sgd_scaling",
+    #     learning_rate=10 ** (-1.5),
+    #     optimizer="sgd",
+    #     sgd_momentum=0.98,
+    # )
+    # + gen_experim(
+    #     256,
+    #     label="256d_sgdbs64",
+    #     folder_name="new_sgd_scaling",
+    #     learning_rate=10 ** (-1.5),
+    #     optimizer="sgd",
+    #     sgd_momentum=0.98,
+    # )
+)
+
+SGD_LR_SIZES = (
+    gen_experim(
+        32,
+        label="32_sgd_nowd",
+        folder_name="new_sgd_scaling",
         learning_rate=10 ** (-1.5),
         optimizer="sgd",
         sgd_momentum=0.98,
+        weight_decay=0.0,
     )
+    + gen_experim(
+        64,
+        label="64_sgd_nowd",
+        folder_name="new_sgd_scaling",
+        learning_rate=10 ** (-1.5),
+        optimizer="sgd",
+        sgd_momentum=0.98,
+        weight_decay=0.0,
+    )
+    # 128
     + gen_experim(
         128,
-        label="swiglu_128d_sgdbs64",
-        folder_name="sgd_scaling",
+        label="128_sgd_nowd",
+        folder_name="new_sgd_scaling",
         learning_rate=10 ** (-1.5),
         optimizer="sgd",
         sgd_momentum=0.98,
+        weight_decay=0.0,
     )
-    + gen_experim(
-        160,
-        label="swiglu_160d_sgdbs64",
-        folder_name="sgd_scaling",
-        learning_rate=10 ** (-1.5),
-        optimizer="sgd",
-        sgd_momentum=0.98,
-    )
-    + gen_experim(
-        192,
-        label="swiglu_192d_sgdbs64",
-        folder_name="sgd_scaling",
-        learning_rate=10 ** (-1.5),
-        optimizer="sgd",
-        sgd_momentum=0.98,
-    )
+    # + gen_experim(
+    #     160,
+    #     label="160_sgd",
+    #     folder_name="new_sgd_scaling",
+    #     learning_rate=10 ** (-1.5),
+    #     optimizer="sgd",
+    #     sgd_momentum=0.98,
+    # )
     + gen_experim(
         256,
-        label="swiglu_256d_sgdbs64",
-        folder_name="sgd_scaling",
+        label="256_sgd_nowd",
+        folder_name="new_sgd_scaling",
         learning_rate=10 ** (-1.5),
         optimizer="sgd",
         sgd_momentum=0.98,
+        weight_decay=0.0,
     )
 )
+
+SGD_LR_SCALE = create_multi_lr_experiments(
+    SGD_LR_SIZES, [10**-0.75, 10**-1, 10**-1.25, 10**-1.5, 10**-1.75, 10**-2]
+)
+
 
 LARGE_SCALE_EXPERIMENTS = (
     gen_experim(
@@ -190,105 +243,6 @@ LARGE_SCALE_EXPERIMENTS = (
         target_effective_batch_size=128,
     )
 )
-
-
-SGD_SCALING_LARGE_BATCH = (
-    gen_experim(
-        32,
-        label="32d_best_sgdbs128lr1",
-        folder_name="sgd_scaling",
-        learning_rate=1e-1,
-        optimizer="sgd",
-        sgd_momentum=0.98,
-        weight_decay=0.0,
-        target_effective_batch_size=128,
-    )
-    + gen_experim(
-        48,
-        label="48d_best_sgdbs128lr1",
-        folder_name="best_possible_sgd",
-        learning_rate=1e-1,
-        optimizer="sgd",
-        sgd_momentum=0.98,
-        weight_decay=0.0,
-        target_effective_batch_size=128,
-    )
-    + gen_experim(
-        64,
-        label="64d_best_sgdbs128lr1",
-        folder_name="best_possible_sgd",
-        learning_rate=1e-1,
-        optimizer="sgd",
-        sgd_momentum=0.98,
-        weight_decay=0.0,
-        target_effective_batch_size=128,
-    )
-    + gen_experim(
-        80,
-        label="80d_best_sgdbs128lr1",
-        folder_name="best_possible_sgd",
-        learning_rate=1e-1,
-        optimizer="sgd",
-        sgd_momentum=0.98,
-        weight_decay=0.0,
-        target_effective_batch_size=128,
-    )
-)
-
-
-# BATCH_SIZE_TEST = gen_experim(
-#     32,
-#     label="32d_sgd_bs16",
-#     folder_name="sgd_scaling",
-#     learning_rate=1e-1,
-#     optimizer="sgd",
-#     sgd_momentum=0.98,
-#     weight_decay=0.0,
-#     target_effective_batch_size=16,
-# )
-# +
-# BATCH_SIZE_TEST = gen_experim(
-#     32,
-#     label="32d_sgd_bs128",
-#     folder_name="sgd_scaling",
-#     learning_rate=1e-1,
-#     optimizer="sgd",
-#     sgd_momentum=0.98,
-#     weight_decay=0.0,
-#     target_effective_batch_size=128,
-# )
-
-
-# TRANSFORMER_SCALING = (
-#     gen_experim(
-#         32,
-#         label="32d_bs128lr2",
-#         folder_name="transformer_scaling",
-#         learning_rate=10 ** (-2),
-#         target_effective_batch_size=128,
-#     )
-#     + gen_experim(
-#         48,
-#         label="48d_bs128lr2",
-#         folder_name="transformer_scaling",
-#         learning_rate=10 ** (-2),
-#         target_effective_batch_size=128,
-#     )
-#     + gen_experim(
-#         64,
-#         label="64d_bs128lr2",
-#         folder_name="transformer_scaling",
-#         learning_rate=10 ** (-2),
-#         target_effective_batch_size=128,
-#     )
-#     + gen_experim(
-#         80,
-#         label="80d_bs128lr25",
-#         folder_name="transformer_scaling",
-#         learning_rate=10 ** (-2.5),
-#         target_effective_batch_size=128,
-#     )
-# )
 
 
 TRANSFORMER_SCALING = (
@@ -351,60 +305,60 @@ TRANSFORMER_SCALING = (
 )
 
 
-SIN_SCALING = (
-    gen_experim(
-        32,
-        label="32d_sin_bs64",
-        folder_name="sin_scaling",
-        learning_rate=10 ** (-2),
-        pos_encoding="sinusoidal",
-    )
-    + gen_experim(
-        48,
-        label="48d_sin_bs64",
-        folder_name="sin_scaling",
-        learning_rate=10 ** (-2),
-        pos_encoding="sinusoidal",
-    )
-    + gen_experim(
-        64,
-        label="64d_sin_bs64",
-        folder_name="sin_scaling",
-        learning_rate=10 ** (-2),
-        pos_encoding="sinusoidal",
-    )
-    # setu 96 128 160 192 224 256
-    + gen_experim(
-        96,
-        label="96d_sin_bs64",
-        folder_name="sin_scaling",
-        learning_rate=10 ** (-2),
-    )
-    + gen_experim(
-        128,
-        label="128d_sin_bs64",
-        folder_name="sin_scaling",
-        learning_rate=10 ** (-2.5),
-    )
-    + gen_experim(
-        160,
-        label="160d_sin_bs64",
-        folder_name="sin_scaling",
-        learning_rate=10 ** (-2.5),
-    )
-    + gen_experim(
-        192,
-        label="192d_sin_bs64",
-        folder_name="sin_scaling",
-        learning_rate=10 ** (-2.5),
-    )
-    + gen_experim(
-        256,
-        label="256d_sin_bs64",
-        folder_name="sin_scaling",
-        learning_rate=10 ** (-2.5),
-    )
-)
+# SIN_SCALING = (
+#     gen_experim(
+#         32,
+#         label="32d_sin_bs64",
+#         folder_name="sin_scaling",
+#         learning_rate=10 ** (-2),
+#         pos_encoding="sinusoidal",
+#     )
+#     + gen_experim(
+#         48,
+#         label="48d_sin_bs64",
+#         folder_name="sin_scaling",
+#         learning_rate=10 ** (-2),
+#         pos_encoding="sinusoidal",
+#     )
+#     + gen_experim(
+#         64,
+#         label="64d_sin_bs64",
+#         folder_name="sin_scaling",
+#         learning_rate=10 ** (-2),
+#         pos_encoding="sinusoidal",
+#     )
+#     # setu 96 128 160 192 224 256
+#     + gen_experim(
+#         96,
+#         label="96d_sin_bs64",
+#         folder_name="sin_scaling",
+#         learning_rate=10 ** (-2),
+#     )
+#     + gen_experim(
+#         128,
+#         label="128d_sin_bs64",
+#         folder_name="sin_scaling",
+#         learning_rate=10 ** (-2.5),
+#     )
+#     + gen_experim(
+#         160,
+#         label="160d_sin_bs64",
+#         folder_name="sin_scaling",
+#         learning_rate=10 ** (-2.5),
+#     )
+#     + gen_experim(
+#         192,
+#         label="192d_sin_bs64",
+#         folder_name="sin_scaling",
+#         learning_rate=10 ** (-2.5),
+#     )
+#     + gen_experim(
+#         256,
+#         label="256d_sin_bs64",
+#         folder_name="sin_scaling",
+#         learning_rate=10 ** (-2.5),
+#     )
+# )
 
 
 NEW_SCALING_NO_ROTARY = (
@@ -1549,22 +1503,106 @@ GRAND_EXPERIMENT = (
 
 # great width 256
 #
-GRAND_EXPERIMENT = gen_experim(
-    256,
-    label="radford256_40t_to_p",
-    folder_name="debug_historical_experiments",
-    learning_rate=2.0613e-4,
-    activation="gelu",
-    norm_placement="post",
-    lr_schedule="linear_warmup",
-    pos_encoding="learned",
-    weight_decay=0.01,
-    dropout=0.0,
-    optimizer="adam",
-    modern_bias_0=False,
-    ff_ratio=4,
-    token_to_param_ratio=40,
-)
-
-
+# GRAND_EXPERIMENT = gen_experim(
+#     192,
+#     label="radford192",
+#     folder_name="debug_historical_experiments",
+#     learning_rate=3.2555e-4,
+#     activation="gelu",
+#     norm_placement="post",
+#     lr_schedule="linear_warmup",
+#     pos_encoding="learned",
+#     weight_decay=0.01,
+#     dropout=0.0,
+#     optimizer="adam",
+#     modern_bias_0=False,
+#     ff_ratio=4,
+#     token_to_param_ratio=20,
+# )
+# GRAND_EXPERIMENT = gen_experim(
+#     64,
+#     label="64_sgd_nowd",
+#     folder_name="debug_new_sgd_scaling",
+#     learning_rate=10 ** (-1.5),
+#     optimizer="sgd",
+#     sgd_momentum=0.98,
+#     weight_decay=0.0,
+# ) + gen_experim(
+#     64,
+#     label="old_setup64",
+#     folder_name="debug_new_sgd_scaling",
+#     learning_rate=10 ** (-1.5),
+#     activation="gelu",
+#     weight_decay=0.00,
+#     dropout=0.0,
+#     optimizer="sgd",
+#     modern_bias_0=False,
+#     ff_ratio=4,
+# )
 # GRAND_EXPERIMENT = HISTORICAL_EXPERIMENTS_RADFORD
+# GRAND_EXPERIMENT = gen_experim(
+#     160,
+#     label="radford_160transformer_2018_bs64",
+#     folder_name="debug_historical_experiments",
+#     learning_rate=4.34e-4,
+#     activation="gelu",
+#     norm_placement="post",
+#     lr_schedule="linear_warmup",
+#     pos_encoding="learned",
+#     weight_decay=0.01,
+#     dropout=0.0,
+#     optimizer="adam",
+#     modern_bias_0=False,
+#     ff_ratio=4,
+# ) + gen_experim(
+#     192,
+#     label="radford_192transformer_2018_bs64",
+#     folder_name="debug_historical_experiments",
+#     learning_rate=3.255e-4,
+#     activation="gelu",
+#     norm_placement="post",
+#     lr_schedule="linear_warmup",
+#     pos_encoding="learned",
+#     weight_decay=0.01,
+#     dropout=0.0,
+#     optimizer="adam",
+#     modern_bias_0=False,
+#     ff_ratio=4,
+# )
+
+
+# I want to compare streaming vs non-streaming loading for 64d model
+GRAND_EXPERIMENT = (
+    gen_experim(
+        64,
+        label="64_streaming_c4large",
+        learning_rate=10**-2.5,
+        folder_name="debug_streaming_vs_non_streaming",
+        streaming=True,
+        data_path="Datasets/c4_subset_large.txt",
+    )
+    + gen_experim(
+        64,
+        label="64_non_streaming_c4large",
+        learning_rate=10**-2.5,
+        folder_name="debug_streaming_vs_non_streaming",
+        streaming=False,
+        data_path="Datasets/c4_subset_large.txt",
+    )
+    + gen_experim(
+        64,
+        label="64_streaming_c4",
+        learning_rate=10**-2.5,
+        folder_name="debug_streaming_vs_non_streaming",
+        streaming=True,
+        data_path="Datasets/c4_subset.txt",
+    )
+    + gen_experim(
+        64,
+        label="64_non_streaming_c4",
+        learning_rate=10**-2.5,
+        folder_name="debug_streaming_vs_non_streaming",
+        streaming=False,
+        data_path="Datasets/c4_subset.txt",
+    )
+)
