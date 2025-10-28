@@ -19,11 +19,11 @@ import numpy as np
 import pandas as pd
 import matplotlib.pyplot as plt
 import seaborn as sns
-
+from importlib import util as _importlib_util
 # %%
 
 # Robust loader to access compute_multiplier_by_loss without static imports
-from importlib import util as _importlib_util
+
 
 
 def _get_compute_multiplier_by_loss_func():
@@ -244,7 +244,7 @@ x_tick_rotation = X_TICK_ROTATION
 # %%
 # Compute by-loss multipliers (paired across seeds when available)
 swiglu_estimate = compute_multiplier_estimate_by_loss(
-    "alg_mult/64d_swiglu", "alg_mult/64d_gelu", target_loss=TARGET_LOSS
+    "stanford_mult/64d_swiglu", "stanford_mult/64d_gelu", target_loss=TARGET_LOSS
 )
 print(swiglu_estimate)
 

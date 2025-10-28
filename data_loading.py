@@ -15,6 +15,39 @@ from pathlib import Path
 from transformers import GPT2Tokenizer
 
 
+class TokenDataset(Dataset):
+    """
+    Simple dataset for pre-tokenized data (list of token IDs).
+    Used by LSTM and can be used by any model working with token lists.
+    Matches old LSTM TextDataset behavior exactly.
+    """
+    def __init__(self, token_list, seq_length, stride=1):
+        """
+        Args:
+            token_list: List of token IDs
+            seq_length: Length of each sequence
+            stride: Stride for creating sequences
+        """
+        self.tokens = token_list
+        self.seq_length = seq_length
+        self.stride = stride
+
+    def __len__(self):
+        # Number of windows we can slide over the data (matches old LSTM exactly)
+        # Need seq_length tokens for input + 1 for target = seq_length+1 total
+        # Valid starting positions: 0 to len-seq_length-1 (inclusive)
+        # That's (len - seq_length) positions total
+        raw = (len(self.tokens) - self.seq_length) // self.stride
+        return max(0, raw)
+
+    def __getitem__(self, idx):
+        start = idx * self.stride
+        end = start + self.seq_length
+        seq = torch.tensor(self.tokens[start:end], dtype=torch.long)
+        tgt = torch.tensor(self.tokens[start + 1:end + 1], dtype=torch.long)
+        return seq, tgt
+
+
 class TextDataset(Dataset):
     def __init__(self, text, seq_length, tokenizer, stride=1, random_offset=True):
         """
@@ -81,10 +114,13 @@ class TextDataset(Dataset):
 
 class StreamingTextDataset(Dataset):
     def __init__(
-        self, file_path, seq_length, tokenizer, max_tokens=None, split="train"
+        self, file_path, seq_length, tokenizer, max_tokens=None, split="train", stride=128
     ):
         """
-        Memory-efficient streaming dataset that loads text chunks on-demand.
+        Memory-efficient streaming dataset that matches TextDataset behavior exactly.
+
+        Tokenizes text once during init (memory efficient - stores token IDs only),
+        then creates sequences on-demand during __getitem__ (avoids storing all sequences).
 
         Args:
             file_path: Path to the text file
@@ -92,133 +128,165 @@ class StreamingTextDataset(Dataset):
             tokenizer: Tokenizer to use
             max_tokens: Maximum number of tokens to use (None = use all)
             split: 'train' or 'val' - determines which part of file to use
+            stride: Stride for creating sequences (default: 128, same as TextDataset)
         """
-        self.file_path = file_path
         self.seq_length = seq_length
+        self.stride = stride
         self.tokenizer = tokenizer
-        self.split = split
 
         # Get file size
         file_size = Path(file_path).stat().st_size
 
-        # Determine which part of the file to use
+        # Determine which part of the file to use (same logic as before)
         if split == "train":
-            self.start_byte = 0
+            start_byte = 0
             if max_tokens:
                 # Estimate characters needed (rough 4:1 char:token ratio)
                 chars_needed = max_tokens * 4
-                self.end_byte = min(chars_needed, int(file_size * 0.9))
+                end_byte = min(chars_needed, int(file_size * 0.9))
             else:
-                self.end_byte = int(file_size * 0.9)  # Use 90% for training
+                end_byte = int(file_size * 0.9)  # Use 90% for training
         elif split == "val":
             # Use last 10% for validation
-            self.start_byte = int(file_size * 0.9)
-            self.end_byte = file_size
+            start_byte = int(file_size * 0.9)
+            end_byte = file_size
             if max_tokens:
                 # Limit validation size if specified
                 chars_needed = max_tokens * 4
-                self.end_byte = min(self.start_byte + chars_needed, file_size)
+                end_byte = min(start_byte + chars_needed, file_size)
         else:
-            self.start_byte = 0
-            self.end_byte = file_size
+            start_byte = 0
+            end_byte = file_size
 
-        # Calculate approximate number of sequences
-        usable_bytes = self.end_byte - self.start_byte
-        self.approx_sequences = max(1, usable_bytes // (seq_length * 4))
+        # Load the text portion we need (one-time load)
+        with open(file_path, "r", encoding="utf-8") as f:
+            f.seek(start_byte)
+            text = f.read(end_byte - start_byte)
 
-        # Cache for file handle and recent reads
-        self._file_handle = None
-        self._cache = {}
-        self._cache_size = 1000  # Cache up to 1000 recent reads
+        # Tokenize in chunks (IDENTICAL to TextDataset logic)
+        chunk_size = 2000  # Same as TextDataset
+        text_chunks = [
+            text[i : i + chunk_size] for i in range(0, len(text), chunk_size)
+        ]
+
+        all_tokens = []
+        for chunk in text_chunks:
+            chunk_tokens = tokenizer(chunk, truncation=True, max_length=1024)[
+                "input_ids"
+            ]
+            all_tokens.extend(chunk_tokens)
+
+        # Store tokens as list (memory efficient - no Tensor overhead)
+        self.tokens = all_tokens
+        total_length = len(self.tokens)
+
+        # Calculate number of complete sequences (IDENTICAL to TextDataset)
+        self.n_seqs = (total_length - seq_length - 1) // stride
 
         print(
-            f"StreamingDataset ({split}): ~{self.approx_sequences:,} sequences from {usable_bytes:,} bytes"
+            f"StreamingDataset ({split}): {self.n_seqs:,} sequences from {len(text):,} chars ({total_length:,} tokens)"
         )
 
     def __len__(self):
-        return self.approx_sequences
+        return self.n_seqs
 
     def __getitem__(self, idx):
-        # Check cache first
-        if idx in self._cache:
-            return self._cache[idx]
+        """
+        Create sequences on-demand using IDENTICAL logic to TextDataset.
+        This is where memory savings happen - we don't store all sequences.
+        """
+        # IDENTICAL to TextDataset: start_idx = i * stride
+        start_idx = idx * self.stride
+        end_idx = start_idx + self.seq_length
 
-        # Calculate file position with some randomization for better data coverage
-        position_range = self.end_byte - self.start_byte - (self.seq_length * 6)
-        if position_range <= 0:
-            position = self.start_byte
-        else:
-            # Use a deterministic but varied positioning based on idx
-            position = self.start_byte + (idx * self.seq_length * 3) % position_range
+        # Extract sequence and target from token list
+        sequence = torch.tensor(
+            self.tokens[start_idx:end_idx], dtype=torch.long
+        )
+        target = torch.tensor(
+            self.tokens[start_idx + 1 : end_idx + 1], dtype=torch.long
+        )
 
-        # Open file handle in BINARY mode to avoid UTF-8 decode issues with seeking
-        if self._file_handle is None:
-            self._file_handle = open(self.file_path, "rb")  # Changed to binary mode
-
-        try:
-            # Read chunk from file in binary mode
-            self._file_handle.seek(position)
-            raw_bytes = self._file_handle.read(
-                self.seq_length * 8
-            )  # Extra buffer for UTF-8 and safety
-
-            if not raw_bytes:
-                # Fallback to beginning of our section if we hit EOF
-                self._file_handle.seek(self.start_byte)
-                raw_bytes = self._file_handle.read(self.seq_length * 8)
-
-            # Decode with error handling - skip invalid bytes
-            chunk = raw_bytes.decode("utf-8", errors="ignore")
-
-            # If we got very little text after decode, try a larger chunk
-            if len(chunk) < self.seq_length:
-                # Try reading more data
-                additional_bytes = self._file_handle.read(self.seq_length * 8)
-                chunk += additional_bytes.decode("utf-8", errors="ignore")
-
-            # Tokenize the chunk
-            tokens = self.tokenizer(
-                chunk, truncation=True, max_length=self.seq_length + 10
-            )["input_ids"]
-
-            # Ensure we have enough tokens
-            if len(tokens) < self.seq_length + 1:
-                # Repeat tokens if needed (shouldn't happen often with large chunks)
-                tokens = (tokens * 3)[: self.seq_length + 1]
-
-            # Create sequence and target
-            sequence = torch.tensor(tokens[: self.seq_length], dtype=torch.long)
-            target = torch.tensor(tokens[1 : self.seq_length + 1], dtype=torch.long)
-
-            result = (sequence, target)
-
-            # Cache result if cache isn't full
-            if len(self._cache) < self._cache_size:
-                self._cache[idx] = result
-
-            return result
-
-        except Exception as e:
-            print(f"Warning: Error reading from streaming dataset at idx {idx}: {e}")
-            # Return a fallback sequence
-            fallback_tokens = [self.tokenizer.pad_token_id or 0] * (self.seq_length + 1)
-            sequence = torch.tensor(
-                fallback_tokens[: self.seq_length], dtype=torch.long
-            )
-            target = torch.tensor(
-                fallback_tokens[1 : self.seq_length + 1], dtype=torch.long
-            )
-            return sequence, target
-
-    def __del__(self):
-        """Clean up file handle"""
-        if self._file_handle:
-            self._file_handle.close()
+        return sequence, target
 
     @staticmethod
     def collate_fn(batch):
         """Same collate function as TextDataset"""
         return TextDataset.collate_fn(batch)
+
+
+class LSTMStatefulDataset(Dataset):
+    """
+    LSTM-specific stateful streaming dataset for Melis/Merity style training.
+
+    Reshapes data into B contiguous streams where each batch consists of
+    the next tokens from B continuous streams. This maintains hidden state
+    continuity across batches for stateful LSTM training.
+
+    EXACTLY matches old TextStreamingDataset behavior.
+    """
+    def __init__(self, token_list, seq_length, batch_size):
+        """
+        Args:
+            token_list: List of token IDs
+            seq_length: Length of each sequence
+            batch_size: Number of parallel streams
+        """
+        self.seq_length = seq_length
+        self.batch_size = batch_size
+
+        # Calculate how many tokens we can use (must be divisible by batch_size)
+        total_tokens = len(token_list)
+        tokens_per_stream = total_tokens // batch_size
+        usable_tokens = tokens_per_stream * batch_size
+
+        if usable_tokens < batch_size * seq_length:
+            raise ValueError(
+                f"Dataset too small: need at least {batch_size * seq_length} tokens, "
+                f"got {usable_tokens}"
+            )
+
+        # Reshape into [B, T_stream] where T_stream = tokens_per_stream
+        # EXACT OLD BEHAVIOR: Store as tensor
+        data_tensor = torch.tensor(token_list[:usable_tokens], dtype=torch.long)
+        self.streams = data_tensor.view(batch_size, tokens_per_stream)
+
+        # Number of sequence-length windows we can extract from each stream
+        self.num_batches = (tokens_per_stream - 1) // seq_length
+
+        print(
+            f"LSTMStatefulDataset: {batch_size} streams, {tokens_per_stream} tokens per stream, "
+            f"{self.num_batches} batches"
+        )
+
+    def __len__(self):
+        return self.num_batches
+
+    def __getitem__(self, idx):
+        """
+        Return batch of sequences from B parallel streams.
+
+        Returns:
+            inputs: [batch_size, seq_length]
+            targets: [batch_size, seq_length]
+        """
+        start_pos = idx * self.seq_length
+        end_pos = start_pos + self.seq_length
+
+        # Extract from all streams
+        inputs = self.streams[:, start_pos:end_pos]
+        targets = self.streams[:, start_pos + 1:end_pos + 1]
+
+        return inputs, targets
+
+    @staticmethod
+    def collate_fn(batch):
+        """
+        Collate function for stateful dataset.
+        Since __getitem__ already returns proper batches, just return first item.
+        """
+        # batch will be a list with one element (the batch from __getitem__)
+        return batch[0]
 
 
 def get_dataset(config):
@@ -519,12 +587,14 @@ def get_streaming_dataset(config):
         max_tokens_training = config.get("max_tokens_training", None)
         fixed_val_tokens = config.get("fixed_val_tokens", None)
         seq_length = config.get("seq_length", 128)
+        stride = config.get("stride", 128)
     else:
         seed = getattr(config, "seed", 123)
         data_path = getattr(config, "data_path", None)
         max_tokens_training = getattr(config, "max_tokens_training", None)
         fixed_val_tokens = getattr(config, "fixed_val_tokens", None)
         seq_length = getattr(config, "seq_length", 128)
+        stride = getattr(config, "stride", 128)
 
     # Set random seeds
     torch.manual_seed(seed)
@@ -559,6 +629,7 @@ def get_streaming_dataset(config):
         tokenizer=tokenizer,
         max_tokens=max_tokens_training,
         split="train",
+        stride=stride,
     )
 
     val_dataset = StreamingTextDataset(
@@ -567,6 +638,7 @@ def get_streaming_dataset(config):
         tokenizer=tokenizer,
         max_tokens=fixed_val_tokens,
         split="val",
+        stride=stride,
     )
 
     return train_dataset, val_dataset, tokenizer, "streaming_text"
@@ -594,3 +666,180 @@ def get_dataset_smart(config):
     else:
         print("💾 Using in-memory dataset (original method)")
         return get_dataset(config)
+
+
+def load_and_tokenize_text(config):
+    """
+    Load and tokenize text without creating datasets.
+    Returns tokenized data split into train/val/test for LSTM use.
+
+    This function handles all the smart loading logic and returns token lists
+    that can be used to create either regular TextDataset, StreamingTextDataset,
+    or LSTMStatefulDataset.
+
+    Args:
+        config: Configuration dict with keys:
+            - data_path: Path to text file
+            - seed: Random seed
+            - max_tokens_training: Target training tokens
+            - fixed_val_tokens: Fixed validation tokens (optional)
+            - train_split: Train fraction (default 0.8 for LSTM)
+            - val_split: Val fraction (default 0.1 for LSTM)
+            - test_split: Test fraction (computed as remainder)
+            - char_to_token_ratio: Chars per token estimate (default 4.0)
+
+    Returns:
+        Tuple of (train_tokens, val_tokens, test_tokens, tokenizer)
+        where each tokens is a list of token IDs
+    """
+    # Get configuration values
+    if hasattr(config, "get"):
+        seed = config.get("seed", 123)
+        data_path = config.get("data_path", None)
+        max_tokens_training = config.get("max_tokens_training", None)
+        fixed_val_tokens = config.get("fixed_val_tokens", None)
+        train_split = config.get("train_split", 0.8)  # LSTM default
+        val_split = config.get("val_split", 0.1)  # LSTM default
+        tokenizer_path = config.get("tokenizer_path", "./gpt2_tokenizer")  # LSTM uses this
+    else:
+        seed = getattr(config, "seed", 123)
+        data_path = getattr(config, "data_path", None)
+        max_tokens_training = getattr(config, "max_tokens_training", None)
+        fixed_val_tokens = getattr(config, "fixed_val_tokens", None)
+        train_split = getattr(config, "train_split", 0.8)
+        val_split = getattr(config, "val_split", 0.1)
+        tokenizer_path = getattr(config, "tokenizer_path", "./gpt2_tokenizer")
+
+    # Set random seeds
+    torch.manual_seed(seed)
+    np.random.seed(seed)
+    random.seed(seed)
+
+    # Initialize tokenizer (support both LSTM-style path and default)
+    try:
+        tokenizer = GPT2Tokenizer.from_pretrained(
+            tokenizer_path,
+            local_files_only=True,  # LSTM compatibility: force offline mode
+            use_fast=False,  # LSTM compatibility: use slow tokenizer
+        )
+    except:
+        raise FileNotFoundError(
+            f"GPT2 tokenizer files not found at {tokenizer_path}. "
+            "Please download the tokenizer files first."
+        )
+
+    # Validate data path
+    if not data_path:
+        raise ValueError("data_path must be specified in config to load dataset")
+
+    # Handle relative paths - try both as-is and relative to parent directory
+    data_path_obj = Path(data_path)
+    if not data_path_obj.exists():
+        # Try relative to parent directory (for LSTM running from subdirectory)
+        parent_relative = Path("..") / data_path
+        if parent_relative.exists():
+            data_path = str(parent_relative)
+            print(f"Found dataset at: {data_path} (adjusted for subdirectory)")
+        else:
+            raise FileNotFoundError(
+                f"Dataset file not found at {data_path}. "
+                f"Also tried: {parent_relative}. "
+                "Please ensure you have downloaded and copied the dataset file."
+            )
+    else:
+        print(f"Loading text from: {data_path}")
+
+    # Smart loading logic (same as existing functions)
+    if max_tokens_training:
+        char_to_token_ratio = (
+            config.get("char_to_token_ratio", 4.0)
+            if hasattr(config, "get")
+            else getattr(config, "char_to_token_ratio", 4.0)
+        )
+
+        if fixed_val_tokens:
+            total_tokens_needed = max_tokens_training + fixed_val_tokens
+        else:
+            total_tokens_needed = int(max_tokens_training / train_split)
+
+        max_characters_needed = int(total_tokens_needed * char_to_token_ratio)
+
+        # Get file size
+        file_size = Path(data_path).stat().st_size
+
+        if file_size > max_characters_needed * 2:
+            # Smart loading
+            buffer_multiplier = 2.0
+            chars_to_load = min(
+                int(max_characters_needed * buffer_multiplier), file_size
+            )
+
+            with open(data_path, "r", encoding="utf-8") as f:
+                max_start = max(0, file_size - chars_to_load)
+                start_pos = random.randint(0, max_start) if max_start > 0 else 0
+                f.seek(start_pos)
+                if start_pos > 0:
+                    f.readline()
+                text = f.read(chars_to_load)
+
+            print(
+                f"Smart loading: loaded {len(text):,} chars from {file_size:,}-char file"
+            )
+        else:
+            text = Path(data_path).read_text(encoding="utf-8")
+            print(f"Standard loading: {len(text):,} characters")
+    else:
+        text = Path(data_path).read_text(encoding="utf-8")
+        print(f"Full loading (no limit): {len(text):,} characters")
+
+    # Tokenize text (no chunking - process all at once for LSTM)
+    print(f"Tokenizing {len(text):,} characters...")
+    tokens = tokenizer(
+        text,
+        add_special_tokens=False,
+        truncation=False,
+        padding=False,
+        return_tensors=None,  # Return Python list (LSTM compatibility)
+        return_attention_mask=False,
+        verbose=False,
+    )["input_ids"]
+    print(f"Tokenization complete: {len(tokens):,} tokens")
+
+    # Split into train/val/test
+    n = len(tokens)
+
+    if fixed_val_tokens and max_tokens_training:
+        # Use exact token counts
+        n_train = int(max_tokens_training)
+        n_val = int(fixed_val_tokens)
+
+        if n_train + n_val > n:
+            raise ValueError(
+                f"Not enough tokenized data: need {n_train + n_val:,} tokens "
+                f"({n_train:,} training + {n_val:,} validation) "
+                f"but only have {n:,} tokens available"
+            )
+
+        train_tokens = tokens[:n_train]
+        val_tokens = tokens[n_train : n_train + n_val]
+        test_tokens = tokens[n_train + n_val :]
+
+        print(f"Dataset split with exact token counts:")
+        print(f"  Training: {len(train_tokens):,} tokens (exactly as specified)")
+        print(f"  Validation: {len(val_tokens):,} tokens (exactly as specified)")
+        print(f"  Test: {len(test_tokens):,} tokens (remainder)")
+    else:
+        # Use percentage-based split
+        n_train = int(n * train_split)
+        n_val = int(n * val_split)
+
+        train_tokens = tokens[:n_train]
+        val_tokens = tokens[n_train : n_train + n_val]
+        test_tokens = tokens[n_train + n_val :]
+
+        print(f"Dataset split with percentage split:")
+        print(f"  Training: {len(train_tokens):,} tokens ({train_split*100:.1f}%)")
+        print(f"  Validation: {len(val_tokens):,} tokens ({val_split*100:.1f}%)")
+        print(f"  Test: {len(test_tokens):,} tokens (remainder)")
+
+    return train_tokens, val_tokens, test_tokens, tokenizer

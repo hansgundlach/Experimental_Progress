@@ -19,6 +19,15 @@ import copy
 import csv
 from pathlib import Path
 
+# Import shared data loading utilities
+import sys
+sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..'))
+from data_loading import (
+    TokenDataset,
+    LSTMStatefulDataset,
+    load_and_tokenize_text
+)
+
 
 cudnn.benchmark = True
 
@@ -102,74 +111,6 @@ def tbptt_forward_backward(
     # Return per-token loss for logging
     per_token_loss = total_loss_sum / tokens_mb
     return per_token_loss, hidden
-
-
-class TextDataset(Dataset):
-    """Dataset of fixed‐length sequences with configurable stride."""
-
-    def __init__(self, text_data: List[int], sequence_length: int, stride: int = 1):
-        self.data = text_data
-        self.sequence_length = sequence_length
-        self.stride = stride
-
-    def __len__(self):
-        # number of windows we can slide over the data, never negative
-        raw = (len(self.data) - self.sequence_length) // self.stride
-        return max(0, raw)
-
-    def __getitem__(self, idx):
-        start = idx * self.stride
-        end = start + self.sequence_length
-        seq = torch.tensor(self.data[start:end], dtype=torch.long)
-        tgt = torch.tensor(self.data[start + 1 : end + 1], dtype=torch.long)
-        return seq, tgt
-
-
-class TextStreamingDataset(Dataset):
-    """
-    Streaming dataset that reshapes data into B contiguous streams.
-    Follows Melis/Merity style: data is reshaped into [B, T_total] where
-    each batch consists of the next tokens from B continuous streams.
-    """
-
-    def __init__(self, text_data: List[int], sequence_length: int, batch_size: int):
-        self.sequence_length = sequence_length
-        self.batch_size = batch_size
-
-        # Calculate how many tokens we can use (must be divisible by batch_size)
-        total_tokens = len(text_data)
-        tokens_per_stream = total_tokens // batch_size
-        usable_tokens = tokens_per_stream * batch_size
-
-        if usable_tokens < batch_size * sequence_length:
-            raise ValueError(
-                f"Dataset too small: need at least {batch_size * sequence_length} tokens, got {usable_tokens}"
-            )
-
-        # Reshape into [B, T_stream] where T_stream = tokens_per_stream
-        data_tensor = torch.tensor(text_data[:usable_tokens], dtype=torch.long)
-        self.streams = data_tensor.view(batch_size, tokens_per_stream)
-
-        # Number of sequence-length windows we can extract from each stream
-        self.num_batches = (tokens_per_stream - 1) // sequence_length
-
-        print(
-            f"Streaming dataset: {batch_size} streams, {tokens_per_stream} tokens per stream, {self.num_batches} batches"
-        )
-
-    def __len__(self):
-        return self.num_batches
-
-    def __getitem__(self, idx):
-        # Extract sequence starting at position idx * sequence_length from all streams
-        start_pos = idx * self.sequence_length
-        end_pos = start_pos + self.sequence_length
-
-        # Get inputs and targets for all streams at this time step
-        inputs = self.streams[:, start_pos:end_pos]  # [B, seq_len]
-        targets = self.streams[:, start_pos + 1 : end_pos + 1]  # [B, seq_len]
-
-        return inputs, targets
 
 
 class TextPreprocessor:
@@ -765,187 +706,34 @@ def load_and_preprocess_data(
     """Load and preprocess text data with optimized DataLoaders"""
     print("Loading and preprocessing data...")
 
-    # Smart loading: determine how much data we need before loading the entire file
-    # This matches the transformer loading algorithm exactly
-    data_path = config["data_path"]
-    
-    # Get token requirements (same logic as transformer)
-    max_tokens_training = config.get("max_tokens_training")
-    # Support old parameter name for backward compatibility
-    if max_tokens_training is None:
-        max_tokens_training = config.get("max_characters")
-        if max_tokens_training is not None:
-            # Convert characters to tokens using 4:1 ratio
-            max_tokens_training = int(max_tokens_training / 4)
+    # Use shared data loading function from data_loading.py
+    train_data, val_data, test_data, tokenizer = load_and_tokenize_text(config)
 
-    fixed_val_tokens = config.get("fixed_val_tokens", None)
-    
-    if max_tokens_training:
-        # Calculate exactly how much data we need BEFORE loading (same as transformer)
-        train_split = config.get("train_split", 0.8)
-        char_to_token_ratio = config.get("char_to_token_ratio", 4.0)
-        
-        if fixed_val_tokens:
-            total_tokens_needed = max_tokens_training + fixed_val_tokens
-        else:
-            total_tokens_needed = int(max_tokens_training / train_split)
-        
-        max_characters_needed = int(total_tokens_needed * char_to_token_ratio)
-        
-        # Get file size without loading entire file (same as transformer)
-        file_size = Path(data_path).stat().st_size
-        
-        if file_size > max_characters_needed * 2:  # If file is much larger than needed
-            # Smart loading: read only what we need + buffer for random sampling
-            # Uses exact same algorithm as transformer
-            buffer_multiplier = 2.0  # 100% extra for random positioning
-            chars_to_load = min(int(max_characters_needed * buffer_multiplier), file_size)
-            
-            with open(data_path, 'r', encoding='utf-8') as f:
-                # Random start position for data variety (same as transformer)
-                max_start = max(0, file_size - chars_to_load)
-                start_pos = random.randint(0, max_start) if max_start > 0 else 0
-                f.seek(start_pos)
-                # Skip partial line at start (same as transformer)
-                if start_pos > 0:
-                    f.readline()
-                
-                text = f.read(chars_to_load)
-                
-            print(f"LSTM smart loading: loaded {len(text):,} chars from {file_size:,}-char file (need ~{max_characters_needed:,})")
-        else:
-            # File is reasonably sized, load normally
-            with open(data_path, "r", encoding="utf-8") as f:
-                text = f.read()
-            print(f"LSTM standard loading: {len(text):,} characters")
-    else:
-        # No token limit specified, load entire file
-        with open(data_path, "r", encoding="utf-8") as f:
-            text = f.read()
-        print(f"LSTM full loading (no limit): {len(text):,} characters")
-
-    # Limit data size based on training tokens if specified
-    max_tokens_training = config.get("max_tokens_training")
-    # Support old parameter name for backward compatibility
-    if max_tokens_training is None:
-        max_tokens_training = config.get("max_characters")
-        if max_tokens_training is not None:
-            # Convert characters to tokens using 4:1 ratio
-            max_tokens_training = int(max_tokens_training / 4)
-
-    # Check for fixed_val_tokens configuration
-    fixed_val_tokens = config.get("fixed_val_tokens", None)
-
-    if max_tokens_training and len(text) > 0:
-        # max_tokens_training specifies desired training tokens (e.g., 20 * trainable_params)
-        train_split = config.get("train_split", 0.8)
-
-        if fixed_val_tokens:
-            # When fixed_val_tokens is specified, we need exactly max_tokens_training + fixed_val_tokens
-            total_tokens_needed = max_tokens_training + fixed_val_tokens
-            print(
-                f"Fixed validation mode: need exactly {max_tokens_training:,} training + {fixed_val_tokens:,} validation tokens"
-            )
-        else:
-            # Calculate total tokens needed so that training portion = max_tokens_training
-            total_tokens_needed = int(max_tokens_training / train_split)
-            print(
-                f"Percentage split mode: need {total_tokens_needed:,} total tokens for {max_tokens_training:,} training tokens"
-            )
-
-        # Use configurable character-to-token ratio for dataset loading
-        char_to_token_ratio = config.get("char_to_token_ratio", 4.0)
-        max_characters_total = int(total_tokens_needed * char_to_token_ratio)
-
-        if len(text) > max_characters_total:
-            text = text[:max_characters_total]
-            print(
-                f"Limited dataset for training target of {max_tokens_training:,} tokens:"
-            )
-            print(
-                f"  Total dataset: {total_tokens_needed:,} tokens (~{max_characters_total:,} characters loaded)"
-            )
-            actual_training_tokens = int(total_tokens_needed * train_split)
-            actual_val_tokens = total_tokens_needed - actual_training_tokens
-            print(
-                f"  Will split to: ~{actual_training_tokens:,} training + ~{actual_val_tokens:,} validation tokens"
-            )
-        else:
-            print(f"Using full dataset: {len(text):,} characters")
-            estimated_training_tokens = int(len(text) * train_split) // 4
-            print(f"  Training will use ~{estimated_training_tokens:,} tokens of this")
-    else:
-        print(f"Using full dataset: {len(text):,} characters")
-
-    # Create contiguous splits for stateful training, do not shuffle sentences.
+    # Create TextPreprocessor for vocab_size (needed by LSTM model)
     preprocessor = TextPreprocessor(config["tokenizer_path"])
-    print(f"Tokenizing {len(text):,} characters... (this may take a while for large datasets)")
-    full_data = preprocessor.text_to_indices(text)
-    n = len(full_data)
-    print(f"Tokenization complete: {n:,} tokens generated")
-
-    if fixed_val_tokens and max_tokens_training:
-        # Use exact token counts when both are specified
-        n_train = int(max_tokens_training)
-        n_val = int(fixed_val_tokens)
-
-        if n_train + n_val > n:
-            raise ValueError(
-                f"Not enough tokenized data: need {n_train + n_val:,} tokens "
-                f"({n_train:,} training + {n_val:,} validation) "
-                f"but only have {n:,} tokens available"
-            )
-
-        train_data = full_data[:n_train]
-        val_data = full_data[n_train : n_train + n_val]
-        test_data = full_data[n_train + n_val :]  # Remainder for test
-
-        print(f"LSTM dataset split with exact token counts:")
-        print(f"  Training: {len(train_data):,} tokens (exactly as specified)")
-        print(f"  Validation: {len(val_data):,} tokens (exactly as specified)")
-        print(f"  Test: {len(test_data):,} tokens (remainder)")
-        print(f"  Datasets are completely separate (no overlap)")
-
-    else:
-        # Use percentage-based split (original logic)
-        n_train = int(n * config["train_split"])
-        n_val = int(n * config["val_split"])
-
-        train_data = full_data[:n_train]
-        val_data = full_data[n_train : n_train + n_val]
-        test_data = full_data[n_train + n_val :]
-
-        print(f"LSTM dataset split with percentage split:")
-        print(
-            f"  Training: {len(train_data):,} tokens ({config['train_split']*100:.1f}%)"
-        )
-        print(
-            f"  Validation: {len(val_data):,} tokens ({config['val_split']*100:.1f}%)"
-        )
-        print(f"  Test: {len(test_data):,} tokens (remainder)")
 
     # Choose dataset type based on streaming config
     use_streaming = config.get("use_streaming", False)
 
     if use_streaming:
-        print("Using streaming (Melis/Merity style) datasets")
-        train_dataset = TextStreamingDataset(
+        print("Using stateful (Melis/Merity style) datasets")
+        train_dataset = LSTMStatefulDataset(
             train_data, config["sequence_length"], config["batch_size"]
         )
-        val_dataset = TextStreamingDataset(
+        val_dataset = LSTMStatefulDataset(
             val_data, config["sequence_length"], config["batch_size"]
         )
-        test_dataset = TextStreamingDataset(
+        test_dataset = LSTMStatefulDataset(
             test_data, config["sequence_length"], config["batch_size"]
         )
     else:
         print("Using non-streaming (sliding window) datasets")
         stride = config.get("stride", 1)
-        train_dataset = TextDataset(
+        train_dataset = TokenDataset(
             train_data, config["sequence_length"], stride=stride
         )
-        val_dataset = TextDataset(val_data, config["sequence_length"], stride=stride)
-        test_dataset = TextDataset(test_data, config["sequence_length"], stride=stride)
+        val_dataset = TokenDataset(val_data, config["sequence_length"], stride=stride)
+        test_dataset = TokenDataset(test_data, config["sequence_length"], stride=stride)
 
     # CONSERVATIVE: Determine optimal number of workers for Supercloud
     if config.get("num_workers") == "auto":

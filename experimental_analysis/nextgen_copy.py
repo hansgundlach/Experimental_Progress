@@ -843,7 +843,7 @@ class TrainingCurveAnalyzer:
             linestyle=linestyle,
             linewidth=linewidth,
             alpha=alpha,
-            label=f"{label}: L = {E:.3f} - {self.irreducible_loss:.3f} + {A:.2e} * C^({gamma:.3f})",
+            label=f"{label}: {E:.3f} - {self.irreducible_loss:.3f} + {A:.2e} * C^({gamma:.3f})",
         )
 
     def plot_training_curves_by_class(
@@ -1502,7 +1502,7 @@ class TrainingCurveAnalyzer:
             fontsize=FONT_CONFIG["regular_legend_size"],
         )
 
-        # Force         opaque legend markers/lines
+        # Force opaque legend markers/lines
         for h in leg.legendHandles:
             if hasattr(h, "set_alpha"):
                 h.set_alpha(1.0)
@@ -1682,23 +1682,23 @@ if __name__ == "__main__":
         # },
         {
             "name": "32d transformer scaling further",
-            "csv_path": "../experimental_data_folder/new_modern_scaling_study/32_modern_40.csv",
+            "csv_path": "../experimental_data_folder/new_modern_scaling_study/32_modern.csv",
             "marker": "o",
             "include_in_frontier": True,  # Include in frontier analysis
             "class": "transformer",
             "hidden_dim": 32,
         },
-        # {
-        #     "name": "48d transformer scaling further",
-        #     "csv_path": "../experimental_data_folder/transformer_scaling/48d_transformer_bs64.csv",
-        #     "marker": "o",
-        #     "include_in_frontier": True,  # Include in frontier analysis
-        #     "class": "transformer",
-        #     "hidden_dim": 48,
-        # },
+        {
+            "name": "48d transformer scaling further",
+            "csv_path": "../experimental_data_folder/transformer_scaling/48d_transformer_bs64.csv",
+            "marker": "o",
+            "include_in_frontier": True,  # Include in frontier analysis
+            "class": "transformer",
+            "hidden_dim": 48,
+        },
         {
             "name": "64d transformer scaling further",
-            "csv_path": "../experimental_data_folder/new_modern_scaling_study/64_modern_40.csv.csv",
+            "csv_path": "../experimental_data_folder/new_modern_scaling_study/64_modern.csv.csv",
             "marker": "o",
             "include_in_frontier": True,  # Include in frontier analysis
             "class": "transformer",
@@ -1707,7 +1707,7 @@ if __name__ == "__main__":
         # # 96 128 160
         {
             "name": "96d transformer scaling further",
-            "csv_path": "../experimental_data_folder/new_modern_scaling_study/96_modern_40.csv",
+            "csv_path": "../experimental_data_folder/new_modern_scaling_study/96_modern.csv",
             "marker": "o",
             "include_in_frontier": True,  # Include in frontier analysis
             "class": "transformer",
@@ -1715,7 +1715,7 @@ if __name__ == "__main__":
         },
         {
             "name": "128d transformer scaling further",
-            "csv_path": "../experimental_data_folder/new_modern_scaling_study/128_modern_40.csv",
+            "csv_path": "../experimental_data_folder/new_modern_scaling_study/128_modern.csv",
             "marker": "o",
             "include_in_frontier": True,  # Include in frontier analysis
             "class": "transformer",
@@ -1723,75 +1723,59 @@ if __name__ == "__main__":
         },
         {
             "name": "160d transformer scaling further",
-            "csv_path": "../experimental_data_folder/new_modern_scaling_study/160_modern_40.csv",
+            "csv_path": "../experimental_data_folder/new_modern_scaling_study/160_modern.csv",
             "marker": "o",
             "include_in_frontier": True,  # Include in frontier analysis
             "class": "transformer",
             "hidden_dim": 160,
         },
-        # 192 and 224
-        {
-            "name": "192d transformer scaling further",
-            "csv_path": "../experimental_data_folder/new_modern_scaling_study/192_modern_40.csv",
-            "marker": "o",
-            "include_in_frontier": True,  # Include in frontier analysis
-            "class": "transformer",
-            "hidden_dim": 192,
-        },
-        {
-            "name": "224d transformer scaling further",
-            "csv_path": "../experimental_data_folder/new_modern_scaling_study/224_modern_40.csv",
-            "marker": "o",
-            "include_in_frontier": True,  # Include in frontier analysis
-            "class": "transformer",
-            "hidden_dim": 224,
-        },
-        {
-            "name": "256d transformer scaling further",
-            "csv_path": "../experimental_data_folder/new_modern_scaling_study/256_modern_40.csv",
-            "marker": "o",
-            "include_in_frontier": True,  # Include in frontier analysis
-            "class": "transformer",
-            "hidden_dim": 256,
-        },
+        # 256
+        # {
+        #     "name": "256d transformer scaling further",
+        #     "csv_path": "../experimental_data_folder/transformer_scaling/256d_transformer_bs64.csv",
+        #     "marker": "o",
+        #     "include_in_frontier": True,  # Include in frontier analysis
+        #     "class": "transformer",
+        #     "hidden_dim": 256,
+        # },
         # sgd scaling further
         {
             "name": "orig 32d sgd scaling further",
-            "csv_path": "../experimental_data_folder/sgd_scaling/32d_sgdbs64.csv",
+            "csv_path": "../experimental_data_folder/new_sgd_scaling/32d_sgdbs64.csv",
             "marker": "o",
             "include_in_frontier": True,  # Include in frontier analysis
             "class": "sgd",
             "hidden_dim": 32,
         },
-        # {
-        #     "name": "orig 48d sgd scaling further",
-        #     "csv_path": "../experimental_data_folder/sgd_scaling/48d_sgdbs64.csv",
-        #     "marker": "o",
-        #     "include_in_frontier": True,  # Include in frontier analysis
-        #     "class": "sgd",
-        #     # Example: using viridis colormap index 2
-        #     "hidden_dim": 48,
-        # },
+        {
+            "name": "orig 48d sgd scaling further",
+            "csv_path": "../experimental_data_folder/new_sgd_scaling/48d_sgdbs64.csv",
+            "marker": "o",
+            "include_in_frontier": True,  # Include in frontier analysis
+            "class": "sgd",
+            # Example: using viridis colormap index 2
+            "hidden_dim": 48,
+        },
         {
             "name": "orig 64d sgd scaling further",
-            "csv_path": "../experimental_data_folder/sgd_scaling/64d_sgdbs64.csv",
+            "csv_path": "../experimental_data_folder/new_sgd_scaling/64d_sgdbs64.csv",
             "marker": "o",
             "include_in_frontier": True,  # Include in frontier analysis
             "class": "sgd",
             # Example: using plasma colormap at 0.3
             "hidden_dim": 64,
         },
-        # {
-        #     "name": "orig 96d sgd scaling further",
-        #     "csv_path": "../experimental_data_folder/sgd_scaling/96d_sgdbs64.csv",
-        #     "marker": "o",
-        #     "include_in_frontier": True,  # Include in frontier analysis
-        #     "class": "sgd",
-        #     "hidden_dim": 96,
-        # },
+        {
+            "name": "orig 96d sgd scaling further",
+            "csv_path": "../experimental_data_folder/new_sgd_scaling/96d_sgdbs64.csv",
+            "marker": "o",
+            "include_in_frontier": True,  # Include in frontier analysis
+            "class": "sgd",
+            "hidden_dim": 96,
+        },
         {
             "name": "orig 128d sgd scaling further",
-            "csv_path": "../experimental_data_folder/sgd_scaling/128d_sgdbs64.csv",
+            "csv_path": "../experimental_data_folder/new_sgd_scaling/128d_sgdbs64.csv",
             "marker": "o",
             "include_in_frontier": True,  # Include in frontier analysis
             "class": "sgd",
@@ -1799,11 +1783,28 @@ if __name__ == "__main__":
         },
         {
             "name": "orig 160d sgd scaling further",
-            "csv_path": "../experimental_data_folder/sgd_scaling/160d_sgdbs64.csv",
+            "csv_path": "../experimental_data_folder/new_sgd_scaling/160d_sgdbs64.csv",
             "marker": "o",
             "include_in_frontier": True,  # Include in frontier analysis
             "class": "sgd",
             "hidden_dim": 160,
+        },
+        # 192 and 256
+        {
+            "name": "orig 192d sgd scaling further",
+            "csv_path": "../experimental_data_folder/new_sgd_scaling/192d_sgdbs64.csv",
+            "marker": "o",
+            "include_in_frontier": True,  # Include in frontier analysis
+            "class": "sgd",
+            "hidden_dim": 192,
+        },
+        {
+            "name": "orig 256d sgd scaling further",
+            "csv_path": "../experimental_data_folder/new_sgd_scaling/256d_sgdbs64.csv",
+            "marker": "o",
+            "include_in_frontier": True,  # Include in frontier analysis
+            "class": "sgd",
+            "hidden_dim": 256,
         },
         # look at scaling of 2017 transfomere
         {
@@ -1994,17 +1995,17 @@ if __name__ == "__main__":
         save_path="Figures/lstm_v_transfomer_scaling.png",
         classes_to_plot=[
             # "optimal_lr_sgd_transformer",
-            "transformer",
-            "lstm",
+            # "transformer",
+            # "lstm",
             # "2017 Transformer",
-            # "sgd",
+            "sgd",
             # "vanilla_transformer_rmsprop",
         ],
         flop_range_by_class={
-            "transformer": (1e14, 5 * 1e17),
-            "lstm": (1e14, 1e16 * 5),
+            # "transformer": (1e14, 5 * 1e17),
+            # "lstm": (1e14, 1e17 * 5),
             # "2017 Transformer": (1e14, 1e17),
-            # "sgd": (1e14, 1e17),
+            "sgd": (1e14, 1e17),
         },
         extrapolation_factor=10.0,  # Extend trend lines 3x beyond data range
         # Example theoretical scaling laws to compare with data
@@ -2015,6 +2016,16 @@ if __name__ == "__main__":
                 "gamma": -0.092,  # Scaling exponent
                 "label": "Porian et al. (2025)",
                 "color": "red",
+                "linestyle": "--",
+                "linewidth": 3,
+                "alpha": 0.8,
+            },
+            {
+                "E": IRREDUCIBLE_LOSS,  # Irreducible loss
+                "A": 88.1,  # Scaling coefficient (larger to be visible)
+                "gamma": -0.095,  # Scaling exponent
+                "label": "Transformer Power Law",
+                "color": "purple",
                 "linestyle": "--",
                 "linewidth": 3,
                 "alpha": 0.8,

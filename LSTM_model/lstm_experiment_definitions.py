@@ -885,3 +885,14 @@ GRAND_EXPERIMENT = gen_lstm_experim(
 #     sgd_momentum=0.9,
 #     target_effective_batch_size=32,
 # )
+
+GRAND_EXPERIMENT = gen_lstm_experim(
+    32,
+    label="random_test_32_lstm",
+    folder_name="new_lstm_sgd",
+    learning_rate=10**-1,
+    optimizer="sgd",
+    sgd_momentum=0.99,
+    weight_decay=0.0,
+    data_path="Datasets/c4_subset_large.txt",
+)
