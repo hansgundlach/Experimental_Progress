@@ -206,7 +206,8 @@ if __name__ == "__main__":
     print(f"\nNode {args.job_id} has completed all its assigned experiments.")
     
     # Generate LR sweep summary if this was a learning rate sweep experiment
-    if args.total_jobs == 1:  # Only generate summary for single-job runs (avoid conflicts)
+    # Generate summary regardless of job count - each job will generate the same summary safely
+    if True:  # Always attempt to generate summary if experiments have generate_summary=True
         try:
             # Check if any experiment has summary info (indicates lr sweep with generate_summary=True)
             summary_info = None

@@ -57,6 +57,167 @@ def find_closest_loss_row(
     return closest_idx, actual_loss, compute_value
 
 
+def compute_multiplier_closest_approach(
+    csv_file: str,
+    E: float,
+    A: float,
+    alpha: float,
+    compute_column: str = "total_flops_profiler",
+    loss_column: str = "validation_loss",
+    verbose: bool = True,
+) -> Tuple[float, dict]:
+    """
+    Find the closest approach point between empirical curve and power law fit,
+    then compute the compute multiplier at that point.
+
+    The power law fit has the form: Loss = E + A * C^(-alpha)
+
+    For each point on the empirical curve (C_empirical, L_empirical):
+    - We solve for C_powerlaw where: E + A * C_powerlaw^(-alpha) = L_empirical
+    - This gives: C_powerlaw = (A / (L_empirical - E))^(1/alpha)
+    - We compute the x-axis distance: |C_empirical - C_powerlaw|
+
+    The closest approach is the point with minimum x-axis distance.
+    The multiplier is: C_powerlaw / C_empirical at the closest approach point.
+
+    Args:
+        csv_file: Path to CSV file with empirical training curve
+        E: Irreducible loss parameter in power law: Loss = E + A*C^(-alpha)
+        A: Amplitude parameter in power law
+        alpha: Exponent parameter in power law
+        compute_column: Name of compute column (default: 'total_flops_profiler')
+        loss_column: Name of loss column (default: 'validation_loss')
+        verbose: Whether to print detailed information
+
+    Returns:
+        Tuple of (multiplier, details_dict) where:
+        - multiplier: compute_powerlaw / compute_empirical at closest approach
+        - details_dict: Dictionary with detailed information about the comparison
+    """
+
+    try:
+        # Read the CSV file
+        df = pd.read_csv(csv_file)
+
+        if verbose:
+            print(f"Loaded {csv_file}: {len(df)} rows")
+
+        # Validate columns exist
+        if loss_column not in df.columns:
+            raise ValueError(
+                f"Column '{loss_column}' not found in DataFrame. Available columns: {list(df.columns)}"
+            )
+        if compute_column not in df.columns:
+            raise ValueError(
+                f"Column '{compute_column}' not found in DataFrame. Available columns: {list(df.columns)}"
+            )
+
+        # Remove rows with NaN values
+        valid_df = df.dropna(subset=[loss_column, compute_column])
+
+        if len(valid_df) == 0:
+            raise ValueError(f"No valid (non-NaN) values found in required columns")
+
+        # For each empirical point, find the corresponding power law compute
+        distances = []
+        powerlaw_computes = []
+
+        for idx, row in valid_df.iterrows():
+            C_empirical = row[compute_column]
+            L_empirical = row[loss_column]
+
+            # Check if loss is above irreducible loss
+            if L_empirical <= E:
+                # Loss is at or below irreducible loss, power law cannot reach it
+                # Skip this point
+                distances.append(np.inf)
+                powerlaw_computes.append(np.nan)
+                continue
+
+            # Solve for C_powerlaw: E + A * C_powerlaw^(-alpha) = L_empirical
+            # => C_powerlaw = (A / (L_empirical - E))^(1/alpha)
+            try:
+                C_powerlaw = (A / (L_empirical - E)) ** (1.0 / alpha)
+
+                # Compute x-axis distance
+                distance = abs(C_empirical - C_powerlaw)
+
+                distances.append(distance)
+                powerlaw_computes.append(C_powerlaw)
+            except (ZeroDivisionError, ValueError, OverflowError):
+                distances.append(np.inf)
+                powerlaw_computes.append(np.nan)
+
+        # Add columns to dataframe
+        valid_df = valid_df.copy()
+        valid_df["powerlaw_compute"] = powerlaw_computes
+        valid_df["x_distance"] = distances
+
+        # Find the point with minimum distance
+        finite_distances = valid_df[np.isfinite(valid_df["x_distance"])]
+
+        if len(finite_distances) == 0:
+            raise ValueError(
+                "No valid closest approach points found (all distances are infinite)"
+            )
+
+        closest_idx = finite_distances["x_distance"].idxmin()
+
+        # Get values at closest approach
+        closest_row = valid_df.loc[closest_idx]
+        C_empirical_closest = closest_row[compute_column]
+        L_closest = closest_row[loss_column]
+        C_powerlaw_closest = closest_row["powerlaw_compute"]
+        distance_closest = closest_row["x_distance"]
+
+        # Compute multiplier (power law / empirical)
+        multiplier = C_powerlaw_closest / C_empirical_closest
+
+        # Prepare detailed results
+        details = {
+            "power_law_params": {
+                "E": E,
+                "A": A,
+                "alpha": alpha,
+            },
+            "closest_approach": {
+                "loss": L_closest,
+                "empirical_compute": C_empirical_closest,
+                "powerlaw_compute": C_powerlaw_closest,
+                "x_distance": distance_closest,
+                "row_index": closest_idx,
+            },
+            "multiplier": multiplier,
+            "compute_ratio_powerlaw_to_empirical": multiplier,
+        }
+
+        if verbose:
+            print(f"\nPower Law: Loss = {E:.4f} + {A:.4f} * C^(-{alpha:.4f})")
+            print("=" * 60)
+            print(f"\nClosest Approach Point:")
+            print(f"  Validation Loss: {L_closest:.4f}")
+            print(f"  Empirical Compute: {C_empirical_closest:.2e} FLOPs")
+            print(f"  Power Law Compute: {C_powerlaw_closest:.2e} FLOPs")
+            print(f"  X-axis Distance: {distance_closest:.2e} FLOPs")
+            print(f"  Row index: {closest_idx}")
+            print(f"\nCompute Multiplier: {multiplier:.3f}x")
+
+            if multiplier > 1:
+                print(
+                    f"Power law requires {multiplier:.3f}x MORE compute than empirical curve at this loss"
+                )
+            else:
+                print(
+                    f"Power law requires {1/multiplier:.3f}x LESS compute than empirical curve at this loss"
+                )
+
+        return multiplier, details
+
+    except Exception as e:
+        print(f"Error computing closest approach multiplier: {e}")
+        raise
+
+
 def compute_multiplier_by_loss(
     csv_file_a: str,
     csv_file_b: str,
@@ -289,66 +450,66 @@ def analyze_loss_ranges(
 
 
 # %%
-target_loss = 5.2
-# Example usage and testing
-# Example usage - you would replace these with actual file paths
-example_file_a = "../experimental_data_folder/alg_mult/64d_swiglu_123.csv"
-example_file_b = "../experimental_data_folder/alg_mult/64d_gelu_123.csv"  # hypothetical
+# target_loss = 5.2
+# # Example usage and testing
+# # Example usage - you would replace these with actual file paths
+# example_file_a = "../experimental_data_folder/alg_mult/64d_swiglu_123.csv"
+# example_file_b = "../experimental_data_folder/alg_mult/64d_gelu_123.csv"  # hypothetical
 
-multiplier, details = compute_multiplier_by_loss(
-    example_file_a,
-    example_file_b,  # Using same file for demo
-    target_loss,
-    verbose=True,
-)
+# multiplier, details = compute_multiplier_by_loss(
+#     example_file_a,
+#     example_file_b,  # Using same file for demo
+#     target_loss,
+#     verbose=True,
+# )
 # %%
 # rotary vs sinusoidal
 
 
-# Example usage and testing
-# Example usage - you would replace these with actual file paths
-example_file_a = "../experimental_data_folder/alg_mult/64d_rotary_456.csv"
-example_file_b = (
-    "../experimental_data_folder/alg_mult/64d_sinusoidal_456.csv"  # hypothetical
-)
+# # Example usage and testing
+# # Example usage - you would replace these with actual file paths
+# example_file_a = "../experimental_data_folder/alg_mult/64d_rotary_456.csv"
+# example_file_b = (
+#     "../experimental_data_folder/alg_mult/64d_sinusoidal_456.csv"  # hypothetical
+# )
 
-multiplier, details = compute_multiplier_by_loss(
-    example_file_a,
-    example_file_b,  # Using same file for demo
-    target_loss,
-    verbose=True,
-)
+# multiplier, details = compute_multiplier_by_loss(
+#     example_file_a,
+#     example_file_b,  # Using same file for demo
+#     target_loss,
+#     verbose=True,
+# )
 # %%
-target_loss = 5.5
+# target_loss = 5.5
 
-# Example usage and testing
-# Example usage - you would replace these with actual file paths
-example_file_a = "../experimental_data_folder/alg_mult/64d_lr_cosine_warmup.csv"
-example_file_b = (
-    "../experimental_data_folder/alg_mult/64d_lr_inverse_sqrt.csv"  # hypothetical
-)
+# # Example usage and testing
+# # Example usage - you would replace these with actual file paths
+# example_file_a = "../experimental_data_folder/alg_mult/64d_lr_cosine_warmup.csv"
+# example_file_b = (
+#     "../experimental_data_folder/alg_mult/64d_lr_inverse_sqrt.csv"  # hypothetical
+# )
 
-multiplier, details = compute_multiplier_by_loss(
-    example_file_a,
-    example_file_b,  # Using same file for demo
-    target_loss,
-    verbose=True,
-)
+# multiplier, details = compute_multiplier_by_loss(
+#     example_file_a,
+#     example_file_b,  # Using same file for demo
+#     target_loss,
+#     verbose=True,
+# )
 # %%
 
-# Example usage and testing
-# Example usage - you would replace these with actual file paths
-example_file_a = "../experimental_data_folder/alg_mult/64d_rotary_456.csv"
-example_file_b = (
-    "../experimental_data_folder/alg_mult/64d_sinusoidal_456.csv"  # hypothetical
-)
+# # Example usage and testing
+# # Example usage - you would replace these with actual file paths
+# example_file_a = "../experimental_data_folder/alg_mult/64d_rotary_456.csv"
+# example_file_b = (
+#     "../experimental_data_folder/alg_mult/64d_sinusoidal_456.csv"  # hypothetical
+# )
 
-multiplier, details = compute_multiplier_by_loss(
-    example_file_a,
-    example_file_b,  # Using same file for demo
-    target_loss,
-    verbose=True,
-)
+# multiplier, details = compute_multiplier_by_loss(
+#     example_file_a,
+#     example_file_b,  # Using same file for demo
+#     target_loss,
+#     verbose=True,
+# )
 
 # %%
 
@@ -373,20 +534,20 @@ multiplier, details = compute_multiplier_by_loss(
 #     verbose=True,
 # )
 
-target_loss = 5.1
-# Example usage and testing
-# Example usage - you would replace these with actual file paths
-example_file_a = (
-    "../experimental_data_folder/transformer_scaling/swiglu_64d_transformer_bs64.csv"
-)
-example_file_b = "../experimental_data_folder/debug_historical_experiments/radford_128.csv"  # hypothetical
+# target_loss = 5.1
+# # Example usage and testing
+# # Example usage - you would replace these with actual file paths
+# example_file_a = (
+#     "../experimental_data_folder/transformer_scaling/swiglu_64d_transformer_bs64.csv"
+# )
+# example_file_b = "../experimental_data_folder/debug_historical_experiments/radford_128.csv"  # hypothetical
 
-multiplier, details = compute_multiplier_by_loss(
-    example_file_a,
-    example_file_b,  # Using same file for demo
-    target_loss,
-    verbose=True,
-)
+# multiplier, details = compute_multiplier_by_loss(
+#     example_file_a,
+#     example_file_b,  # Using same file for demo
+#     target_loss,
+#     verbose=True,
+# )
 
 
 # %%
@@ -410,70 +571,70 @@ multiplier, details = compute_multiplier_by_loss(
 # %%
 
 
-target_loss = 5.9
+# target_loss = 5.9
 
-# Example usage and testing
-# Example usage - you would replace these with actual file paths
-example_file_b = (
-    "../experimental_data_folder/historical_experiments/p64transformer_2017_bs64.csv"
-)
-example_file_a = "../experimental_data_folder/historical_experiments/64transformer_2022_bs64.csv"  # hypothetical
+# # Example usage and testing
+# # Example usage - you would replace these with actual file paths
+# example_file_b = (
+#     "../experimental_data_folder/historical_experiments/p64transformer_2017_bs64.csv"
+# )
+# example_file_a = "../experimental_data_folder/historical_experiments/64transformer_2022_bs64.csv"  # hypothetical
 
-multiplier, details = compute_multiplier_by_loss(
-    example_file_a,
-    example_file_b,  # Using same file for demo
-    target_loss,
-    verbose=True,
-)
+# multiplier, details = compute_multiplier_by_loss(
+#     example_file_a,
+#     example_file_b,  # Using same file for demo
+#     target_loss,
+#     verbose=True,
+# )
 
 
 # %%
 # trying a diffenret historical run
 
-target_loss = 5.1
+# target_loss = 5.1
 
-# Example usage and testing
-# Example usage - you would replace these with actual file paths
-example_file_b = "../experimental_data_folder/debug_historical_experiments/radford_64transformer_2018_bs64.csv"
-example_file_a = (
-    "../experimental_data_folder/modern_scaling_study/64_modern.csv"  # hypothetical
-)
+# # Example usage and testing
+# # Example usage - you would replace these with actual file paths
+# example_file_b = "../experimental_data_folder/debug_historical_experiments/radford_64transformer_2018_bs64.csv"
+# example_file_a = (
+#     "../experimental_data_folder/modern_scaling_study/64_modern.csv"  # hypothetical
+# )
 
-multiplier, details = compute_multiplier_by_loss(
-    example_file_a,
-    example_file_b,  # Using same file for demo
-    target_loss,
-    verbose=True,
-)
+# multiplier, details = compute_multiplier_by_loss(
+#     example_file_a,
+#     example_file_b,  # Using same file for demo
+#     target_loss,
+#     verbose=True,
+# )
 
 
 # %%
 
+# Commented out test/example code below - uncomment to test
+# print("Compute Multiplier by Loss Analysis")
+# print("==================================")
 
-print("Compute Multiplier by Loss Analysis")
-print("==================================")
+# # Single loss point comparison
 
-# Single loss point comparison
-
-try:
-    multiplier, details = compute_multiplier_by_loss(
-        example_file_a,
-        example_file_b,  # Using same file for demo
-        target_loss,
-        verbose=True,
-    )
-    print(multiplier)
-except FileNotFoundError:
-    print(f"Example files not found. Please provide actual CSV file paths.")
-except Exception as e:
-    print(f"Demo failed: {e}")
-    print("\nTo use this script, call the functions with your actual CSV file paths:")
-    print(
-        "multiplier, details = compute_multiplier_by_loss('model_a.csv', 'model_b.csv', 6.0)"
-    )
-    print(
-        "results_df = analyze_loss_ranges('model_a.csv', 'model_b.csv', num_points=15)"
-    )
+# try:
+#     multiplier, details = compute_multiplier_by_loss(
+#         example_file_a,
+#         example_file_b,  # Using same file for demo
+#         target_loss,
+#         verbose=True,
+#     )
+#     print(multiplier)
+# except FileNotFoundError:
+#     print(f"Example files not found. Please provide actual CSV file paths.")
+# except Exception as e:
+#     print(f"Demo failed: {e}")
+#     print("\nTo use this script, call the functions with your actual CSV file paths:")
+#     print(
+#         "multiplier, details = compute_multiplier_by_loss('model_a.csv', 'model_b.csv', 6.0)"
+#     )
+#     print(
+#         "results_df = analyze_loss_ranges('model_a.csv', 'model_b.csv', num_points=15)"
+#     )
 
 # %%
 
@@ -780,105 +941,105 @@ def create_stacked_comparison_plot(
 # Example 2: Multiple stacked bars and multiple comparison bars
 # Now you can have multiple stacked groups!
 
-# Define stacked groups - each inner list is one stacked bar
-stacked_groups = [
-    # First stacked bar: Rotary + SwiGLU
-    [
-        ("Rotary Encoding", 1.4, "#9b59b6"),
-        ("SwiGLU", 1.1, "#e67e22"),
-    ],
-    # Second stacked bar: Another combination (optional, remove if not needed)
-    # [
-    #     ("Component A", 1.2, "#1abc9c"),
-    #     ("Component B", 1.15, "#3498db"),
-    # ],
-]
+# # Define stacked groups - each inner list is one stacked bar
+# stacked_groups = [
+#     # First stacked bar: Rotary + SwiGLU
+#     [
+#         ("Rotary Encoding", 1.4, "#9b59b6"),
+#         ("SwiGLU", 1.1, "#e67e22"),
+#     ],
+#     # Second stacked bar: Another combination (optional, remove if not needed)
+#     # [
+#     #     ("Component A", 1.2, "#1abc9c"),
+#     #     ("Component B", 1.15, "#3498db"),
+#     # ],
+# ]
 
-# Define comparison bars - these are single (non-stacked) bars
-comparison_data = [
-    ("Current vs 2017 Transformer", 1.677, "#e74c3c"),
-    # ("Ho et Al", 1.5, "#f39c12"),  # Uncomment to add more comparison bars
-]
+# # Define comparison bars - these are single (non-stacked) bars
+# comparison_data = [
+#     ("Current vs 2017 Transformer", 1.677, "#e74c3c"),
+#     # ("Ho et Al", 1.5, "#f39c12"),  # Uncomment to add more comparison bars
+# ]
 
-# This creates: 1 stacked bar (with 2 components) + 1 non-stacked bar = 2 total bars
-# To get 4 bars, you could do:
-# - 2 stacked groups + 2 comparison bars, OR
-# - 1 stacked group + 3 comparison bars, OR
-# - 3 stacked groups + 1 comparison bar, etc.
+# # This creates: 1 stacked bar (with 2 components) + 1 non-stacked bar = 2 total bars
+# # To get 4 bars, you could do:
+# # - 2 stacked groups + 2 comparison bars, OR
+# # - 1 stacked group + 3 comparison bars, OR
+# # - 3 stacked groups + 1 comparison bar, etc.
 
-create_stacked_comparison_plot(
-    stacked_groups,
-    comparison_data,
-    "Transformer Components Effects vs Overall Increase",
-)
+# create_stacked_comparison_plot(
+#     stacked_groups,
+#     comparison_data,
+#     "Transformer Components Effects vs Overall Increase",
+# )
 
 # %%
 # Example 3: Create exactly 4 bars (2 stacked + 2 non-stacked)
-stacked_groups_4bars = [
-    # First stacked bar
-    [
-        ("Rotary Encoding", 1.4, "#9b59b6"),
-        ("SwiGLU", 1.1, "#e67e22"),
-    ],
-    # Second stacked bar
-    [
-        ("C", 1.2, "#1abc9c"),
-        ("Component B", 1.3, "#3498db"),
-        ("Component C", 1.1, "#e67e22"),
-    ],
-]
+# stacked_groups_4bars = [
+#     # First stacked bar
+#     [
+#         ("Rotary Encoding", 1.4, "#9b59b6"),
+#         ("SwiGLU", 1.1, "#e67e22"),
+#     ],
+#     # Second stacked bar
+#     [
+#         ("C", 1.2, "#1abc9c"),
+#         ("Component B", 1.3, "#3498db"),
+#         ("Component C", 1.1, "#e67e22"),
+#     ],
+# ]
 
-comparison_data_4bars = [
-    ("Current vs 2017", 1.677, "#e74c3c"),
-    ("Ho et Al", 2.5, "#f39c12"),
-]
+# comparison_data_4bars = [
+#     ("Current vs 2017", 1.677, "#e74c3c"),
+#     ("Ho et Al", 2.5, "#f39c12"),
+# ]
 
-create_stacked_comparison_plot(
-    stacked_groups_4bars,
-    comparison_data_4bars,
-    "Example: 4 Total Bars (2 Stacked + 2 Non-Stacked)",
-)
+# create_stacked_comparison_plot(
+#     stacked_groups_4bars,
+#     comparison_data_4bars,
+#     "Example: 4 Total Bars (2 Stacked + 2 Non-Stacked)",
+# )
 
 # %%
 # Example: Custom bar ordering
 # You can now specify the exact order of bars on the x-axis
 
-# Define your data
-stacked_groups_custom = [
-    [("Rotary Encoding", 1.4, "#9b59b6"), ("SwiGLU", 1.1, "#e67e22")],
-    [("Component A", 1.2, "#1abc9c"), ("Component B", 1.15, "#3498db")],
-]
+# # Define your data
+# stacked_groups_custom = [
+#     [("Rotary Encoding", 1.4, "#9b59b6"), ("SwiGLU", 1.1, "#e67e22")],
+#     [("Component A", 1.2, "#1abc9c"), ("Component B", 1.15, "#3498db")],
+# ]
 
-comparison_data_custom = [
-    ("Current vs 2017", 1.677, "#e74c3c"),
-    ("Ho et Al", 2.5, "#f39c12"),
-]
+# comparison_data_custom = [
+#     ("Current vs 2017", 1.677, "#e74c3c"),
+#     ("Ho et Al", 2.5, "#f39c12"),
+# ]
 
-# Example 1: Default order (all stacked first, then all comparison)
-print("Default order:")
-create_stacked_comparison_plot(
-    stacked_groups_custom,
-    comparison_data_custom,
-    "Default Order: All Stacked First, Then All Comparison",
-)
+# # Example 1: Default order (all stacked first, then all comparison)
+# print("Default order:")
+# create_stacked_comparison_plot(
+#     stacked_groups_custom,
+#     comparison_data_custom,
+#     "Default Order: All Stacked First, Then All Comparison",
+# )
 
-# Example 2: Custom order - mix stacked and comparison bars
-print("\nCustom order - alternating:")
-create_stacked_comparison_plot(
-    stacked_groups_custom,
-    comparison_data_custom,
-    "Custom Order: Alternating Stacked and Comparison Bars",
-    bar_order=["stacked_0", "comparison_0", "stacked_1", "comparison_1"],
-)
+# # Example 2: Custom order - mix stacked and comparison bars
+# print("\nCustom order - alternating:")
+# create_stacked_comparison_plot(
+#     stacked_groups_custom,
+#     comparison_data_custom,
+#     "Custom Order: Alternating Stacked and Comparison Bars",
+#     bar_order=["stacked_0", "comparison_0", "stacked_1", "comparison_1"],
+# )
 
-# Example 3: Custom order - comparison bars first
-print("\nCustom order - comparison first:")
-create_stacked_comparison_plot(
-    stacked_groups_custom,
-    comparison_data_custom,
-    "Custom Order: Comparison Bars First",
-    bar_order=["comparison_0", "comparison_1", "stacked_0", "stacked_1"],
-)
+# # Example 3: Custom order - comparison bars first
+# print("\nCustom order - comparison first:")
+# create_stacked_comparison_plot(
+#     stacked_groups_custom,
+#     comparison_data_custom,
+#     "Custom Order: Comparison Bars First",
+#     bar_order=["comparison_0", "comparison_1", "stacked_0", "stacked_1"],
+# )
 
 # %%
 # # Example 4: 5 stacked components vs 3 comparisons
@@ -905,5 +1066,29 @@ create_stacked_comparison_plot(
 
 # %%
 # Orthogonal
+
+# %%
+# Example usage of compute_multiplier_closest_approach
+# This compares an empirical training curve to a power law fit
+
+# Example power law parameters (you would get these from fitting your data)
+# Power law form: Loss = E + A * C^(-alpha)
+# E_example = 3.5  # Irreducible loss
+# A_example = 1e14  # Amplitude
+# alpha_example = 0.05  # Exponent
+
+# Example CSV file with empirical training curve
+# example_csv = "../experimental_data_folder/stanford_mult/64d_adam.csv"
+
+# multiplier, details = compute_multiplier_closest_approach(
+#     csv_file=example_csv,
+#     E=E_example,
+#     A=A_example,
+#     alpha=alpha_example,
+#     verbose=True
+# )
+
+# print(f"\nMultiplier at closest approach: {multiplier:.3f}x")
+# print(f"Details: {details}")
 
 # %%

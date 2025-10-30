@@ -54,7 +54,7 @@ def create_multi_lr_experiments(
     min_tokens=None,
     csv_log_interval_lr_sweep=200,
     min_training_fraction=0.05,
-    generate_summary=False,
+    generate_summary=True,
 ):
     """
     Create multiple versions of experiments with different learning rates.
@@ -267,26 +267,32 @@ def generate_lr_sweep_summary(
 
             # Check all learning rates for this base experiment
             for lr in learning_rates:
-                # Format learning rate for filename matching (same logic as create_multi_lr_experiments)
+                # Format learning rate for filename matching (EXACT same logic as create_multi_lr_experiments)
                 if lr >= 1:
                     lr_str = f"{lr:.0f}"
                 else:
                     import math
 
+                    # Use clear scientific notation: 10e-1, 10e-2, 10e-3, etc.
                     log_lr = math.log10(lr)
+
+                    # Check if it's close to a nice power of 10
                     if (
                         abs(log_lr - round(log_lr)) < 0.01
                     ):  # Very close to integer power
                         exponent = int(round(log_lr))
-                        lr_str = f"10e{exponent:+d}"
+                        lr_str = f"10e{abs(exponent)}"  # Use positive exponent format: 10e3 for 10^-3
                     else:
                         # For non-integer powers, use coefficient notation
                         exponent = math.floor(log_lr)
                         coefficient = lr / (10**exponent)
                         if abs(coefficient - round(coefficient)) < 0.01:
-                            lr_str = f"{round(coefficient):.0f}e{exponent:+d}"
+                            lr_str = f"{round(coefficient):.0f}e{abs(exponent)}"
                         else:
-                            lr_str = f"{coefficient:.1f}e{exponent:+d}"
+                            # Handle decimal coefficients: multiply by 10 and remove decimal point
+                            # e.g., 1.8 becomes 18, 3.2 becomes 32, 5.6 becomes 56
+                            coef_scaled = round(coefficient * 10)
+                            lr_str = f"{coef_scaled}e{abs(exponent)}"
 
                 # Construct expected CSV filename
                 csv_filename = f"{base_label}_lr_{lr_str}.csv"
@@ -809,7 +815,7 @@ def get_base_config():
         "norm_type": "rms",
         "norm_placement": "pre",
         "results_folder": "new_experiments_folder_1",
-        "csv_log_interval": 50,
+        "csv_log_interval": 200,
         "seed": 123,
         # Complete-P (default OFF; non-breaking)
         "enable_completep": False,

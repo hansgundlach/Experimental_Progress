@@ -7,6 +7,12 @@ This script mirrors the comparisons/plotting of alg_mult_error_bar.py, but
 each multiplier is computed as the ratio of compute needed to reach the same
 target validation loss (Model B / Model A), aggregated across matching seeds
 when available.
+
+Available Functions:
+--------------------
+1. compute_multiplier_by_loss: Compare two empirical training curves at a target loss
+2. compute_multiplier_closest_approach: Compare an empirical curve to a power law fit
+   at the point of closest approach (minimum x-axis distance)
 """
 # %%
 import os
@@ -25,7 +31,8 @@ from importlib import util as _importlib_util
 # Robust loader to access compute_multiplier_by_loss without static imports
 
 
-def _get_compute_multiplier_by_loss_func():
+def _get_compute_multiplier_functions():
+    """Import both compute_multiplier_by_loss and compute_multiplier_closest_approach."""
     try:
         # Try importing as package module
         import importlib
@@ -33,7 +40,10 @@ def _get_compute_multiplier_by_loss_func():
         module = importlib.import_module(
             "experimental_analysis.compute_multiplier_by_loss"
         )
-        return getattr(module, "compute_multiplier_by_loss")
+        return (
+            getattr(module, "compute_multiplier_by_loss"),
+            getattr(module, "compute_multiplier_closest_approach"),
+        )
     except Exception:
         # Load directly from file path (same directory)
         candidate = os.path.join(
@@ -48,11 +58,16 @@ def _get_compute_multiplier_by_loss_func():
             )
         module = _importlib_util.module_from_spec(spec)
         spec.loader.exec_module(module)  # type: ignore[attr-defined]
-        return getattr(module, "compute_multiplier_by_loss")
+        return (
+            getattr(module, "compute_multiplier_by_loss"),
+            getattr(module, "compute_multiplier_closest_approach"),
+        )
 
 
-# Bind the function name used below
-compute_multiplier_by_loss = _get_compute_multiplier_by_loss_func()
+# Bind the function names used below
+compute_multiplier_by_loss, compute_multiplier_closest_approach = (
+    _get_compute_multiplier_functions()
+)
 # %%
 
 # ===== EASILY ADJUSTABLE PARAMETERS =====
@@ -498,5 +513,37 @@ if valid_estimates:
 else:
     print("No valid estimates found to plot.")
 
+
+# %%
+# Example usage of compute_multiplier_closest_approach
+# This compares an empirical training curve to a power law fit
+
+# # Example: Compare an empirical run to a fitted scaling law
+# # Power law form: Loss = E + A * C^(-alpha)
+#
+# # Step 1: Define your power law parameters (from fitting your scaling data)
+# E = 3.5  # Irreducible loss
+# A = 1e14  # Amplitude
+# alpha = 0.05  # Exponent
+#
+# # Step 2: Path to your empirical CSV file
+# csv_file = _get_base_data_path() + "stanford_mult/64d_rms.csv"
+#
+# # Step 3: Compute the multiplier at closest approach
+# multiplier, details = compute_multiplier_closest_approach(
+#     csv_file=csv_file,
+#     E=E,
+#     A=A,
+#     alpha=alpha,
+#     compute_column="total_flops_profiler",
+#     loss_column="validation_loss",
+#     verbose=True
+# )
+#
+# print(f"\n{'='*60}")
+# print(f"Multiplier at closest approach: {multiplier:.3f}x")
+# print(f"Closest approach validation loss: {details['closest_approach']['loss']:.4f}")
+# print(f"Empirical compute: {details['closest_approach']['empirical_compute']:.2e} FLOPs")
+# print(f"Power law compute: {details['closest_approach']['powerlaw_compute']:.2e} FLOPs")
 
 # %%

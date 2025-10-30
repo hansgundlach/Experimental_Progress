@@ -153,7 +153,7 @@ SGD_LR_SCALE = (
 SGD_LR_TUNE_FIT = create_multi_lr_experiments(SGD_LR_SCALE, [10**-0.25, 10**-0.5])
 
 
-HISTORICAL_EXPERIMENTS_RADFORD = (
+HISTORICAL_EXPERIMENTS = (
     gen_experim(
         32,
         label="32_all_reset",
@@ -413,7 +413,7 @@ HISTORICAL_LR_STUDY = create_multi_lr_experiments(
     ),
     [10**-2.25, 10**-2.5, 10**-2.75, 10**-3, 10**-3.25],
 )
-#6+15= 21
+# 6+15= 21
 
 # Extrapolated optimal LR for width=160: 2.8386e-03
 # Extrapolated optimal LR for width=192: 2.4626e-03
@@ -451,16 +451,16 @@ MODERN_SCALING_STUDY = (
         norm_type="rms",
         token_to_param_ratio=40,
     )
-    # + gen_experim(
-    #     80,
-    #     label="80_modern_40",
-    #     folder_name="new_modern_scaling_study",
-    #     learning_rate=4.87e-3,
-    #     modern_bias_0=True,
-    #     ff_ratio=2.5,
-    #     norm_type="rms",
-    #     token_to_param_ratio=40,
-    # )
+    + gen_experim(
+        80,
+        label="80_modern_40",
+        folder_name="new_modern_scaling_study",
+        learning_rate=4.87e-3,
+        modern_bias_0=True,
+        ff_ratio=2.5,
+        norm_type="rms",
+        token_to_param_ratio=40,
+    )
     + gen_experim(
         96,
         label="96_modern_40",
@@ -521,16 +521,16 @@ MODERN_SCALING_STUDY = (
         norm_type="rms",
         token_to_param_ratio=40,
     )
-    # + gen_experim(
-    #     256,
-    #     label="256_modern_40",
-    #     folder_name="new_modern_scaling_study",
-    #     learning_rate=1.967e-3,
-    #     modern_bias_0=True,
-    #     ff_ratio=2.5,
-    #     norm_type="rms",
-    #     token_to_param_ratio=40,
-    # )
+    + gen_experim(
+        256,
+        label="256_modern_40",
+        folder_name="new_modern_scaling_study",
+        learning_rate=1.967e-3,
+        modern_bias_0=True,
+        ff_ratio=2.5,
+        norm_type="rms",
+        token_to_param_ratio=40,
+    )
 )
 
 # learning rate study
@@ -636,14 +636,5 @@ LR_STUDY_MODERN = (
 # )
 
 
-
-
-
-
-
-
-
-]
-
 # 64
-GRAND_EXPERIMENT = HISTORICAL_LR_STUDY
+GRAND_EXPERIMENT = HISTORICAL_EXPERIMENTS

@@ -1817,6 +1817,22 @@ if __name__ == "__main__":
             "class": "2017 Transformer",
             "hidden_dim": 160,
         },
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
     ]
 
     #   {
@@ -1859,6 +1875,15 @@ if __name__ == "__main__":
     #         "class": "sgd_lstm",
     #         "hidden_dim": 64,
     #     },
+
+
+
+
+
+
+
+
+
 
     USE_THEORETICAL_FLOPS = (
         False  # Set to True to use theoretical_flops, False for total_flops_profiler

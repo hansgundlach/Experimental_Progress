@@ -102,6 +102,7 @@ CLASS_COLORS = {
     "transformer": "viridis[0.0]",  # Dark purple color
     "sgd": "viridis[0.6]",  # Yellow-green color
     "2017 Transformer": "plasma[0.7]",  # Orange color
+    "sin transformer": "tab:orange",  # Pink-purple color for sin transformer
     "lstm_sgd": "tab:orange",  # Orange color for LSTM SGD experiments
     "default": "tab:blue",  # Default color for unclassified experiments
 }
@@ -1888,6 +1889,89 @@ if __name__ == "__main__":
             "class": "2017 Transformer",
             "hidden_dim": 256,
         },
+        # retry_historical_experiments/128_all_reset.csv
+        # retry_historical_experiments/160_all_reset.csv
+        # retry_historical_experiments/192_all_reset.csv
+        # retry_historical_experiments/224_all_reset.csv
+        # retry_historical_experiments/256_all_reset.csv
+        # retry_historical_experiments/32_all_reset.csv
+        # retry_historical_experiments/48_all_reset.csv
+        # retry_historical_experiments/64_all_reset.csv
+        # retry_historical_experiments/80_all_reset.csv
+        # retry_historical_experiments/96_all_reset.csv
+        {
+            "name": "32d sin transformer",
+            "csv_path": "../experimental_data_folder/retry_historical_experiments/32_all_reset.csv",
+            "marker": "o",
+            "include_in_frontier": True,  # Include in frontier analysis
+            "class": "sin transformer",
+            "hidden_dim": 32,
+        },
+        # do this for 64, 80, 96, 128, 160, 192, 224, 256
+        {
+            "name": "64d sin transformer",
+            "csv_path": "../experimental_data_folder/retry_historical_experiments/64_all_reset.csv",
+            "marker": "o",
+            "include_in_frontier": True,  # Include in frontier analysis
+            "class": "sin transformer",
+            "hidden_dim": 64,
+        },
+        {
+            "name": "80d sin transformer",
+            "csv_path": "../experimental_data_folder/retry_historical_experiments/80_all_reset.csv",
+            "marker": "o",
+            "include_in_frontier": True,  # Include in frontier analysis
+            "class": "sin transformer",
+            "hidden_dim": 80,
+        },
+        {
+            "name": "96d sin transformer",
+            "csv_path": "../experimental_data_folder/retry_historical_experiments/96_all_reset.csv",
+            "marker": "o",
+            "include_in_frontier": True,  # Include in frontier analysis
+            "class": "sin transformer",
+            "hidden_dim": 96,
+        },
+        {
+            "name": "128d sin transformer",
+            "csv_path": "../experimental_data_folder/retry_historical_experiments/128_all_reset.csv",
+            "marker": "o",
+            "include_in_frontier": True,  # Include in frontier analysis
+            "class": "sin transformer",
+            "hidden_dim": 128,
+        },
+        {
+            "name": "160d sin transformer",
+            "csv_path": "../experimental_data_folder/retry_historical_experiments/160_all_reset.csv",
+            "marker": "o",
+            "include_in_frontier": True,  # Include in frontier analysis
+            "class": "sin transformer",
+            "hidden_dim": 160,
+        },
+        {
+            "name": "192d sin transformer",
+            "csv_path": "../experimental_data_folder/retry_historical_experiments/192_all_reset.csv",
+            "marker": "o",
+            "include_in_frontier": True,  # Include in frontier analysis
+            "class": "sin transformer",
+            "hidden_dim": 192,
+        },
+        {
+            "name": "224d sin transformer",
+            "csv_path": "../experimental_data_folder/retry_historical_experiments/224_all_reset.csv",
+            "marker": "o",
+            "include_in_frontier": True,  # Include in frontier analysis
+            "class": "sin transformer",
+            "hidden_dim": 224,
+        },
+        {
+            "name": "256d sin transformer",
+            "csv_path": "../experimental_data_folder/retry_historical_experiments/256_all_reset.csv",
+            "marker": "o",
+            "include_in_frontier": True,  # Include in frontier analysis
+            "class": "sin transformer",
+            "hidden_dim": 256,
+        },
     ]
 
     #     debug_historical_experiments/radford256_40t_to_p.csv
@@ -1945,6 +2029,7 @@ if __name__ == "__main__":
         "transformer": "Transformer experiments",
         "sgd": "SGD experiments",
         "2017 Transformer": "2017 Transformer experiments",
+        "sin transformer": "2017 Transformer",
     }
 
     analyzer = TrainingCurveAnalyzer(
@@ -1991,18 +2076,20 @@ if __name__ == "__main__":
         show_all_curves=True,
         show_power_law_fit=True,
         show_sklearn_fit=False,  # Enable sklearn-style fit: L = E + A * C^alpha
-        save_path="Figures/lstm_v_transfomer_scaling.png",
+        save_path="Figures/old_v_new_transformer_scaling.png",
         classes_to_plot=[
             # "optimal_lr_sgd_transformer",
-            "transformer",
-            "lstm",
+            # "transformer",
+            # "lstm",
+            "sin transformer",
             # "2017 Transformer",
             # "sgd",
             # "vanilla_transformer_rmsprop",
         ],
         flop_range_by_class={
-            "transformer": (1e14, 5 * 1e17),
-            "lstm": (1e14, 1e16 * 5),
+            # "transformer": (1e14, 5 * 1e17),
+            # "lstm": (1e14, 1e16 * 5),
+            "sin transformer": (1e14, 1e17 * 5),
             # "2017 Transformer": (1e14, 1e17),
             # "sgd": (1e14, 1e17),
         },
@@ -2010,11 +2097,11 @@ if __name__ == "__main__":
         # Example theoretical scaling laws to compare with data
         theoretical_scaling_laws=[
             {
-                "E": 1.68,  # Irreducible loss
-                "A": 87.16,  # Scaling coefficient (larger to be visible)
+                "E": 1.8,  # Irreducible loss
+                "A": 80.6,  # Scaling coefficient (larger to be visible)
                 "gamma": -0.092,  # Scaling exponent
-                "label": "Porian et al. (2025)",
-                "color": "red",
+                "label": "Modern Transformer Fit",
+                "color": "purple",
                 "linestyle": "--",
                 "linewidth": 3,
                 "alpha": 0.8,

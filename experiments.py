@@ -24,7 +24,7 @@ from non_scaling_experim_def import (
     GRAND_VARIATION_EXPERIMENTS,
 )
 
-EXPERIMENTS = GRAND_EXPERIMENT
+EXPERIMENTS = GRAND_VARIATION_EXPERIMENTS
 
 
 def run_experiments_on_gpu(gpu_id, sub_experiments, project_name_base):
@@ -321,9 +321,10 @@ if __name__ == "__main__":
         print(f"THIS JOB RAN: {len(my_sub_experiments)} sub-experiments.")
 
     # Generate LR sweep summary if this was a learning rate sweep experiment
+    # Generate summary regardless of job count - each job will generate the same summary safely
     if (
-        args.total_jobs == 1
-    ):  # Only generate summary for single-job runs (avoid conflicts)
+        True
+    ):  # Always attempt to generate summary if experiments have generate_summary=True
         try:
             # Check if any experiment has summary info (indicates lr sweep with generate_summary=True)
             summary_info = None
