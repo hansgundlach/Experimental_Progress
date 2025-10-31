@@ -88,7 +88,7 @@ ALPHA_CONFIG = {
     "theoretical_alpha": 0.8,  # Alpha for theoretical scaling law lines
 }
 
-IRREDUCIBLE_LOSS = 1.8
+IRREDUCIBLE_LOSS = 1.68
 
 # =============================================================================
 # CLASS COLOR CONFIGURATION

@@ -973,18 +973,22 @@ def get_dataset_configurations() -> dict:
     #         (str(p), n) for p, n in vanilla_optimal_pairs if p.exists()
     #     ]
 
-    new_scaling_dir = data_folder / "transformer_scaling"
+    new_scaling_dir = data_folder / "new_modern_scaling_study"
     if new_scaling_dir.exists():
         new_scaling_pairs = [
-            (new_scaling_dir / "32d_transformer_bs64.csv", 1683000),
-            (new_scaling_dir / "48d_transformer_bs64.csv", 2545000),
-            (new_scaling_dir / "64d_transformer_bs64.csv", 3463000),
-            (new_scaling_dir / "96d_transformer_bs64.csv", int(5.538e6)),
-            (new_scaling_dir / "128d_transformer_bs64.csv", int(8.056e6)),
-            (new_scaling_dir / "160d_transformer_bs64.csv", int(11.163e6)),
+            (new_scaling_dir / "32_modern_40.csv", 1683000),
+            (new_scaling_dir / "48_modern_40.csv", 2545000),
+            (new_scaling_dir / "64_modern_40.csv", 3463000),
+            (new_scaling_dir / "80_modern_40.csv", int(4.454e6)),
+            (new_scaling_dir / "96_modern_40.csv", int(5.538e6)),
+            (new_scaling_dir / "128_modern_40.csv", int(8.056e6)),
+            (new_scaling_dir / "160_modern_40.csv", int(11.163e6)),
+            (new_scaling_dir / "192_modern_40.csv", int(14.270e6)),
+            (new_scaling_dir / "224_modern_40.csv", int(17.378e6)),
+            (new_scaling_dir / "256_modern_40.csv", int(20.485e6)),
         ]
 
-        configurations["transformer_scaling"] = [
+        configurations["new_modern_scaling_study"] = [
             (str(p), n) for p, n in new_scaling_pairs if p.exists()
         ]
 
@@ -1006,9 +1010,9 @@ def get_dataset_configurations() -> dict:
     if lstm_dir.exists():
         lstm_pairs = [
             (lstm_dir / "32melis_settings_low_dropout.csv", 1691761),
-            (lstm_dir / "48melis_steam.csv", 2574337),
-            (lstm_dir / "64melis_steam.csv", 3530897),
-            (lstm_dir / "80melis_steam.csv", 4586017),
+            # (lstm_dir / "48melis_steam.csv", 2574337),
+            # (lstm_dir / "64melis_steam.csv", 3530897),
+            # (lstm_dir / "80melis_steam.csv", 4586017),
         ]
         configurations["lstm_scaling_diagnostic"] = [
             (str(p), n) for p, n in lstm_pairs if p.exists()
@@ -1019,11 +1023,11 @@ def get_dataset_configurations() -> dict:
         sgd_pairs = [
             # (sgd_dir / "32d_best_sgdbs128lr1.csv", 1683000),
             (sgd_dir / "32d_sgdbs64.csv", 1683000),
-            (sgd_dir / "48d_sgdbs64.csv", 2545000),
-            (sgd_dir / "64d_sgdbs64.csv", 3463000),
-            (sgd_dir / "96d_sgdbs64.csv", int(5.538e6)),
-            (sgd_dir / "128d_sgdbs64.csv", int(8.056e6)),
-            (sgd_dir / "160d_sgdbs64.csv", int(11.163e6)),
+            # (sgd_dir / "48d_sgdbs64.csv", 2545000),
+            # (sgd_dir / "64d_sgdbs64.csv", 3463000),
+            # (sgd_dir / "96d_sgdbs64.csv", int(5.538e6)),
+            # (sgd_dir / "128d_sgdbs64.csv", int(8.056e6)),
+            # (sgd_dir / "160d_sgdbs64.csv", int(11.163e6)),
         ]
         configurations["sgd_scaling"] = [
             (str(p), n) for p, n in sgd_pairs if p.exists()
