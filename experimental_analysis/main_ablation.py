@@ -374,6 +374,9 @@ estimates_data = [
     # ("Cosine Warmup vs Linear", cosine_v_linear_estimate),
     ("Adam vs SGD (bs=64)", adam_sgd_estimate),
     ("Pre vs Post Norm", post_pre_norm_estimate),
+    ("rotary vs sinusoidal", rotary_sinusoidal_estimate),
+    ("rms vs layer", rms_vs_layer_estimate),
+    ("cosine vs linear warmup", cosine_v_linear_estimate),
 ]
 
 # Filter out None estimates and separate labels, multipliers, and error bars

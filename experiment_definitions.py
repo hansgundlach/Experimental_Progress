@@ -533,6 +533,133 @@ MODERN_SCALING_STUDY = (
     )
 )
 
+
+########################################################
+# Kaplan scaling study
+########################################################
+
+KAPLAN_SCALING_STUDY = (
+    # 32 48 64 80 96 128 160
+    gen_experim(
+        32,
+        label="32_kaplan_40",
+        folder_name="new_modern_scaling_study",
+        learning_rate=9.95e-3,
+        modern_bias_0=True,
+        ff_ratio=2.5,
+        norm_type="rms",
+        token_to_param_ratio=40,
+        scaling_law="kaplan",
+    )
+    # + gen_experim(
+    #     48,
+    #     label="48_modern",
+    #     folder_name="modern_scaling_study",
+    #     learning_rate=10**-2,
+    #     modern_bias_0=True,
+    #     ff_ratio=4,
+    #     norm_type="rms",
+    # )
+    + gen_experim(
+        64,
+        label="64_kaplan_40",
+        folder_name="new_modern_scaling_study",
+        learning_rate=5.79e-3,
+        modern_bias_0=True,
+        ff_ratio=2.5,
+        norm_type="rms",
+        token_to_param_ratio=40,
+        scaling_law="kaplan",
+    )
+    + gen_experim(
+        80,
+        label="80_kaplan_40",
+        folder_name="new_modern_scaling_study",
+        learning_rate=4.87e-3,
+        modern_bias_0=True,
+        ff_ratio=2.5,
+        norm_type="rms",
+        token_to_param_ratio=40,
+        scaling_law="kaplan",
+    )
+    + gen_experim(
+        96,
+        label="96_kaplan_40",
+        folder_name="new_modern_scaling_study",
+        learning_rate=4.23e-3,
+        modern_bias_0=True,
+        ff_ratio=2.5,
+        norm_type="rms",
+        token_to_param_ratio=40,
+        scaling_law="kaplan",
+    )
+    # + gen_experim(
+    #     104,
+    #     label="104_modern",
+    #     folder_name="new_modern_scaling_study",
+    #     learning_rate=4.23e-3,
+    #     modern_bias_0=True,
+    #     ff_ratio=2.5,
+    #     norm_type="rms",
+    #     token_to_param_ratio=40,
+    # )
+    + gen_experim(
+        128,
+        label="128_kaplan_40",
+        folder_name="new_modern_scaling_study",
+        learning_rate=3.37e-3,
+        modern_bias_0=True,
+        ff_ratio=2.5,
+        norm_type="rms",
+        token_to_param_ratio=40,
+        scaling_law="kaplan",
+    )
+    + gen_experim(
+        160,
+        label="160_kaplan_40",
+        folder_name="new_modern_scaling_study",
+        learning_rate=2.83e-3,
+        modern_bias_0=True,
+        ff_ratio=2.5,
+        norm_type="rms",
+        token_to_param_ratio=40,
+        scaling_law="kaplan",
+    )
+    + gen_experim(
+        192,
+        label="192_kaplan_40",
+        folder_name="new_modern_scaling_study",
+        learning_rate=2.4626e-3,
+        modern_bias_0=True,
+        ff_ratio=2.5,
+        norm_type="rms",
+        token_to_param_ratio=40,
+        scaling_law="kaplan",
+    )
+    + gen_experim(
+        224,
+        label="224_kaplan_40",
+        folder_name="new_modern_scaling_study",
+        learning_rate=2.1837e-3,
+        modern_bias_0=True,
+        ff_ratio=2.5,
+        norm_type="rms",
+        token_to_param_ratio=40,
+        scaling_law="kaplan",
+    )
+    + gen_experim(
+        256,
+        label="256_kaplan_40",
+        folder_name="new_modern_scaling_study",
+        learning_rate=1.967e-3,
+        modern_bias_0=True,
+        ff_ratio=2.5,
+        norm_type="rms",
+        token_to_param_ratio=40,
+        scaling_law="kaplan",
+    )
+)
+
 # learning rate study
 # modern variation scaling study
 LR_STUDY_MODERN = (
@@ -637,4 +764,4 @@ LR_STUDY_MODERN = (
 
 
 # 64
-GRAND_EXPERIMENT = HISTORICAL_EXPERIMENTS
+GRAND_EXPERIMENT = KAPLAN_SCALING_STUDY

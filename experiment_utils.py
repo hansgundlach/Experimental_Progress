@@ -618,6 +618,7 @@ def gen_experim(
     label=None,
     results_folder=None,
     folder_name=None,
+    scaling_law="chinchilla",
     **overrides,
 ):
     """
@@ -628,6 +629,9 @@ def gen_experim(
         gpu_type: "V100" or "H100" (default: "V100")
         label: Custom label for the experiment (if None, auto-generated)
         results_folder: Custom results folder (if None, uses default from base config)
+        scaling_law: Token scaling approach:
+            - "chinchilla" (default): D ≈ 20*N (tokens scale linearly with params)
+            - "kaplan": D ≈ N^0.74 (tokens scale sublinearly with params)
         **overrides: Any additional config overrides
 
     Returns:
@@ -661,7 +665,7 @@ def gen_experim(
             while hidden_dim % num_heads != 0 and num_heads > 1:
                 num_heads -= 1
 
-    # 3. Calculate total parameters and scale max_tokens to 20x parameters
+    # 3. Calculate total parameters and scale max_tokens based on scaling law
     # Use user overrides for tie_embeddings and ff_ratio if provided
     tie_embeddings = overrides.get("tie_embeddings", base_config["tie_embeddings"])
     ff_ratio = overrides.get("ff_ratio", base_config["ff_ratio"])
@@ -673,10 +677,24 @@ def gen_experim(
         tie_embeddings=tie_embeddings,
         ff_ratio=ff_ratio,
     )
-    token_to_param_ratio = overrides.get(
-        "token_to_param_ratio", base_config["token_to_param_ratio"]
-    )
-    max_tokens_training = int(token_to_param_ratio * total_params)
+
+    # Determine max_tokens_training based on scaling law
+    # Allow explicit max_tokens_training or token_to_param_ratio override to take precedence
+    if "max_tokens_training" in overrides:
+        max_tokens_training = overrides["max_tokens_training"]
+    elif "token_to_param_ratio" in overrides:
+        token_to_param_ratio = overrides["token_to_param_ratio"]
+        max_tokens_training = int(token_to_param_ratio * total_params)
+    elif scaling_law == "kaplan":
+        # Kaplan et al. (2020): D_opt ≈ N^0.74
+        # where D is tokens and N is parameters
+        # This means larger models need proportionally FEWER tokens per parameter
+        max_tokens_training = int(831.4 * total_params**0.74)
+    else:  # "chinchilla" or default
+        # Chinchilla (Hoffmann et al., 2022): D_opt ≈ N (approximately 20:1 ratio)
+        # Tokens scale linearly with parameters
+        token_to_param_ratio = base_config["token_to_param_ratio"]
+        max_tokens_training = int(token_to_param_ratio * total_params)
 
     # 4. Estimate gradient accumulation based on GPU memory
     # Use target_effective_batch_size for optimization goals
@@ -842,5 +860,5 @@ def get_base_config():
         "use_streaming_dataset": True,  # Use streaming dataset for large files (default: False = memory-based loading)
         "ff_ratio": 2.5,  # Feedforward dimension to model dimension ratio (default: 4)
         "modern_bias_0": True,  # Modern architecture: remove biases from layers followed by normalization (default: False)
-        "token_to_param_ratio": 20,  # Number of training tokens per parameter (Chinchilla optimal is ~20)
+        "token_to_param_ratio": 20,  # Chinchilla: D ≈ 20*N (linear scaling). Kaplan: D ≈ N^0.74 (sublinear)
     }

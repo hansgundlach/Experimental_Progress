@@ -1889,6 +1889,80 @@ if __name__ == "__main__":
             "class": "2017 Transformer",
             "hidden_dim": 256,
         },
+        # add kaplan scaling study
+        {
+            "name": "32d kaplan scaling study",
+            "csv_path": "../experimental_data_folder/new_modern_scaling_study/32_kaplan_40.csv",
+            "marker": "o",
+            "include_in_frontier": True,  # Include in frontier analysis
+            "class": "kaplan scaling study",
+            "hidden_dim": 32,
+        },
+        {
+            "name": "64d kaplan scaling study",
+            "csv_path": "../experimental_data_folder/new_modern_scaling_study/64_kaplan_40.csv",
+            "marker": "o",
+            "include_in_frontier": True,  # Include in frontier analysis
+            "class": "kaplan scaling study",
+            "hidden_dim": 64,
+        },
+        {
+            "name": "80d kaplan scaling study",
+            "csv_path": "../experimental_data_folder/new_modern_scaling_study/80_kaplan_40.csv",
+            "marker": "o",
+            "include_in_frontier": True,  # Include in frontier analysis
+            "class": "kaplan scaling study",
+            "hidden_dim": 80,
+        },
+        {
+            "name": "96d kaplan scaling study",
+            "csv_path": "../experimental_data_folder/new_modern_scaling_study/96_kaplan_40.csv",
+            "marker": "o",
+            "include_in_frontier": True,  # Include in frontier analysis
+            "class": "kaplan scaling study",
+            "hidden_dim": 96,
+        },
+        {
+            "name": "128d kaplan scaling study",
+            "csv_path": "../experimental_data_folder/new_modern_scaling_study/128_kaplan_40.csv",
+            "marker": "o",
+            "include_in_frontier": True,  # Include in frontier analysis
+            "class": "kaplan scaling study",
+            "hidden_dim": 128,
+        },
+        {
+            "name": "160d kaplan scaling study",
+            "csv_path": "../experimental_data_folder/new_modern_scaling_study/160_kaplan_40.csv",
+            "marker": "o",
+            "include_in_frontier": True,  # Include in frontier analysis
+            "class": "kaplan scaling study",
+            "hidden_dim": 160,
+        },
+        {
+            "name": "192d kaplan scaling study",
+            "csv_path": "../experimental_data_folder/new_modern_scaling_study/192_kaplan_40.csv",
+            "marker": "o",
+            "include_in_frontier": True,  # Include in frontier analysis
+            "class": "kaplan scaling study",
+            "hidden_dim": 192,
+        },
+        # 224
+        {
+            "name": "224d kaplan scaling study",
+            "csv_path": "../experimental_data_folder/new_modern_scaling_study/224_kaplan_40.csv",
+            "marker": "o",
+            "include_in_frontier": True,  # Include in frontier analysis
+            "class": "kaplan scaling study",
+            "hidden_dim": 224,
+        },
+        {
+            "name": "256d kaplan scaling study",
+            "csv_path": "../experimental_data_folder/new_modern_scaling_study/256_kaplan_40.csv",
+            "marker": "o",
+            "include_in_frontier": True,  # Include in frontier analysis
+            "class": "kaplan scaling study",
+            "hidden_dim": 256,
+        },
     ]
 
     #     debug_historical_experiments/radford256_40t_to_p.csv
@@ -1998,14 +2072,16 @@ if __name__ == "__main__":
             # "transformer",
             # "lstm",
             # "2017 Transformer",
-            "sgd",
+            # "sgd",
             # "vanilla_transformer_rmsprop",
+            "kaplan scaling study",
         ],
         flop_range_by_class={
             # "transformer": (1e14, 5 * 1e17),
             # "lstm": (1e14, 1e17 * 5),
             # "2017 Transformer": (1e14, 1e17),
-            "sgd": (1e14, 1e17),
+            # "sgd": (1e14, 1e17),
+            "kaplan scaling study": (1e14, 1e17),
         },
         extrapolation_factor=10.0,  # Extend trend lines 3x beyond data range
         # Example theoretical scaling laws to compare with data
