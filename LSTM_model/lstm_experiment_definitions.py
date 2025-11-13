@@ -263,6 +263,58 @@ MELIS_SCALING = (
 )
 
 
+SEC_LENGTH_CHANGE = (
+    gen_lstm_experim(
+        32,
+        label="32melis_stream",
+        folder_name="lstm_scaling_study",
+        learning_rate=10 ** -(2),
+        between_layers_dropout=0.0,
+        optimizer="adam",
+        sequence_length=32,
+        tbptt_length=32,
+    )
+    + gen_lstm_experim(
+        48,
+        label="48melis_stream",
+        folder_name="lstm_scaling_study",
+        learning_rate=10**-2,
+        optimizer="adam",
+    )
+    + gen_lstm_experim(
+        64,
+        label="64melis_stream",
+        folder_name="lstm_scaling_study",
+        learning_rate=10**-2,
+    )
+    + gen_lstm_experim(
+        80,
+        label="80melis_stream",
+        folder_name="lstm_scaling_study",
+        learning_rate=10**-2,
+        # Removed num_layers override - let it use base config value for fair comparison
+    )
+    + gen_lstm_experim(
+        128,
+        label="128melis_stream",
+        folder_name="lstm_scaling_study",
+        learning_rate=10**-2,
+        # Removed num_layers override - let it use base config value for fair comparison
+    )
+    + gen_lstm_experim(
+        160,
+        label="160melis_stream",
+        folder_name="lstm_scaling_study",
+        learning_rate=10**-2,
+    )
+    + gen_lstm_experim(
+        256,
+        label="256melis_stream",
+        folder_name="lstm_scaling_study",
+        learning_rate=10**-2,
+    )
+)
+
 CORRECTED_MELIS_SCALING = (
     gen_lstm_experim(
         32,
@@ -789,6 +841,82 @@ LSTM_SCALING_STUDY = (
     )
 )
 
+
+LSTM_SEQ_LENGTH = (
+    gen_lstm_experim(
+        32,
+        label="32d",
+        folder_name="lstm_seq_length",
+        learning_rate=5.6234e-2,
+        token_to_param_ratio=40,
+        sequence_length=32,
+        tbptt_length=32,
+    )
+    + gen_lstm_experim(
+        48,
+        label="48d",
+        folder_name="lstm_seq_length",
+        learning_rate=4.0157e-2,
+        token_to_param_ratio=40,
+        sequence_length=32,
+        tbptt_length=32,
+    )
+    + gen_lstm_experim(
+        64,
+        label="64d",
+        folder_name="lstm_seq_length",
+        learning_rate=3.1623e-2,
+        token_to_param_ratio=40,
+        sequence_length=32,
+        tbptt_length=32,
+    )
+    + gen_lstm_experim(
+        80,
+        label="80d",
+        folder_name="lstm_seq_length",
+        learning_rate=2.627e-2,
+        token_to_param_ratio=40,
+        sequence_length=32,
+        tbptt_length=32,
+    )
+    + gen_lstm_experim(
+        104,
+        label="104d",
+        folder_name="lstm_seq_length",
+        learning_rate=2.1130e-2,
+        token_to_param_ratio=40,
+        sequence_length=32,
+        tbptt_length=32,
+    )
+    + gen_lstm_experim(
+        128,
+        label="128d",
+        folder_name="lstm_seq_length",
+        learning_rate=1.7783e-2,
+        token_to_param_ratio=40,
+        sequence_length=32,
+        tbptt_length=32,
+    )
+    + gen_lstm_experim(
+        160,
+        label="160d",
+        folder_name="lstm_seq_length",
+        learning_rate=1.4775e-2,
+        token_to_param_ratio=40,
+        sequence_length=32,
+        tbptt_length=32,
+    )
+    + gen_lstm_experim(
+        256,
+        label="256d",
+        folder_name="lstm_seq_length",
+        learning_rate=1.0e-2,
+        token_to_param_ratio=40,
+        sequence_length=32,
+        tbptt_length=32,
+    )
+)
+
 # GRAND_EXPERIMENT = create_multi_lr_experiments(
 #     APPENDIX_ABALATION_STUDY, NARROW_LR_SWEEP
 # )s
@@ -886,13 +1014,19 @@ GRAND_EXPERIMENT = gen_lstm_experim(
 #     target_effective_batch_size=32,
 # )
 
-GRAND_EXPERIMENT = gen_lstm_experim(
-    32,
-    label="random_test_32_lstm",
-    folder_name="new_lstm_sgd",
-    learning_rate=10**-1,
-    optimizer="sgd",
-    sgd_momentum=0.99,
-    weight_decay=0.0,
-    data_path="Datasets/c4_subset_large.txt",
+
+GRAND_EXPERIMENT = (
+    create_multi_lr_experiments(
+        LSTM_SEQ_LENGTH,
+        [
+            10**-1,
+            10**-1.5,
+            10**-2,
+            10**-2.5,
+            10**-3,
+        ],
+    )
+    + LSTM_SEQ_LENGTH
 )
+
+# 48 experimetns

@@ -21,12 +21,9 @@ from pathlib import Path
 
 # Import shared data loading utilities
 import sys
-sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..'))
-from data_loading import (
-    TokenDataset,
-    LSTMStatefulDataset,
-    load_and_tokenize_text
-)
+
+sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
+from data_loading import TokenDataset, LSTMStatefulDataset, load_and_tokenize_text
 
 
 cudnn.benchmark = True
