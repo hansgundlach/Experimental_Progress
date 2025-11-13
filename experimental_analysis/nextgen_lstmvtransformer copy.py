@@ -102,6 +102,7 @@ CLASS_COLORS = {
     "transformer": "viridis[0.0]",  # Dark purple color
     "sgd": "viridis[0.6]",  # Yellow-green color
     "2017 Transformer": "plasma[0.7]",  # Orange color
+    "sin transformer": "tab:orange",  # Pink-purple color for sin transformer
     "lstm_sgd": "tab:orange",  # Orange color for LSTM SGD experiments
     "default": "tab:blue",  # Default color for unclassified experiments
 }
@@ -328,26 +329,41 @@ class TrainingCurveAnalyzer:
         # Assemble candidate points
         points: List[Tuple[str, float, float]] = []
         if use_all_points:
-            # Use every row from each experiment's CSV
+            # Use every row from each experiment's CSV - VECTORIZED for speed
             for name, exp in self.experiments.items():
                 if not exp["include_in_frontier"]:
                     continue
                 df = exp["data"]
                 comp_col = exp["compute_col"]
                 loss_col = exp["loss_col"]
-                for _, row in df.iterrows():
-                    compute = float(row[comp_col])
-                    loss = float(row[loss_col]) - self.irreducible_loss
-                    if not np.isfinite(compute) or not np.isfinite(loss):
-                        continue
-                    if flop_range is not None:
-                        min_flops, max_flops = flop_range
-                        if compute < min_flops or compute > max_flops:
-                            continue
-                    # Only consider positive losses after subtraction
-                    if loss <= 0:
-                        continue
-                    points.append((name, compute, loss))
+
+                # Vectorized operations instead of iterrows() - MUCH faster
+                compute_vals = df[comp_col].values.astype(float)
+                loss_vals = df[loss_col].values.astype(float) - self.irreducible_loss
+
+                # Create boolean mask for valid points
+                valid_mask = (
+                    np.isfinite(compute_vals) & np.isfinite(loss_vals) & (loss_vals > 0)
+                )
+
+                # Apply flop range filter if specified
+                if flop_range is not None:
+                    min_flops, max_flops = flop_range
+                    valid_mask &= (compute_vals >= min_flops) & (
+                        compute_vals <= max_flops
+                    )
+
+                # Extract valid points
+                valid_computes = compute_vals[valid_mask]
+                valid_losses = loss_vals[valid_mask]
+
+                # Append all valid points at once
+                points.extend(
+                    [
+                        (name, float(c), float(l))
+                        for c, l in zip(valid_computes, valid_losses)
+                    ]
+                )
         else:
             # Use only the final points per experiment
             for name, exp in self.experiments.items():
@@ -361,30 +377,40 @@ class TrainingCurveAnalyzer:
                     points.append((name, compute, exp["final_loss"]))
 
         if method == "pareto":
-            # Find Pareto frontier (no other point dominates)
-            frontier = []
-            for name, compute, loss in points:
-                is_dominated = False
-                for other_name, other_compute, other_loss in points:
-                    if (other_compute <= compute and other_loss < loss) or (
-                        other_compute < compute and other_loss <= loss
-                    ):
-                        is_dominated = True
-                        break
-                if not is_dominated:
-                    # Keep the name so legacy callers still work
-                    frontier.append(name)
+            # Find Pareto frontier (no other point dominates) - optimized with numpy
+            if not points:
+                frontier = []
+                if use_all_points:
+                    self.frontier_points_all = []
+            else:
+                # Convert to numpy arrays for faster computation
+                names_arr = np.array([p[0] for p in points])
+                computes_arr = np.array([p[1] for p in points])
+                losses_arr = np.array([p[2] for p in points])
 
-            # Also store raw coordinates for frontier points when using all points
-            if use_all_points:
-                self.frontier_points_all = [
-                    (n, c, l)
-                    for (n, c, l) in points
-                    if not any(
-                        ((oc <= c and ol < l) or (oc < c and ol <= l))
-                        for (_, oc, ol) in points
+                # Vectorized dominance check - much faster than nested loops
+                n = len(points)
+                is_dominated = np.zeros(n, dtype=bool)
+                for i in range(n):
+                    # Check if point i is dominated by any other point
+                    dominates = (
+                        (computes_arr <= computes_arr[i]) & (losses_arr < losses_arr[i])
+                    ) | (
+                        (computes_arr < computes_arr[i]) & (losses_arr <= losses_arr[i])
                     )
-                ]
+                    dominates[i] = False  # Don't count self
+                    is_dominated[i] = np.any(dominates)
+
+                # Extract non-dominated points
+                non_dominated_indices = np.where(~is_dominated)[0]
+                frontier = [names_arr[i] for i in non_dominated_indices]
+
+                # Also store raw coordinates for frontier points when using all points
+                if use_all_points:
+                    self.frontier_points_all = [
+                        (names_arr[i], float(computes_arr[i]), float(losses_arr[i]))
+                        for i in non_dominated_indices
+                    ]
 
             # Sort by compute for better visualization
             frontier.sort(key=lambda x: self.experiments[x]["final_compute"])
@@ -450,24 +476,43 @@ class TrainingCurveAnalyzer:
                 df = exp["data"]
                 comp_col = exp["compute_col"]
                 loss_col = exp["loss_col"]
-                for _, row in df.iterrows():
-                    compute = float(row[comp_col])
-                    loss = float(row[loss_col]) - self.irreducible_loss
-                    if not np.isfinite(compute) or not np.isfinite(loss):
-                        continue
-                    # Choose applicable flop range for this class
-                    active_range = None
-                    if flop_range_by_class is not None and cls in flop_range_by_class:
-                        active_range = flop_range_by_class[cls]
-                    elif flop_range is not None:
-                        active_range = flop_range
-                    if active_range is not None:
-                        min_flops, max_flops = active_range
-                        if compute < min_flops or compute > max_flops:
-                            continue
-                    if loss <= 0:
-                        continue
-                    points_by_class.setdefault(cls, []).append((name, compute, loss))
+
+                # Vectorized operations instead of iterrows() - MUCH faster
+                compute_vals = df[comp_col].values.astype(float)
+                loss_vals = df[loss_col].values.astype(float) - self.irreducible_loss
+
+                # Create boolean mask for valid points
+                valid_mask = (
+                    np.isfinite(compute_vals) & np.isfinite(loss_vals) & (loss_vals > 0)
+                )
+
+                # Choose applicable flop range for this class
+                active_range = None
+                if flop_range_by_class is not None and cls in flop_range_by_class:
+                    active_range = flop_range_by_class[cls]
+                elif flop_range is not None:
+                    active_range = flop_range
+
+                # Apply flop range filter if specified
+                if active_range is not None:
+                    min_flops, max_flops = active_range
+                    valid_mask &= (compute_vals >= min_flops) & (
+                        compute_vals <= max_flops
+                    )
+
+                # Extract valid points
+                valid_computes = compute_vals[valid_mask]
+                valid_losses = loss_vals[valid_mask]
+
+                # Append all valid points at once
+                if cls not in points_by_class:
+                    points_by_class[cls] = []
+                points_by_class[cls].extend(
+                    [
+                        (name, float(c), float(l))
+                        for c, l in zip(valid_computes, valid_losses)
+                    ]
+                )
         else:
             for name, exp in self.experiments.items():
                 if not exp["include_in_frontier"]:
@@ -497,18 +542,39 @@ class TrainingCurveAnalyzer:
                 frontier_points_all_by_class[cls] = []
                 continue
             if method == "pareto":
-                # Compute Pareto frontier within class
-                non_dominated = []
-                for name, compute, loss in points:
-                    is_dominated = False
-                    for oname, ocompute, oloss in points:
-                        if (ocompute <= compute and oloss < loss) or (
-                            ocompute < compute and oloss <= loss
-                        ):
-                            is_dominated = True
-                            break
-                    if not is_dominated:
-                        non_dominated.append((name, compute, loss))
+                # Compute Pareto frontier within class - optimized with numpy
+                if not points:
+                    non_dominated = []
+                else:
+                    # Convert to numpy arrays for faster computation
+                    names_arr = np.array([p[0] for p in points])
+                    computes_arr = np.array([p[1] for p in points])
+                    losses_arr = np.array([p[2] for p in points])
+
+                    # Vectorized dominance check - much faster than nested loops
+                    n = len(points)
+                    # For each point, check if it's dominated by any other point
+                    is_dominated = np.zeros(n, dtype=bool)
+                    for i in range(n):
+                        # Check if point i is dominated by any other point
+                        # A point is dominated if another point has <= compute AND < loss,
+                        # OR < compute AND <= loss
+                        dominates = (
+                            (computes_arr <= computes_arr[i])
+                            & (losses_arr < losses_arr[i])
+                        ) | (
+                            (computes_arr < computes_arr[i])
+                            & (losses_arr <= losses_arr[i])
+                        )
+                        dominates[i] = False  # Don't count self
+                        is_dominated[i] = np.any(dominates)
+
+                    # Extract non-dominated points
+                    non_dominated = [
+                        (names_arr[i], float(computes_arr[i]), float(losses_arr[i]))
+                        for i in range(n)
+                        if not is_dominated[i]
+                    ]
 
                 # Unique experiment names for frontier membership
                 names = sorted({n for (n, _, _) in non_dominated})
@@ -843,7 +909,7 @@ class TrainingCurveAnalyzer:
             linestyle=linestyle,
             linewidth=linewidth,
             alpha=alpha,
-            label=f"{label}: {E:.3f} - {self.irreducible_loss:.3f} + {A:.2e} * C^({gamma:.3f})",
+            label=f"{label}: L = {E:.3f} - {self.irreducible_loss:.3f} + {A:.2e} * C^({gamma:.3f})",
         )
 
     def plot_training_curves_by_class(
@@ -859,6 +925,8 @@ class TrainingCurveAnalyzer:
         flop_range_by_class: Optional[Dict[str, Tuple[float, float]]] = None,
         extrapolation_factor: float = 2.0,
         theoretical_scaling_laws: Optional[List[Dict]] = None,
+        xlim: Optional[Tuple[float, float]] = None,
+        extrapolation_range: Optional[Tuple[float, float]] = None,
     ) -> None:
         """
         Plot training curves and per-class frontiers and fits.
@@ -875,15 +943,27 @@ class TrainingCurveAnalyzer:
             classes_to_plot: Which classes to plot
             flop_range_by_class: Per-class FLOP ranges
             extrapolation_factor: Factor to extend trend lines beyond data range (e.g., 2.0 = 2x range)
+                                 Ignored if extrapolation_range is provided.
             theoretical_scaling_laws: Optional list of dicts with keys 'E', 'A', 'gamma', 'label', 'color', 'linestyle'
                                     to plot theoretical scaling laws of form E + A*C^(gamma)
+            xlim: Optional tuple of (min_x, max_x) to explicitly set x-axis limits (e.g., (1e14, 1e18))
+            extrapolation_range: Optional tuple of (min_compute, max_compute) to explicitly set the range for
+                               extrapolation of fit lines (e.g., (1e14, 1e18)). If provided, overrides extrapolation_factor.
         """
         # Optionally recompute per-class frontier for this plot only if a range is provided
         original_frontier_by_class = self.frontier_points_by_class.copy()
         original_frontier_all_by_class = getattr(
             self, "frontier_points_all_by_class", {}
         ).copy()
-        if flop_range is not None or flop_range_by_class is not None:
+        # Always compute frontier if it hasn't been computed yet, or if ranges are provided
+        if (
+            flop_range is not None
+            or flop_range_by_class is not None
+            or not self.frontier_points_by_class
+            or (
+                use_all_points and not getattr(self, "frontier_points_all_by_class", {})
+            )
+        ):
             self.identify_frontier_by_class(
                 method="pareto",
                 flop_range=flop_range,
@@ -987,8 +1067,17 @@ class TrainingCurveAnalyzer:
             fit_results = self.fit_power_law_by_class(
                 class_names=classes_to_plot, use_all_points=use_all_points
             )
-            for cls, params in fit_results.items():
+            for cls in classes_to_plot:
+                if cls not in fit_results:
+                    print(
+                        f"Warning: No fit result for class '{cls}' - frontier may be empty or fit failed"
+                    )
+                    continue
+                params = fit_results[cls]
                 if params is None:
+                    print(
+                        f"Warning: Fit failed for class '{cls}' - may not have enough points"
+                    )
                     continue
                 a, b, r2 = params
                 if use_all_points:
@@ -1004,14 +1093,21 @@ class TrainingCurveAnalyzer:
                         for n in self.frontier_points_by_class.get(cls, [])
                     ]
                 if len(xs) < 2:
+                    print(
+                        f"Warning: Class '{cls}' has only {len(xs)} frontier point(s), need at least 2 for fit"
+                    )
                     continue
-                min_compute = min(xs)
-                max_compute = max(xs)
 
-                # Extend the range using extrapolation_factor
-                compute_range = max_compute - min_compute
-                extended_min = min_compute / extrapolation_factor
-                extended_max = max_compute * extrapolation_factor
+                # Determine extrapolation range
+                if extrapolation_range is not None:
+                    # Use explicit extrapolation range
+                    extended_min, extended_max = extrapolation_range
+                else:
+                    # Use extrapolation_factor to extend data range
+                    min_compute = min(xs)
+                    max_compute = max(xs)
+                    extended_min = min_compute / extrapolation_factor
+                    extended_max = max_compute * extrapolation_factor
 
                 x_fit = np.logspace(np.log10(extended_min), np.log10(extended_max), 200)
                 y_fit = a * np.power(x_fit, b)
@@ -1052,12 +1148,17 @@ class TrainingCurveAnalyzer:
                     ]
                 if len(xs) < 2:
                     continue
-                min_compute = min(xs)
-                max_compute = max(xs)
 
-                # Extend the range using extrapolation_factor
-                extended_min = min_compute / extrapolation_factor
-                extended_max = max_compute * extrapolation_factor
+                # Determine extrapolation range
+                if extrapolation_range is not None:
+                    # Use explicit extrapolation range
+                    extended_min, extended_max = extrapolation_range
+                else:
+                    # Use extrapolation_factor to extend data range
+                    min_compute = min(xs)
+                    max_compute = max(xs)
+                    extended_min = min_compute / extrapolation_factor
+                    extended_max = max_compute * extrapolation_factor
 
                 x_fit = np.logspace(np.log10(extended_min), np.log10(extended_max), 200)
                 y_fit = E + A * np.power(x_fit, alpha)
@@ -1099,12 +1200,17 @@ class TrainingCurveAnalyzer:
                             [self.experiments[n]["final_compute"] for n in names]
                         )
 
-                if all_xs:
-                    min_compute = min(all_xs)
-                    max_compute = max(all_xs)
-                    # Extend range using extrapolation_factor
-                    extended_min = min_compute / extrapolation_factor
-                    extended_max = max_compute * extrapolation_factor
+                if all_xs or extrapolation_range is not None:
+                    # Determine extrapolation range
+                    if extrapolation_range is not None:
+                        # Use explicit extrapolation range
+                        extended_min, extended_max = extrapolation_range
+                    else:
+                        # Use extrapolation_factor to extend data range
+                        min_compute = min(all_xs)
+                        max_compute = max(all_xs)
+                        extended_min = min_compute / extrapolation_factor
+                        extended_max = max_compute * extrapolation_factor
 
                     x_theory = np.logspace(
                         np.log10(extended_min), np.log10(extended_max), 200
@@ -1133,6 +1239,11 @@ class TrainingCurveAnalyzer:
         )
         ax.set_yscale("log")
         ax.set_xscale("log")
+
+        # Set explicit x-axis limits if provided
+        if xlim is not None:
+            ax.set_xlim(xlim)
+
         ax.grid(True, alpha=0.3)
         ax.set_title(
             "Transformer Scaling Analysis",
@@ -1266,6 +1377,8 @@ class TrainingCurveAnalyzer:
         use_all_points: bool = True,
         extrapolation_factor: float = 2.0,
         theoretical_scaling_laws: Optional[List[Dict]] = None,
+        xlim: Optional[Tuple[float, float]] = None,
+        extrapolation_range: Optional[Tuple[float, float]] = None,
     ) -> None:
         """
         Plot training curves for all experiments.
@@ -1280,8 +1393,12 @@ class TrainingCurveAnalyzer:
             save_path: Path to save the plot
             use_all_points: Whether to use all training points or just final points
             extrapolation_factor: Factor to extend trend lines beyond data range (e.g., 2.0 = 2x range)
+                                 Ignored if extrapolation_range is provided.
             theoretical_scaling_laws: Optional list of dicts with keys 'E', 'A', 'gamma', 'label', 'color', 'linestyle'
                                     to plot theoretical scaling laws of form E + A*C^(gamma)
+            xlim: Optional tuple of (min_x, max_x) to explicitly set x-axis limits (e.g., (1e14, 1e18))
+            extrapolation_range: Optional tuple of (min_compute, max_compute) to explicitly set the range for
+                               extrapolation of fit lines (e.g., (1e14, 1e18)). If provided, overrides extrapolation_factor.
         """
         plt.figure(figsize=figsize)
 
@@ -1377,19 +1494,26 @@ class TrainingCurveAnalyzer:
             if power_law_result is not None:
                 a, b, r_squared = power_law_result
                 # Generate fit curve
-                if use_all_points:
-                    xs = [
-                        comp
-                        for (_, comp, _) in getattr(self, "frontier_points_all", [])
-                    ]
-                else:
-                    xs = [exp["final_compute"] for exp in experiments_to_plot.values()]
-                min_compute = min(xs)
-                max_compute = max(xs)
 
-                # Extend the range using extrapolation_factor
-                extended_min = min_compute / extrapolation_factor
-                extended_max = max_compute * extrapolation_factor
+                # Determine extrapolation range
+                if extrapolation_range is not None:
+                    # Use explicit extrapolation range
+                    extended_min, extended_max = extrapolation_range
+                else:
+                    # Use extrapolation_factor to extend data range
+                    if use_all_points:
+                        xs = [
+                            comp
+                            for (_, comp, _) in getattr(self, "frontier_points_all", [])
+                        ]
+                    else:
+                        xs = [
+                            exp["final_compute"] for exp in experiments_to_plot.values()
+                        ]
+                    min_compute = min(xs)
+                    max_compute = max(xs)
+                    extended_min = min_compute / extrapolation_factor
+                    extended_max = max_compute * extrapolation_factor
 
                 x_fit = np.logspace(np.log10(extended_min), np.log10(extended_max), 200)
                 y_fit = a * np.power(x_fit, b)
@@ -1409,19 +1533,26 @@ class TrainingCurveAnalyzer:
             if sklearn_result is not None:
                 E, A, alpha, r_squared = sklearn_result
                 # Generate fit curve
-                if use_all_points:
-                    xs = [
-                        comp
-                        for (_, comp, _) in getattr(self, "frontier_points_all", [])
-                    ]
-                else:
-                    xs = [exp["final_compute"] for exp in experiments_to_plot.values()]
-                min_compute = min(xs)
-                max_compute = max(xs)
 
-                # Extend the range using extrapolation_factor
-                extended_min = min_compute / extrapolation_factor
-                extended_max = max_compute * extrapolation_factor
+                # Determine extrapolation range
+                if extrapolation_range is not None:
+                    # Use explicit extrapolation range
+                    extended_min, extended_max = extrapolation_range
+                else:
+                    # Use extrapolation_factor to extend data range
+                    if use_all_points:
+                        xs = [
+                            comp
+                            for (_, comp, _) in getattr(self, "frontier_points_all", [])
+                        ]
+                    else:
+                        xs = [
+                            exp["final_compute"] for exp in experiments_to_plot.values()
+                        ]
+                    min_compute = min(xs)
+                    max_compute = max(xs)
+                    extended_min = min_compute / extrapolation_factor
+                    extended_max = max_compute * extrapolation_factor
 
                 x_fit = np.logspace(np.log10(extended_min), np.log10(extended_max), 200)
                 y_fit = E + A * np.power(x_fit, alpha)
@@ -1448,20 +1579,9 @@ class TrainingCurveAnalyzer:
                 alpha = law_config.get("alpha", 0.8)
 
                 # Determine compute range for theoretical curve
-                if use_all_points:
-                    xs = [
-                        comp
-                        for (_, comp, _) in getattr(self, "frontier_points_all", [])
-                    ]
-                else:
-                    xs = [exp["final_compute"] for exp in experiments_to_plot.values()]
-
-                if xs:
-                    min_compute = min(xs)
-                    max_compute = max(xs)
-                    # Extend range using extrapolation_factor
-                    extended_min = min_compute / extrapolation_factor
-                    extended_max = max_compute * extrapolation_factor
+                if extrapolation_range is not None:
+                    # Use explicit extrapolation range
+                    extended_min, extended_max = extrapolation_range
 
                     x_theory = np.logspace(
                         np.log10(extended_min), np.log10(extended_max), 200
@@ -1480,6 +1600,41 @@ class TrainingCurveAnalyzer:
                         alpha=ALPHA_CONFIG["theoretical_alpha"],
                         label=f"{label}: {E:.3f} - {self.irreducible_loss:.3f} + {A:.2e} * C^({gamma:.3f})",
                     )
+                else:
+                    # Use extrapolation_factor to extend data range
+                    if use_all_points:
+                        xs = [
+                            comp
+                            for (_, comp, _) in getattr(self, "frontier_points_all", [])
+                        ]
+                    else:
+                        xs = [
+                            exp["final_compute"] for exp in experiments_to_plot.values()
+                        ]
+
+                    if xs:
+                        min_compute = min(xs)
+                        max_compute = max(xs)
+                        extended_min = min_compute / extrapolation_factor
+                        extended_max = max_compute * extrapolation_factor
+
+                        x_theory = np.logspace(
+                            np.log10(extended_min), np.log10(extended_max), 200
+                        )
+                        # Calculate theoretical loss: E - L0 + A*C^(gamma)
+                        y_theory = (E - self.irreducible_loss) + A * np.power(
+                            x_theory, gamma
+                        )
+
+                        plt.plot(
+                            x_theory,
+                            y_theory,
+                            color=color,
+                            linestyle=linestyle,
+                            linewidth=linewidth,
+                            alpha=ALPHA_CONFIG["theoretical_alpha"],
+                            label=f"{label}: {E:.3f} - {self.irreducible_loss:.3f} + {A:.2e} * C^({gamma:.3f})",
+                        )
 
         # Customize plot
         plt.xlabel("Compute (FLOPS)", fontsize=FONT_CONFIG["regular_xlabel_size"])
@@ -1488,6 +1643,11 @@ class TrainingCurveAnalyzer:
         )
         plt.yscale("log")
         plt.xscale("log")
+
+        # Set explicit x-axis limits if provided
+        if xlim is not None:
+            plt.xlim(xlim)
+
         plt.grid(True, alpha=0.3)
         plt.title(
             "Training Curves and Scaling Analysis",
@@ -1502,7 +1662,7 @@ class TrainingCurveAnalyzer:
             fontsize=FONT_CONFIG["regular_legend_size"],
         )
 
-        # Force opaque legend markers/lines
+        # Force         opaque legend markers/lines
         for h in leg.legendHandles:
             if hasattr(h, "set_alpha"):
                 h.set_alpha(1.0)
@@ -1682,23 +1842,23 @@ if __name__ == "__main__":
         # },
         {
             "name": "32d transformer scaling further",
-            "csv_path": "../experimental_data_folder/new_modern_scaling_study/32_modern.csv",
+            "csv_path": "../experimental_data_folder/new_modern_scaling_study/32_modern_40.csv",
             "marker": "o",
             "include_in_frontier": True,  # Include in frontier analysis
             "class": "transformer",
             "hidden_dim": 32,
         },
-        {
-            "name": "48d transformer scaling further",
-            "csv_path": "../experimental_data_folder/transformer_scaling/48d_transformer_bs64.csv",
-            "marker": "o",
-            "include_in_frontier": True,  # Include in frontier analysis
-            "class": "transformer",
-            "hidden_dim": 48,
-        },
+        # {
+        #     "name": "48d transformer scaling further",
+        #     "csv_path": "../experimental_data_folder/transformer_scaling/48d_transformer_bs64.csv",
+        #     "marker": "o",
+        #     "include_in_frontier": True,  # Include in frontier analysis
+        #     "class": "transformer",
+        #     "hidden_dim": 48,
+        # },
         {
             "name": "64d transformer scaling further",
-            "csv_path": "../experimental_data_folder/new_modern_scaling_study/64_modern.csv.csv",
+            "csv_path": "../experimental_data_folder/new_modern_scaling_study/64_modern_40.csv.csv",
             "marker": "o",
             "include_in_frontier": True,  # Include in frontier analysis
             "class": "transformer",
@@ -1707,7 +1867,7 @@ if __name__ == "__main__":
         # # 96 128 160
         {
             "name": "96d transformer scaling further",
-            "csv_path": "../experimental_data_folder/new_modern_scaling_study/96_modern.csv",
+            "csv_path": "../experimental_data_folder/new_modern_scaling_study/96_modern_40.csv",
             "marker": "o",
             "include_in_frontier": True,  # Include in frontier analysis
             "class": "transformer",
@@ -1715,7 +1875,7 @@ if __name__ == "__main__":
         },
         {
             "name": "128d transformer scaling further",
-            "csv_path": "../experimental_data_folder/new_modern_scaling_study/128_modern.csv",
+            "csv_path": "../experimental_data_folder/new_modern_scaling_study/128_modern_40.csv",
             "marker": "o",
             "include_in_frontier": True,  # Include in frontier analysis
             "class": "transformer",
@@ -1723,59 +1883,75 @@ if __name__ == "__main__":
         },
         {
             "name": "160d transformer scaling further",
-            "csv_path": "../experimental_data_folder/new_modern_scaling_study/160_modern.csv",
+            "csv_path": "../experimental_data_folder/new_modern_scaling_study/160_modern_40.csv",
             "marker": "o",
             "include_in_frontier": True,  # Include in frontier analysis
             "class": "transformer",
             "hidden_dim": 160,
         },
-        # 256
-        # {
-        #     "name": "256d transformer scaling further",
-        #     "csv_path": "../experimental_data_folder/transformer_scaling/256d_transformer_bs64.csv",
-        #     "marker": "o",
-        #     "include_in_frontier": True,  # Include in frontier analysis
-        #     "class": "transformer",
-        #     "hidden_dim": 256,
-        # },
+        # 192 and 224
+        {
+            "name": "192d transformer scaling further",
+            "csv_path": "../experimental_data_folder/new_modern_scaling_study/192_modern_40.csv",
+            "marker": "o",
+            "include_in_frontier": True,  # Include in frontier analysis
+            "class": "transformer",
+            "hidden_dim": 192,
+        },
+        {
+            "name": "224d transformer scaling further",
+            "csv_path": "../experimental_data_folder/new_modern_scaling_study/224_modern_40.csv",
+            "marker": "o",
+            "include_in_frontier": True,  # Include in frontier analysis
+            "class": "transformer",
+            "hidden_dim": 224,
+        },
+        {
+            "name": "256d transformer scaling further",
+            "csv_path": "../experimental_data_folder/new_modern_scaling_study/256_modern_40.csv",
+            "marker": "o",
+            "include_in_frontier": True,  # Include in frontier analysis
+            "class": "transformer",
+            "hidden_dim": 256,
+        },
         # sgd scaling further
         {
             "name": "orig 32d sgd scaling further",
-            "csv_path": "../experimental_data_folder/new_sgd_scaling/32d_sgdbs64.csv",
+            "csv_path": "../experimental_data_folder/sgd_scaling/32d_sgdbs64.csv",
             "marker": "o",
             "include_in_frontier": True,  # Include in frontier analysis
             "class": "sgd",
             "hidden_dim": 32,
         },
-        {
-            "name": "orig 48d sgd scaling further",
-            "csv_path": "../experimental_data_folder/new_sgd_scaling/48d_sgdbs64.csv",
-            "marker": "o",
-            "include_in_frontier": True,  # Include in frontier analysis
-            "class": "sgd",
-            # Example: using viridis colormap index 2
-            "hidden_dim": 48,
-        },
+        # {
+        #     "name": "orig 48d sgd scaling further",
+        #     "csv_path": "../experimental_data_folder/sgd_scaling/48d_sgdbs64.csv",
+        #     "marker": "o",
+        #     "include_in_frontier": True,  # Include in frontier analysis
+        #     "class": "sgd",
+        #     # Example: using viridis colormap index 2
+        #     "hidden_dim": 48,
+        # },
         {
             "name": "orig 64d sgd scaling further",
-            "csv_path": "../experimental_data_folder/new_sgd_scaling/64d_sgdbs64.csv",
+            "csv_path": "../experimental_data_folder/sgd_scaling/64d_sgdbs64.csv",
             "marker": "o",
             "include_in_frontier": True,  # Include in frontier analysis
             "class": "sgd",
             # Example: using plasma colormap at 0.3
             "hidden_dim": 64,
         },
-        {
-            "name": "orig 96d sgd scaling further",
-            "csv_path": "../experimental_data_folder/new_sgd_scaling/96d_sgdbs64.csv",
-            "marker": "o",
-            "include_in_frontier": True,  # Include in frontier analysis
-            "class": "sgd",
-            "hidden_dim": 96,
-        },
+        # {
+        #     "name": "orig 96d sgd scaling further",
+        #     "csv_path": "../experimental_data_folder/sgd_scaling/96d_sgdbs64.csv",
+        #     "marker": "o",
+        #     "include_in_frontier": True,  # Include in frontier analysis
+        #     "class": "sgd",
+        #     "hidden_dim": 96,
+        # },
         {
             "name": "orig 128d sgd scaling further",
-            "csv_path": "../experimental_data_folder/new_sgd_scaling/128d_sgdbs64.csv",
+            "csv_path": "../experimental_data_folder/sgd_scaling/128d_sgdbs64.csv",
             "marker": "o",
             "include_in_frontier": True,  # Include in frontier analysis
             "class": "sgd",
@@ -1783,28 +1959,11 @@ if __name__ == "__main__":
         },
         {
             "name": "orig 160d sgd scaling further",
-            "csv_path": "../experimental_data_folder/new_sgd_scaling/160d_sgdbs64.csv",
+            "csv_path": "../experimental_data_folder/sgd_scaling/160d_sgdbs64.csv",
             "marker": "o",
             "include_in_frontier": True,  # Include in frontier analysis
             "class": "sgd",
             "hidden_dim": 160,
-        },
-        # 192 and 256
-        {
-            "name": "orig 192d sgd scaling further",
-            "csv_path": "../experimental_data_folder/new_sgd_scaling/192d_sgdbs64.csv",
-            "marker": "o",
-            "include_in_frontier": True,  # Include in frontier analysis
-            "class": "sgd",
-            "hidden_dim": 192,
-        },
-        {
-            "name": "orig 256d sgd scaling further",
-            "csv_path": "../experimental_data_folder/new_sgd_scaling/256d_sgdbs64.csv",
-            "marker": "o",
-            "include_in_frontier": True,  # Include in frontier analysis
-            "class": "sgd",
-            "hidden_dim": 256,
         },
         # look at scaling of 2017 transfomere
         {
@@ -1889,78 +2048,87 @@ if __name__ == "__main__":
             "class": "2017 Transformer",
             "hidden_dim": 256,
         },
-        # add kaplan scaling study
+        # retry_historical_experiments/128_all_reset.csv
+        # retry_historical_experiments/160_all_reset.csv
+        # retry_historical_experiments/192_all_reset.csv
+        # retry_historical_experiments/224_all_reset.csv
+        # retry_historical_experiments/256_all_reset.csv
+        # retry_historical_experiments/32_all_reset.csv
+        # retry_historical_experiments/48_all_reset.csv
+        # retry_historical_experiments/64_all_reset.csv
+        # retry_historical_experiments/80_all_reset.csv
+        # retry_historical_experiments/96_all_reset.csv
         {
-            "name": "32d kaplan scaling study",
-            "csv_path": "../experimental_data_folder/new_modern_scaling_study/32_kaplan_40.csv",
+            "name": "32d sin transformer",
+            "csv_path": "../experimental_data_folder/retry_historical_experiments/32_all_reset.csv",
             "marker": "o",
             "include_in_frontier": True,  # Include in frontier analysis
-            "class": "kaplan scaling study",
+            "class": "sin transformer",
             "hidden_dim": 32,
         },
+        # do this for 64, 80, 96, 128, 160, 192, 224, 256
         {
-            "name": "64d kaplan scaling study",
-            "csv_path": "../experimental_data_folder/new_modern_scaling_study/64_kaplan_40.csv",
+            "name": "64d sin transformer",
+            "csv_path": "../experimental_data_folder/retry_historical_experiments/64_all_reset.csv",
             "marker": "o",
             "include_in_frontier": True,  # Include in frontier analysis
-            "class": "kaplan scaling study",
+            "class": "sin transformer",
             "hidden_dim": 64,
         },
         {
-            "name": "80d kaplan scaling study",
-            "csv_path": "../experimental_data_folder/new_modern_scaling_study/80_kaplan_40.csv",
+            "name": "80d sin transformer",
+            "csv_path": "../experimental_data_folder/retry_historical_experiments/80_all_reset.csv",
             "marker": "o",
             "include_in_frontier": True,  # Include in frontier analysis
-            "class": "kaplan scaling study",
+            "class": "sin transformer",
             "hidden_dim": 80,
         },
         {
-            "name": "96d kaplan scaling study",
-            "csv_path": "../experimental_data_folder/new_modern_scaling_study/96_kaplan_40.csv",
+            "name": "96d sin transformer",
+            "csv_path": "../experimental_data_folder/retry_historical_experiments/96_all_reset.csv",
             "marker": "o",
             "include_in_frontier": True,  # Include in frontier analysis
-            "class": "kaplan scaling study",
+            "class": "sin transformer",
             "hidden_dim": 96,
         },
         {
-            "name": "128d kaplan scaling study",
-            "csv_path": "../experimental_data_folder/new_modern_scaling_study/128_kaplan_40.csv",
+            "name": "128d sin transformer",
+            "csv_path": "../experimental_data_folder/retry_historical_experiments/128_all_reset.csv",
             "marker": "o",
             "include_in_frontier": True,  # Include in frontier analysis
-            "class": "kaplan scaling study",
+            "class": "sin transformer",
             "hidden_dim": 128,
         },
         {
-            "name": "160d kaplan scaling study",
-            "csv_path": "../experimental_data_folder/new_modern_scaling_study/160_kaplan_40.csv",
+            "name": "160d sin transformer",
+            "csv_path": "../experimental_data_folder/retry_historical_experiments/160_all_reset.csv",
             "marker": "o",
             "include_in_frontier": True,  # Include in frontier analysis
-            "class": "kaplan scaling study",
+            "class": "sin transformer",
             "hidden_dim": 160,
         },
         {
-            "name": "192d kaplan scaling study",
-            "csv_path": "../experimental_data_folder/new_modern_scaling_study/192_kaplan_40.csv",
+            "name": "192d sin transformer",
+            "csv_path": "../experimental_data_folder/retry_historical_experiments/192_all_reset.csv",
             "marker": "o",
             "include_in_frontier": True,  # Include in frontier analysis
-            "class": "kaplan scaling study",
+            "class": "sin transformer",
             "hidden_dim": 192,
         },
-        # 224
         {
-            "name": "224d kaplan scaling study",
-            "csv_path": "../experimental_data_folder/new_modern_scaling_study/224_kaplan_40.csv",
+            "name": "224d sin transformer",
+            "csv_path": "../experimental_data_folder/retry_historical_experiments/224_all_reset.csv",
             "marker": "o",
             "include_in_frontier": True,  # Include in frontier analysis
-            "class": "kaplan scaling study",
+            "class": "sin transformer",
             "hidden_dim": 224,
         },
         {
-            "name": "256d kaplan scaling study",
-            "csv_path": "../experimental_data_folder/new_modern_scaling_study/256_kaplan_40.csv",
+            "name": "256d sin transformer",
+            "csv_path": "../experimental_data_folder/retry_historical_experiments/256_all_reset.csv",
             "marker": "o",
             "include_in_frontier": True,  # Include in frontier analysis
-            "class": "kaplan scaling study",
+            "class": "sin transformer",
             "hidden_dim": 256,
         },
     ]
@@ -2020,6 +2188,7 @@ if __name__ == "__main__":
         "transformer": "Transformer experiments",
         "sgd": "SGD experiments",
         "2017 Transformer": "2017 Transformer experiments",
+        "sin transformer": "2017 Transformer",
     }
 
     analyzer = TrainingCurveAnalyzer(
@@ -2066,43 +2235,40 @@ if __name__ == "__main__":
         show_all_curves=True,
         show_power_law_fit=True,
         show_sklearn_fit=False,  # Enable sklearn-style fit: L = E + A * C^alpha
-        save_path="Figures/lstm_v_transfomer_scaling.png",
+        save_path="Figures/transformer_v_lstm_scaling.png",
         classes_to_plot=[
             # "optimal_lr_sgd_transformer",
-            # "transformer",
-            # "lstm",
+            "transformer",
+            "lstm",
+            # "sin transformer",
             # "2017 Transformer",
             # "sgd",
             # "vanilla_transformer_rmsprop",
-            "kaplan scaling study",
         ],
         flop_range_by_class={
-            # "transformer": (1e14, 5 * 1e17),
-            # "lstm": (1e14, 1e17 * 5),
+            "transformer": (1e15, 5 * 1e17),
+            "lstm": (1e15, 1e17 * 5),
+            # "2017 transformer": (1e15, 1e17 * 5),
             # "2017 Transformer": (1e14, 1e17),
             # "sgd": (1e14, 1e17),
-            "kaplan scaling study": (1e14, 1e17),
         },
-        extrapolation_factor=10.0,  # Extend trend lines 3x beyond data range
+        extrapolation_factor=20.0,  # Extend trend lines 3x beyond data range
+        # New parameters for explicit control:
+        # xlim=(1e13, 1e18),  # Explicitly set x-axis limits from 10^14 to 10^18
+        extrapolation_range=(
+            10 ** (14.0),
+            1e18,
+        ),  # Explicitly set extrapolation range (overrides extrapolation_factor)
         # Example theoretical scaling laws to compare with data
         theoretical_scaling_laws=[
             {
-                "E": 1.68,  # Irreducible loss
-                "A": 87.16,  # Scaling coefficient (larger to be visible)
-                "gamma": -0.092,  # Scaling exponent
-                "label": "Porian et al. (2025)",
-                "color": "red",
-                "linestyle": "--",
-                "linewidth": 3,
-                "alpha": 0.8,
-            },
-            {
-                "E": IRREDUCIBLE_LOSS,  # Irreducible loss
-                "A": 88.1,  # Scaling coefficient (larger to be visible)
-                "gamma": -0.095,  # Scaling exponent
-                "label": "Transformer Power Law",
+                "E": 1.8,  # Irreducible loss
+                "A": 76.6,  # Scaling coefficient (larger to be visible)
+                "gamma": -0.090,  # Scaling exponent
+                "label": "Modern Transformer Fit",
                 "color": "purple",
                 "linestyle": "--",
+                "linewidth": 3,
                 "linewidth": 3,
                 "alpha": 0.8,
             },
