@@ -63,10 +63,10 @@ analyzer = TrainingCurveAnalyzer(
     class_legend_mapping=class_legend_mapping,
 )
 
-# Load experiments_config
-remake_module_path = Path(__file__).parent / "nextgen_lstmvtransformer copy.py"
+# Load experiments_config from the same file we loaded the TrainingCurveAnalyzer from
+experiments_config_module_path = module_path  # Use the same path we already defined
 
-with open(remake_module_path, "r") as f:
+with open(experiments_config_module_path, "r") as f:
     lines = f.readlines()
     start_idx = None
     for i, line in enumerate(lines):
@@ -103,7 +103,7 @@ with open(remake_module_path, "r") as f:
         experiments_config = namespace.get("experiments_config")
     else:
         raise ValueError(
-            f"Could not find 'experiments_config = [' in {remake_module_path}"
+            f"Could not find 'experiments_config = [' in {experiments_config_module_path}"
         )
 
 # Fix any typos in the config
@@ -207,8 +207,8 @@ def plot_panel_to_axis(
                 color=color,
                 alpha=ALPHA_CONFIG["data_points_alpha"],
                 label=label,
-                linewidth=2,
-                markersize=6,
+                linewidth=1.5,
+                markersize=3,
             )
 
     # Plot frontier points as stars
@@ -224,11 +224,11 @@ def plot_panel_to_axis(
                 comp,
                 loss,
                 color=color,
-                s=200,
+                s=120,
                 marker="*",
                 zorder=120,
                 edgecolors="black",
-                linewidth=2,
+                linewidth=1.5,
                 alpha=ALPHA_CONFIG["frontier_points_alpha"],
                 label=None,
             )
@@ -255,13 +255,19 @@ def plot_panel_to_axis(
             x_fit = np.logspace(np.log10(extended_min), np.log10(extended_max), 200)
             y_fit = a * np.power(x_fit, b)
 
+            # Use legend mapping if available
+            if cls in analyzer.class_legend_mapping:
+                legend_label = analyzer.class_legend_mapping[cls]
+            else:
+                legend_label = cls
+
             ax.plot(
                 x_fit,
                 y_fit,
                 "--",
-                linewidth=4,
+                linewidth=3,
                 alpha=ALPHA_CONFIG["power_law_fit_alpha"],
-                label=f"{cls} fit: {a:.2e} × C$^{{{b:.3f}}}$",
+                label=f"{legend_label} fit: {a:.2e} × C$^{{{b:.3f}}}$",
                 color=analyzer.get_class_color(cls),
             )
 
@@ -287,7 +293,7 @@ def plot_panel_to_axis(
                 y_theory,
                 color=color,
                 linestyle=linestyle,
-                linewidth=linewidth,
+                linewidth=2.5,
                 alpha=ALPHA_CONFIG["theoretical_alpha"],
                 label=f"{label}: {irred_removed_E:.3f} + {A:.2e} × C$^{{{gamma:.3f}}}$",
             )

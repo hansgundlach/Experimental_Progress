@@ -1,6 +1,9 @@
 Datasets/
 wandb/
 experimental_data_folder/
+experimental_analysis/Figures/
+experimental_analysis/old_analysis/
+
 beta_scripts/
 historical_data/
 z_beta_scripts/

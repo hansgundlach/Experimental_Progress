@@ -102,7 +102,7 @@ CLASS_COLORS = {
     "transformer": "viridis[0.0]",  # Dark purple color
     "sgd": "viridis[0.6]",  # Yellow-green color
     "2017 Transformer": "plasma[0.7]",  # Orange color
-    "sin transformer": "tab:orange",  # Pink-purple color for sin transformer
+    "sin transformer": "viridis[0.6]",  # Pink-purple color for sin transformer
     "lstm_sgd": "tab:orange",  # Orange color for LSTM SGD experiments
     "default": "tab:blue",  # Default color for unclassified experiments
 }
