@@ -745,9 +745,32 @@ class TrainingCurveAnalyzer:
             try:
                 # Use scipy curve_fit for the sklearn-style formula with better initial guesses
                 # Initial guess: E = min(y), A = 1, alpha = -0.1 (typical scaling exponent)
-                initial_guess = [np.min(y_data), 1.0, -0.1]
-                # Bounds: E in [0, max(y)], A in [1e-10, 1e10], alpha in [-1, 0.5]
-                bounds = ([0, 1e-10, -1], [np.max(y_data), 1e10, 0.5])
+                e_initial_raw = float(np.min(y_data))
+
+                # ------------------------------------------------------------------
+                # HARD CONSTRAINT for E:
+                # User-specified plausible range for the irreducible term.
+                # Adjust these if you later change your prior on E.
+                # ------------------------------------------------------------------
+                E_TARGET_MIN = 1.3
+                E_TARGET_MAX = 2.2
+
+                # Clip the initial guess into the allowed range
+                e_initial = float(np.clip(e_initial_raw, E_TARGET_MIN, E_TARGET_MAX))
+                initial_guess = [e_initial, 1.0, -0.1]
+
+                # Keep E near its (clipped) initial value, but never outside [E_TARGET_MIN, E_TARGET_MAX]
+                E_MARGIN = 0.3  # in "loss" units
+                e_lower = max(E_TARGET_MIN, e_initial - E_MARGIN)
+                e_upper = min(E_TARGET_MAX, e_initial + E_MARGIN)
+
+                # Fallback in case the interval collapses
+                if e_upper <= e_lower:
+                    e_lower = max(E_TARGET_MIN, e_initial - 0.1)
+                    e_upper = min(E_TARGET_MAX, e_initial + 0.1)
+
+                # Bounds: E in [e_lower, e_upper], A in [1e-10, 1e10], alpha in [-1, 0.5]
+                bounds = ([e_lower, 1e-10, -1], [e_upper, 1e10, 0.5])
 
                 params, _ = curve_fit(
                     sklearn_curve,
@@ -823,9 +846,28 @@ class TrainingCurveAnalyzer:
         try:
             # Use better initial guesses and bounds for convergence
             # Initial guess: E = min(y), A = 1, alpha = -0.1 (typical scaling exponent)
-            initial_guess = [np.min(y_data), 1.0, -0.1]
-            # Bounds: E in [0, max(y)], A in [1e-10, 1e10], alpha in [-1, 0.5]
-            bounds = ([0, 1e-10, -1], [np.max(y_data), 1e10, 0.5])
+            e_initial_raw = float(np.min(y_data))
+
+            # HARD CONSTRAINT for E for the global sklearn fit as well
+            E_TARGET_MIN = 1.3
+            E_TARGET_MAX = 2.2
+
+            # Clip the initial guess into the allowed range
+            e_initial = float(np.clip(e_initial_raw, E_TARGET_MIN, E_TARGET_MAX))
+            initial_guess = [e_initial, 1.0, -0.1]
+
+            # Keep E near its (clipped) initial value, but never outside [E_TARGET_MIN, E_TARGET_MAX]
+            E_MARGIN = 0.3  # in "loss" units
+            e_lower = max(E_TARGET_MIN, e_initial - E_MARGIN)
+            e_upper = min(E_TARGET_MAX, e_initial + E_MARGIN)
+
+            # Fallback in case the interval collapses
+            if e_upper <= e_lower:
+                e_lower = max(E_TARGET_MIN, e_initial - 0.1)
+                e_upper = min(E_TARGET_MAX, e_initial + 0.1)
+
+            # Bounds: E in [e_lower, e_upper], A in [1e-10, 1e10], alpha in [-1, 0.5]
+            bounds = ([e_lower, 1e-10, -1], [e_upper, 1e10, 0.5])
 
             params, _ = curve_fit(
                 sklearn_curve,
@@ -1737,6 +1779,23 @@ if __name__ == "__main__":
             "class": "lstm",
             "hidden_dim": 160,
         },
+        # 192 and 224
+        {
+            "name": "192d corrected melis scaling experiments",
+            "csv_path": "../experimental_data_folder/lstm_layer1/192d.csv",
+            "marker": "o",
+            "include_in_in_frontier": False,  # Include in frontier analysis
+            "class": "lstm",
+            "hidden_dim": 192,
+        },
+        {
+            "name": "224d corrected melis scaling experiments",
+            "csv_path": "../experimental_data_folder/lstm_layer1/224d.csv",
+            "marker": "o",
+            "include_in_in_frontier": False,  # Include in frontier analysis
+            "class": "lstm",
+            "hidden_dim": 224,
+        },
         # {
         #     "name": "192d corrected melis scaling experiments",
         #     "csv_path": "../experimental_data_folder/lstm_scaling_study/192_correction_bs64.csv",
@@ -1745,14 +1804,14 @@ if __name__ == "__main__":
         #     "class": "lstm",
         #     "hidden_dim": 192,
         # },
-        {
-            "name": "256d corrected melis scaling experiments",
-            "csv_path": "../experimental_data_folder/lstm_layer1/25d.csv",
-            "marker": "o",
-            "include_in_in_frontier": False,  # Include in frontier analysis
-            "class": "lstm",
-            "hidden_dim": 256,
-        },
+        # {
+        #     "name": "256d corrected melis scaling experiments",
+        #     "csv_path": "../experimental_data_folder/lstm_layer1/25d.csv",
+        #     "marker": "o",
+        #     "include_in_in_frontier": False,  # Include in frontier analysis
+        #     "class": "lstm",
+        #     "hidden_dim": 256,
+        # },
         # # lstm sgd
         # {
         #     "name": "48d melis sgd",
@@ -1915,14 +1974,14 @@ if __name__ == "__main__":
             "hidden_dim": 256,
         },
         # sgd scaling further
-        {
-            "name": "orig 32d sgd scaling further",
-            "csv_path": "../experimental_data_folder/sgd_scaling/32d_sgdbs64.csv",
-            "marker": "o",
-            "include_in_frontier": True,  # Include in frontier analysis
-            "class": "sgd",
-            "hidden_dim": 32,
-        },
+        # {
+        #     "name": "orig 32d sgd scaling further",
+        #     "csv_path": "../experimental_data_folder/sgd_scaling/32d_sgdbs64.csv",
+        #     "marker": "o",
+        #     "include_in_frontier": True,  # Include in frontier analysis
+        #     "class": "sgd",
+        #     "hidden_dim": 32,
+        # },
         # {
         #     "name": "orig 48d sgd scaling further",
         #     "csv_path": "../experimental_data_folder/sgd_scaling/48d_sgdbs64.csv",
@@ -1932,15 +1991,15 @@ if __name__ == "__main__":
         #     # Example: using viridis colormap index 2
         #     "hidden_dim": 48,
         # },
-        {
-            "name": "orig 64d sgd scaling further",
-            "csv_path": "../experimental_data_folder/sgd_scaling/64d_sgdbs64.csv",
-            "marker": "o",
-            "include_in_frontier": True,  # Include in frontier analysis
-            "class": "sgd",
-            # Example: using plasma colormap at 0.3
-            "hidden_dim": 64,
-        },
+        # {
+        #     "name": "orig 64d sgd scaling further",
+        #     "csv_path": "../experimental_data_folder/sgd_scaling/64d_sgdbs64.csv",
+        #     "marker": "o",
+        #     "include_in_frontier": True,  # Include in frontier analysis
+        #     "class": "sgd",
+        #     # Example: using plasma colormap at 0.3
+        #     "hidden_dim": 64,
+        # },
         # {
         #     "name": "orig 96d sgd scaling further",
         #     "csv_path": "../experimental_data_folder/sgd_scaling/96d_sgdbs64.csv",
@@ -1949,22 +2008,22 @@ if __name__ == "__main__":
         #     "class": "sgd",
         #     "hidden_dim": 96,
         # },
-        {
-            "name": "orig 128d sgd scaling further",
-            "csv_path": "../experimental_data_folder/sgd_scaling/128d_sgdbs64.csv",
-            "marker": "o",
-            "include_in_frontier": True,  # Include in frontier analysis
-            "class": "sgd",
-            "hidden_dim": 128,
-        },
-        {
-            "name": "orig 160d sgd scaling further",
-            "csv_path": "../experimental_data_folder/sgd_scaling/160d_sgdbs64.csv",
-            "marker": "o",
-            "include_in_frontier": True,  # Include in frontier analysis
-            "class": "sgd",
-            "hidden_dim": 160,
-        },
+        # {
+        #     "name": "orig 128d sgd scaling further",
+        #     "csv_path": "../experimental_data_folder/sgd_scaling/128d_sgdbs64.csv",
+        #     "marker": "o",
+        #     "include_in_frontier": True,  # Include in frontier analysis
+        #     "class": "sgd",
+        #     "hidden_dim": 128,
+        # },
+        # {
+        #     "name": "orig 160d sgd scaling further",
+        #     "csv_path": "../experimental_data_folder/sgd_scaling/160d_sgdbs64.csv",
+        #     "marker": "o",
+        #     "include_in_frontier": True,  # Include in frontier analysis
+        #     "class": "sgd",
+        #     "hidden_dim": 160,
+        # },
         # look at scaling of 2017 transfomere
         {
             "name": "32d 2017 transformer",
@@ -2129,6 +2188,73 @@ if __name__ == "__main__":
             "marker": "o",
             "include_in_frontier": True,  # Include in frontier analysis
             "class": "sin transformer",
+            "hidden_dim": 256,
+        },
+        {
+            "name": "orig 32d sgd scaling further",
+            "csv_path": "../experimental_data_folder/new_sgd_scaling/32d_sgdbs64.csv",
+            "marker": "o",
+            "include_in_frontier": True,  # Include in frontier analysis
+            "class": "sgd",
+            "hidden_dim": 32,
+        },
+        {
+            "name": "orig 48d sgd scaling further",
+            "csv_path": "../experimental_data_folder/new_sgd_scaling/48d_sgdbs64.csv",
+            "marker": "o",
+            "include_in_frontier": True,  # Include in frontier analysis
+            "class": "sgd",
+            # Example: using viridis colormap index 2
+            "hidden_dim": 48,
+        },
+        {
+            "name": "orig 64d sgd scaling further",
+            "csv_path": "../experimental_data_folder/new_sgd_scaling/64d_sgdbs64.csv",
+            "marker": "o",
+            "include_in_frontier": True,  # Include in frontier analysis
+            "class": "sgd",
+            # Example: using plasma colormap at 0.3
+            "hidden_dim": 64,
+        },
+        {
+            "name": "orig 96d sgd scaling further",
+            "csv_path": "../experimental_data_folder/new_sgd_scaling/96d_sgdbs64.csv",
+            "marker": "o",
+            "include_in_frontier": True,  # Include in frontier analysis
+            "class": "sgd",
+            "hidden_dim": 96,
+        },
+        {
+            "name": "orig 128d sgd scaling further",
+            "csv_path": "../experimental_data_folder/new_sgd_scaling/128d_sgdbs64.csv",
+            "marker": "o",
+            "include_in_frontier": True,  # Include in frontier analysis
+            "class": "sgd",
+            "hidden_dim": 128,
+        },
+        {
+            "name": "orig 160d sgd scaling further",
+            "csv_path": "../experimental_data_folder/new_sgd_scaling/160d_sgdbs64.csv",
+            "marker": "o",
+            "include_in_frontier": True,  # Include in frontier analysis
+            "class": "sgd",
+            "hidden_dim": 160,
+        },
+        # 192 and 256
+        {
+            "name": "orig 192d sgd scaling further",
+            "csv_path": "../experimental_data_folder/new_sgd_scaling/192d_sgdbs64.csv",
+            "marker": "o",
+            "include_in_frontier": True,  # Include in frontier analysis
+            "class": "sgd",
+            "hidden_dim": 192,
+        },
+        {
+            "name": "orig 256d sgd scaling further",
+            "csv_path": "../experimental_data_folder/new_sgd_scaling/256d_sgdbs64.csv",
+            "marker": "o",
+            "include_in_frontier": True,  # Include in frontier analysis
+            "class": "sgd",
             "hidden_dim": 256,
         },
     ]

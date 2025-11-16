@@ -1,0 +1,9 @@
+experiment,best_learning_rate,best_validation_loss,num_lr_tested
+32d,N/A,N/A,0
+48d,N/A,N/A,0
+64d,N/A,N/A,0
+80d,N/A,N/A,0
+104d,N/A,N/A,0
+128d,N/A,N/A,0
+160d,N/A,N/A,0
+256d,N/A,N/A,0

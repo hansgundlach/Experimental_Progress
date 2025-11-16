@@ -1,0 +1,12 @@
+experiment,best_learning_rate,best_validation_loss
+00_base_2017_post_noam_relu_sinus,0.0056,5.7274
+01_learned_pe,0.0032,5.7573
+02_gelu_activation,0.0018,5.931
+03_linear_decay,N/A,N/A
+04_pre_ln,N/A,N/A
+05_adamw,N/A,N/A
+06_cosine_decay,0.0056,5.7342
+07_rmsnorm,0.0056,5.7342
+08_swiglu_ff2p5,0.01,5.7331
+09_rope,0.01,5.6312
+10_no_dropout,0.01,5.5398

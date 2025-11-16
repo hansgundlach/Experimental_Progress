@@ -39,7 +39,7 @@ NEURIPS_FONT_CONFIG = {
     "title_weight": "bold",
     "major_tick_size": 12,
     "minor_tick_size": 10,
-    "legend_size": 11,
+    "legend_size": 11,  # Increased for bold text readability
     "fit_label_size": 10,
 }
 
@@ -267,7 +267,7 @@ def plot_panel_to_axis(
                 "--",
                 linewidth=3,
                 alpha=ALPHA_CONFIG["power_law_fit_alpha"],
-                label=f"{legend_label} fit: {a:.2e} × C$^{{{b:.3f}}}$",
+                label=f"{legend_label} fit:\n{a:.2e} × C^({b:.3f})",
                 color=analyzer.get_class_color(cls),
             )
 
@@ -282,11 +282,20 @@ def plot_panel_to_axis(
             linestyle = law_config.get("linestyle", "-")
             linewidth = law_config.get("linewidth", 3)
             alpha_val = law_config.get("alpha", 0.8)
+            show_constant = law_config.get(
+                "show_constant", True
+            )  # Option to hide E term
 
             extended_min, extended_max = extrapolation_range
             x_theory = np.logspace(np.log10(extended_min), np.log10(extended_max), 200)
             y_theory = (E - analyzer.irreducible_loss) + A * np.power(x_theory, gamma)
             irred_removed_E = E - analyzer.irreducible_loss
+
+            # Build label based on whether to show constant term
+            if show_constant:
+                equation_label = f"{irred_removed_E:.3f} + {A:.2e} × C^({gamma:.3f})"
+            else:
+                equation_label = f"{A:.2e} × C^({gamma:.3f})"
 
             ax.plot(
                 x_theory,
@@ -295,7 +304,7 @@ def plot_panel_to_axis(
                 linestyle=linestyle,
                 linewidth=2.5,
                 alpha=ALPHA_CONFIG["theoretical_alpha"],
-                label=f"{label}: {irred_removed_E:.3f} + {A:.2e} × C$^{{{gamma:.3f}}}$",
+                label=f"{label}:\n{equation_label}",
             )
 
     # Formatting
@@ -329,8 +338,8 @@ def plot_panel_to_axis(
     # Legend
     leg = ax.legend(
         loc="upper right",
-        fontsize=NEURIPS_FONT_CONFIG["legend_size"],
         framealpha=0.9,
+        prop={"weight": "bold", "size": NEURIPS_FONT_CONFIG["legend_size"]},
     )
 
     # Force opaque legend markers/lines
@@ -401,6 +410,7 @@ plot_panel_to_axis(
             "linestyle": "--",
             "linewidth": 3,
             "alpha": 0.8,
+            "show_constant": False,  # Set to False to hide E term, True to show it
         },
     ],
     panel_label="(b)",

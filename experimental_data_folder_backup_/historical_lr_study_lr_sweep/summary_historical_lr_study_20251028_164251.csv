@@ -1,0 +1,4 @@
+experiment,best_learning_rate,best_validation_loss,num_lr_tested
+00_base_2017_post_noam_relu_sinus,0.0056,5.7274,5
+09_rope,0.01,5.6312,5
+10_no_dropout,0.01,5.5398,5

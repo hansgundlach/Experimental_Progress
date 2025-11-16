@@ -1,9 +1,9 @@
 # %%
 """
-Script to import TrainingCurveAnalyzer and run the plotting section from nextgen_remake_sgd.py
+Script to import TrainingCurveAnalyzer and run plotting sections
 
 This script imports the TrainingCurveAnalyzer class from 'nextgen_lstmvtransformer copy.py'
-and runs only the plotting section (lines 2223-2266) from nextgen_remake_sgd.py
+and loads experiments_config from the same file.
 """
 
 import importlib.util
@@ -22,10 +22,9 @@ spec.loader.exec_module(nextgen_module)
 
 # Import the class and constants we need
 TrainingCurveAnalyzer = getattr(nextgen_module, "TrainingCurveAnalyzer")
-IRREDUCIBLE_LOSS = getattr(nextgen_module, "IRREDUCIBLE_LOSS")
+IRREDUCIBLE_LOSS = 0 #getattr(nextgen_module, "IRREDUCIBLE_LOSS")
 
-# Now set up the analyzer and experiments as in nextgen_remake_sgd.py
-# Configuration from nextgen_remake_sgd.py
+# Configuration
 USE_THEORETICAL_FLOPS = (
     False  # Set to True to use theoretical_flops, False for total_flops_profiler
 )
@@ -47,15 +46,11 @@ analyzer = TrainingCurveAnalyzer(
     class_legend_mapping=class_legend_mapping,
 )
 
-# Import experiments_config from nextgen_remake_sgd.py
-# Since experiments_config is defined inside the __main__ block, we need to extract it
-remake_module_path = Path(__file__).parent / "nextgen_remake_sgd.py"
+# Load experiments_config from the same file we loaded the TrainingCurveAnalyzer from
+experiments_config_module_path = module_path  # Use the same path we already defined
 
-# Read the file and extract experiments_config by finding the assignment and executing it
-with open(remake_module_path, "r") as f:
+with open(experiments_config_module_path, "r") as f:
     lines = f.readlines()
-
-    # Find the line with experiments_config = [
     start_idx = None
     for i, line in enumerate(lines):
         if "experiments_config = [" in line:
@@ -63,7 +58,6 @@ with open(remake_module_path, "r") as f:
             break
 
     if start_idx is not None:
-        # Find the end of the list by counting brackets
         bracket_count = 0
         end_idx = start_idx
         for i in range(start_idx, len(lines)):
@@ -73,18 +67,14 @@ with open(remake_module_path, "r") as f:
                 end_idx = i
                 break
 
-        # Extract and execute just the experiments_config assignment
         config_lines = lines[start_idx : end_idx + 1]
-        # Strip leading whitespace from all lines (they're indented in the __main__ block)
-        # Find the minimum indentation (excluding empty lines)
         min_indent = float("inf")
         for line in config_lines:
             stripped = line.lstrip()
-            if stripped:  # Only consider non-empty lines
+            if stripped:
                 indent = len(line) - len(stripped)
                 min_indent = min(min_indent, indent)
 
-        # Remove the minimum indentation from all lines
         if min_indent != float("inf"):
             config_lines = [
                 line[min_indent:] if line.strip() else line for line in config_lines
@@ -96,16 +86,16 @@ with open(remake_module_path, "r") as f:
         experiments_config = namespace.get("experiments_config")
     else:
         raise ValueError(
-            f"Could not find 'experiments_config = [' in {remake_module_path}"
+            f"Could not find 'experiments_config = [' in {experiments_config_module_path}"
         )
 
-# Fix any typos in the config (include_in_in_frontier -> include_in_frontier)
+# Fix any typos in the config
 if experiments_config:
     for exp in experiments_config:
         if "include_in_in_frontier" in exp:
             exp["include_in_frontier"] = exp.pop("include_in_in_frontier")
 else:
-    raise ValueError("Failed to extract experiments_config from nextgen_remake_sgd.py")
+    raise ValueError("Failed to extract experiments_config")
 
 # Override include_in_frontier to True for classes that might be plotted
 # (The comment says "# Include in frontier analysis" but value is False - this is likely a mistake)
@@ -146,11 +136,11 @@ for config in experiments_config:
         hidden_dim=config.get("hidden_dim"),
     )
 
-# Now run the plotting section (lines 2223-2266 from nextgen_remake_sgd.py)
+# Plot training curves
 analyzer.plot_training_curves_by_class(
     show_all_curves=True,
     show_power_law_fit=True,
-    show_sklearn_fit=False,  # Enable sklearn-style fit: L = E + A * C^alpha
+    show_sklearn_fit=True,  # Enable sklearn-style fit: L = E + A * C^alpha
     save_path="Figures/transformer_v_lstm_scaling.png",
     classes_to_plot=classes_to_plot,
     flop_range_by_class={
@@ -177,7 +167,7 @@ classes_to_plot_2 = ["sin transformer"]
 analyzer.plot_training_curves_by_class(
     show_all_curves=True,
     show_power_law_fit=True,
-    show_sklearn_fit=False,  # Enable sklearn-style fit: L = E + A * C^alpha
+    show_sklearn_fit=True,  # Enable sklearn-style fit: L = E + A * C^alpha
     save_path="Figures/all_ablation_scaling.png",
     classes_to_plot=classes_to_plot_2,
     flop_range_by_class={
@@ -195,7 +185,6 @@ analyzer.plot_training_curves_by_class(
         10 ** (14.0),
         1e18,
     ),  # Explicitly set extrapolation range (overrides
-
     theoretical_scaling_laws=[
         {
             "E": 1.8,  # Irreducible loss
@@ -211,12 +200,12 @@ analyzer.plot_training_curves_by_class(
 #
 
 # %%
-classes_to_plot_2 = [ "sgd"]
+classes_to_plot_2 = ["sgd"]
 
 analyzer.plot_training_curves_by_class(
     show_all_curves=True,
     show_power_law_fit=True,
-    show_sklearn_fit=False,  # Enable sklearn-style fit: L = E + A * C^alpha
+    show_sklearn_fit=True,  # Enable sklearn-style fit: L = E + A * C^alpha
     save_path="Figures/transformer_sgd_scaling.png",
     classes_to_plot=classes_to_plot_2,
     flop_range_by_class={

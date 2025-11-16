@@ -1,0 +1,8 @@
+experiment,best_learning_rate,best_validation_loss,num_lr_tested
+00_base_2017_post_noam_relu_sinus,N/A,N/A,0
+01_learned_pe,N/A,N/A,0
+02_gelu_activation,N/A,N/A,0
+03_linear_decay,N/A,N/A,0
+04_pre_ln,N/A,N/A,0
+05_adamw,N/A,N/A,0
+06_cosine_decay,N/A,N/A,0
