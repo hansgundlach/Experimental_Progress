@@ -22,7 +22,7 @@ spec.loader.exec_module(nextgen_module)
 
 # Import the class and constants we need
 TrainingCurveAnalyzer = getattr(nextgen_module, "TrainingCurveAnalyzer")
-IRREDUCIBLE_LOSS = 0 #getattr(nextgen_module, "IRREDUCIBLE_LOSS")
+IRREDUCIBLE_LOSS = 1.9  # getattr(nextgen_module, "IRREDUCIBLE_LOSS")
 
 # Configuration
 USE_THEORETICAL_FLOPS = (
@@ -140,7 +140,7 @@ for config in experiments_config:
 analyzer.plot_training_curves_by_class(
     show_all_curves=True,
     show_power_law_fit=True,
-    show_sklearn_fit=True,  # Enable sklearn-style fit: L = E + A * C^alpha
+    show_sklearn_fit=False,  # Enable sklearn-style fit: L = E + A * C^alpha
     save_path="Figures/transformer_v_lstm_scaling.png",
     classes_to_plot=classes_to_plot,
     flop_range_by_class={
@@ -167,7 +167,7 @@ classes_to_plot_2 = ["sin transformer"]
 analyzer.plot_training_curves_by_class(
     show_all_curves=True,
     show_power_law_fit=True,
-    show_sklearn_fit=True,  # Enable sklearn-style fit: L = E + A * C^alpha
+    # show_sklearn_fit=True,  # Enable sklearn-style fit: L = E + A * C^alpha
     save_path="Figures/all_ablation_scaling.png",
     classes_to_plot=classes_to_plot_2,
     flop_range_by_class={
@@ -187,9 +187,9 @@ analyzer.plot_training_curves_by_class(
     ),  # Explicitly set extrapolation range (overrides
     theoretical_scaling_laws=[
         {
-            "E": 1.8,  # Irreducible loss
-            "A": 76.6,  # Scaling coefficient (larger to be visible)
-            "gamma": -0.090,  # Scaling exponent
+            "E": 1.9,  # Irreducible loss
+            "A": 83.7,  # Scaling coefficient (larger to be visible)
+            "gamma": -0.093,  # Scaling exponent
             "label": "Modern Transformer Fit",
             "color": "purple",
             "linestyle": "--",
@@ -205,7 +205,7 @@ classes_to_plot_2 = ["sgd"]
 analyzer.plot_training_curves_by_class(
     show_all_curves=True,
     show_power_law_fit=True,
-    show_sklearn_fit=True,  # Enable sklearn-style fit: L = E + A * C^alpha
+    show_sklearn_fit=False,  # Enable sklearn-style fit: L = E + A * C^alpha
     save_path="Figures/transformer_sgd_scaling.png",
     classes_to_plot=classes_to_plot_2,
     flop_range_by_class={
@@ -226,8 +226,91 @@ analyzer.plot_training_curves_by_class(
     theoretical_scaling_laws=[
         {
             "E": 1.8,  # Irreducible loss
-            "A": 76.6,  # Scaling coefficient (larger to be visible)
-            "gamma": -0.090,  # Scaling exponent
+            "A": 83.7,  # Scaling coefficient (larger to be visible)
+            "gamma": -0.093,  # Scaling exponent
+            "label": "Modern Transformer Fit",
+            "color": "purple",
+            "linestyle": "--",
+        },
+    ],
+)
+# %%
+
+# no-bias comparison
+classes_to_plot_2 = ["sin transformer"]
+#  Second plot with different classes
+# classes_to_plot_2 = ["no_bias","sin transformer"]
+
+analyzer.plot_training_curves_by_class(
+    show_all_curves=True,
+    show_power_law_fit=True,
+    # show_sklearn_fit=True,  # Enable sklearn-style fit: L = E + A * C^alpha
+    save_path="Figures/no_bias.png",
+    classes_to_plot=classes_to_plot_2,
+    flop_range_by_class={
+        # "transformer": (1e16, 5 * 1e17),
+        # "lstm": (1e16, 1e17 * 5),
+        # "2017 transformer": (1e15, 1e17 * 5),
+        # "2017 Transformer": (1e14, 1e17),
+        "sin transformer": (1e15, 1e17 * 5),
+        # "no_bias": (1e15, 1e17 * 5),
+        # "sgd": (10 ** (16), 1e17 * 5),
+    },
+    extrapolation_factor=20.0,  # Extend trend lines 3x beyond data range
+    # New parameters for explicit control:
+    # xlim=(1e13, 1e18),  # Explicitly set x-axis limits from 10^14 to 10^18
+    extrapolation_range=(
+        10 ** (14.0),
+        1e18,
+    ),  # Explicitly set extrapolation range (overrides
+    theoretical_scaling_laws=[
+        {
+            "E": 1.9,  # Irreducible loss
+            "A": 83.7,  # Scaling coefficient (larger to be visible)
+            "gamma": -0.093,  # Scaling exponent
+            "label": "Modern Transformer Fit",
+            "color": "purple",
+            "linestyle": "--",
+        },
+    ],
+)
+# %%
+
+
+# %%
+
+# no-bias comparison
+classes_to_plot_2 = ["no_bias"]
+#  Second plot with different classes
+# classes_to_plot_2 = ["no_bias","sin transformer"]
+
+analyzer.plot_training_curves_by_class(
+    show_all_curves=True,
+    show_power_law_fit=True,
+    # show_sklearn_fit=True,  # Enable sklearn-style fit: L = E + A * C^alpha
+    save_path="Figures/no_bias.png",
+    classes_to_plot=classes_to_plot_2,
+    flop_range_by_class={
+        # "transformer": (1e16, 5 * 1e17),
+        # "lstm": (1e16, 1e17 * 5),
+        # "2017 transformer": (1e15, 1e17 * 5),
+        # "2017 Transformer": (1e14, 1e17),
+        # "sin transformer": (1e15, 1e17 * 5),
+        "no_bias": (1e15, 1e17 * 5),
+        # "sgd": (10 ** (16), 1e17 * 5),
+    },
+    extrapolation_factor=20.0,  # Extend trend lines 3x beyond data range
+    # New parameters for explicit control:
+    # xlim=(1e13, 1e18),  # Explicitly set x-axis limits from 10^14 to 10^18
+    extrapolation_range=(
+        10 ** (14.0),
+        1e18,
+    ),  # Explicitly set extrapolation range (overrides
+    theoretical_scaling_laws=[
+        {
+            "E": 1.9,  # Irreducible loss
+            "A": 83.7,  # Scaling coefficient (larger to be visible)
+            "gamma": -0.093,  # Scaling exponent
             "label": "Modern Transformer Fit",
             "color": "purple",
             "linestyle": "--",

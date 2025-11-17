@@ -304,6 +304,7 @@ def get_dataset(config):
         # Dictionary-like config
         seed = config.get("seed", 123)
         data_path = config.get("data_path", None)
+        val_data_path = config.get("val_data_path", None)  # NEW: separate validation dataset
         max_tokens_training = config.get("max_tokens_training", None)
         # Support old parameter name for backward compatibility
         if max_tokens_training is None:
@@ -312,6 +313,7 @@ def get_dataset(config):
         # Object-like config
         seed = getattr(config, "seed", 123)
         data_path = getattr(config, "data_path", None)
+        val_data_path = getattr(config, "val_data_path", None)  # NEW: separate validation dataset
         max_tokens_training = getattr(config, "max_tokens_training", None)
         # Support old parameter name for backward compatibility
         if max_tokens_training is None:
@@ -559,6 +561,20 @@ def get_dataset(config):
         random_offset=True,
     )
 
+    # Check if separate validation dataset is specified
+    if val_data_path:
+        print(f"\nLoading separate validation dataset from: {val_data_path}")
+        # Handle relative paths (for LSTM running from subdirectory)
+        val_path_obj = Path(val_data_path)
+        if not val_path_obj.exists():
+            parent_relative = Path("..") / val_data_path
+            if parent_relative.exists():
+                val_data_path = str(parent_relative)
+                print(f"  (adjusted path: {val_data_path})")
+
+        val_text = Path(val_data_path).read_text(encoding="utf-8")
+        print(f"  Validation set: {len(val_text):,} characters")
+
     val_dataset = TextDataset(
         text=val_text,
         seq_length=seq_length,
@@ -584,6 +600,7 @@ def get_streaming_dataset(config):
     if hasattr(config, "get"):
         seed = config.get("seed", 123)
         data_path = config.get("data_path", None)
+        val_data_path = config.get("val_data_path", None)  # NEW: separate validation dataset
         max_tokens_training = config.get("max_tokens_training", None)
         fixed_val_tokens = config.get("fixed_val_tokens", None)
         seq_length = config.get("seq_length", 128)
@@ -591,6 +608,7 @@ def get_streaming_dataset(config):
     else:
         seed = getattr(config, "seed", 123)
         data_path = getattr(config, "data_path", None)
+        val_data_path = getattr(config, "val_data_path", None)  # NEW: separate validation dataset
         max_tokens_training = getattr(config, "max_tokens_training", None)
         fixed_val_tokens = getattr(config, "fixed_val_tokens", None)
         seq_length = getattr(config, "seq_length", 128)
@@ -632,12 +650,29 @@ def get_streaming_dataset(config):
         stride=stride,
     )
 
+    # Check if separate validation dataset is specified
+    if val_data_path:
+        print(f"\nLoading separate validation dataset from: {val_data_path}")
+        # Handle relative paths (for LSTM running from subdirectory)
+        val_path_obj = Path(val_data_path)
+        if not val_path_obj.exists():
+            parent_relative = Path("..") / val_data_path
+            if parent_relative.exists():
+                val_data_path = str(parent_relative)
+                print(f"  (adjusted path: {val_data_path})")
+
+        val_file_path = val_data_path
+        val_split = None  # Use entire file (no split)
+    else:
+        val_file_path = data_path
+        val_split = "val"  # Use validation split from training file
+
     val_dataset = StreamingTextDataset(
-        file_path=data_path,
+        file_path=val_file_path,
         seq_length=seq_length,
         tokenizer=tokenizer,
-        max_tokens=fixed_val_tokens,
-        split="val",
+        max_tokens=fixed_val_tokens if not val_data_path else None,  # Use all of separate file
+        split=val_split or "train",  # If separate file, treat as "train" (use 90%)
         stride=stride,
     )
 
@@ -696,6 +731,7 @@ def load_and_tokenize_text(config):
     if hasattr(config, "get"):
         seed = config.get("seed", 123)
         data_path = config.get("data_path", None)
+        val_data_path = config.get("val_data_path", None)  # NEW: separate validation dataset
         max_tokens_training = config.get("max_tokens_training", None)
         fixed_val_tokens = config.get("fixed_val_tokens", None)
         train_split = config.get("train_split", 0.8)  # LSTM default
@@ -704,6 +740,7 @@ def load_and_tokenize_text(config):
     else:
         seed = getattr(config, "seed", 123)
         data_path = getattr(config, "data_path", None)
+        val_data_path = getattr(config, "val_data_path", None)  # NEW: separate validation dataset
         max_tokens_training = getattr(config, "max_tokens_training", None)
         fixed_val_tokens = getattr(config, "fixed_val_tokens", None)
         train_split = getattr(config, "train_split", 0.8)
@@ -805,41 +842,73 @@ def load_and_tokenize_text(config):
     )["input_ids"]
     print(f"Tokenization complete: {len(tokens):,} tokens")
 
-    # Split into train/val/test
-    n = len(tokens)
+    # Check if separate validation dataset is specified
+    if val_data_path:
+        print(f"\nLoading separate validation dataset from: {val_data_path}")
+        # Handle relative paths (for LSTM running from subdirectory)
+        val_path_obj = Path(val_data_path)
+        if not val_path_obj.exists():
+            parent_relative = Path("..") / val_data_path
+            if parent_relative.exists():
+                val_data_path = str(parent_relative)
+                print(f"  (adjusted path: {val_data_path})")
 
-    if fixed_val_tokens and max_tokens_training:
-        # Use exact token counts
-        n_train = int(max_tokens_training)
-        n_val = int(fixed_val_tokens)
+        # Load and tokenize validation file
+        val_text = Path(val_data_path).read_text(encoding="utf-8")
+        print(f"  Tokenizing {len(val_text):,} characters...")
+        val_tokens = tokenizer(
+            val_text,
+            add_special_tokens=False,
+            truncation=False,
+            padding=False,
+            return_tensors=None,
+            return_attention_mask=False,
+            verbose=False,
+        )["input_ids"]
+        print(f"  Validation: {len(val_tokens):,} tokens (from separate file)")
 
-        if n_train + n_val > n:
-            raise ValueError(
-                f"Not enough tokenized data: need {n_train + n_val:,} tokens "
-                f"({n_train:,} training + {n_val:,} validation) "
-                f"but only have {n:,} tokens available"
-            )
-
-        train_tokens = tokens[:n_train]
-        val_tokens = tokens[n_train : n_train + n_val]
-        test_tokens = tokens[n_train + n_val :]
-
-        print(f"Dataset split with exact token counts:")
-        print(f"  Training: {len(train_tokens):,} tokens (exactly as specified)")
-        print(f"  Validation: {len(val_tokens):,} tokens (exactly as specified)")
-        print(f"  Test: {len(test_tokens):,} tokens (remainder)")
+        # For train/test split, only split the training data
+        train_tokens = tokens  # All tokens from training file
+        test_tokens = []  # No test set when using separate validation
     else:
-        # Use percentage-based split
-        n_train = int(n * train_split)
-        n_val = int(n * val_split)
+        val_tokens = None  # Will be split from training data below
 
-        train_tokens = tokens[:n_train]
-        val_tokens = tokens[n_train : n_train + n_val]
-        test_tokens = tokens[n_train + n_val :]
+    # Split into train/val/test (only if val_tokens not already set)
+    if val_tokens is None:
+        n = len(tokens)
 
-        print(f"Dataset split with percentage split:")
-        print(f"  Training: {len(train_tokens):,} tokens ({train_split*100:.1f}%)")
-        print(f"  Validation: {len(val_tokens):,} tokens ({val_split*100:.1f}%)")
-        print(f"  Test: {len(test_tokens):,} tokens (remainder)")
+        if fixed_val_tokens and max_tokens_training:
+            # Use exact token counts
+            n_train = int(max_tokens_training)
+            n_val = int(fixed_val_tokens)
+
+            if n_train + n_val > n:
+                raise ValueError(
+                    f"Not enough tokenized data: need {n_train + n_val:,} tokens "
+                    f"({n_train:,} training + {n_val:,} validation) "
+                    f"but only have {n:,} tokens available"
+                )
+
+            train_tokens = tokens[:n_train]
+            val_tokens = tokens[n_train : n_train + n_val]
+            test_tokens = tokens[n_train + n_val :]
+
+            print(f"Dataset split with exact token counts:")
+            print(f"  Training: {len(train_tokens):,} tokens (exactly as specified)")
+            print(f"  Validation: {len(val_tokens):,} tokens (exactly as specified)")
+            print(f"  Test: {len(test_tokens):,} tokens (remainder)")
+        else:
+            # Use percentage-based split
+            n_train = int(n * train_split)
+            n_val = int(n * val_split)
+
+            train_tokens = tokens[:n_train]
+            val_tokens = tokens[n_train : n_train + n_val]
+            test_tokens = tokens[n_train + n_val :]
+
+            print(f"Dataset split with percentage split:")
+            print(f"  Training: {len(train_tokens):,} tokens ({train_split*100:.1f}%)")
+            print(f"  Validation: {len(val_tokens):,} tokens ({val_split*100:.1f}%)")
+            print(f"  Test: {len(test_tokens):,} tokens (remainder)")
 
     return train_tokens, val_tokens, test_tokens, tokenizer

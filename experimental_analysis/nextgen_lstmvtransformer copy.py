@@ -2257,6 +2257,64 @@ if __name__ == "__main__":
             "class": "sgd",
             "hidden_dim": 256,
         },
+        # add no bias experiments
+        {
+            "name": "no bias 32d transformer",
+            "csv_path": "../experimental_data_folder/biased_modern/32_modern_40.csv",
+            "marker": "o",
+            "include_in_frontier": True,  # Include in frontier analysis
+            "class": "no_bias",
+            "hidden_dim": 32,
+        },
+        # 48
+        {
+            "name": "no bias 48d transformer",
+            "csv_path": "../experimental_data_folder/biased_modern/48_modern.csv",
+            "marker": "o",
+            "include_in_frontier": True,  # Include in frontier analysis
+            "class": "no_bias",
+            "hidden_dim": 48,
+        },
+        {
+            "name": "no bias 64d transformer",
+            "csv_path": "../experimental_data_folder/biased_modern/64_modern_40.csv",
+            "marker": "o",
+            "include_in_frontier": True,  # Include in frontier analysis
+            "class": "no_bias",
+            "hidden_dim": 64,
+        },
+        {
+            "name": "no bias 96d transformer",
+            "csv_path": "../experimental_data_folder/biased_modern/96_modern_40.csv",
+            "marker": "o",
+            "include_in_frontier": True,  # Include in frontier analysis
+            "class": "no_bias",
+            "hidden_dim": 96,
+        },
+        {
+            "name": "no bias 128d transformer",
+            "csv_path": "../experimental_data_folder/biased_modern/128_modern_40.csv",
+            "marker": "o",
+            "include_in_frontier": True,  # Include in frontier analysis
+            "class": "no_bias",
+            "hidden_dim": 128,
+        },
+        {
+            "name": "no bias 160d transformer",
+            "csv_path": "../experimental_data_folder/biased_modern/160_modern_40.csv",
+            "marker": "o",
+            "include_in_frontier": True,  # Include in frontier analysis
+            "class": "no_bias",
+            "hidden_dim": 160,
+        },
+        {
+            "name": "no bias 192d transformer",
+            "csv_path": "../experimental_data_folder/biased_modern/192_modern_40.csv",
+            "marker": "o",
+            "include_in_frontier": True,  # Include in frontier analysis
+            "class": "no_bias",
+            "hidden_dim": 192,
+        },
     ]
 
     #     debug_historical_experiments/radford256_40t_to_p.csv

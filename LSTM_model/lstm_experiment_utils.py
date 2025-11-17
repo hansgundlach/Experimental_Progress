@@ -321,6 +321,7 @@ def get_lstm_base_config():
     """
     return {
         "data_path": "../Datasets/c4_subset.txt",
+        "val_data_path": None,  # Optional: separate validation dataset (e.g., WikiText for cross-dataset eval)
         "tokenizer_path": "../gpt2_tokenizer",
         "max_tokens_training": int(
             5 * 1e7 / 4

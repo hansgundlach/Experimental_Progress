@@ -13,29 +13,49 @@ NARROW_LR_SWEEP = [
 ]
 DIMENSION = 64
 SEEDS = [123, 456, 789, 101]
-folder_name = "stanford_mult"
+folder_name = "all_ablations"
 learning_rate = 5.798e-3
 
 # activation variation experiments
-ACTIVATION_EXPERIMENTS = gen_experim(
-    DIMENSION,
-    label=f"{DIMENSION}d_gelu",
-    learning_rate=learning_rate,
-    activation="gelu",
-    folder_name=folder_name,
-) + gen_experim(
-    DIMENSION,
-    label=f"{DIMENSION}d_relu",
-    learning_rate=learning_rate,
-    activation="relu",
-    folder_name=folder_name,
+ACTIVATION_EXPERIMENTS = (
+    gen_experim(
+        DIMENSION,
+        label=f"{DIMENSION}d_gelu",
+        learning_rate=learning_rate,
+        activation="gelu",
+        folder_name=folder_name,
+        modern_bias_0=False,
+        ff_ratio=4,
+    )
+    + gen_experim(
+        DIMENSION,
+        label=f"{DIMENSION}d_relu",
+        learning_rate=learning_rate,
+        activation="relu",
+        folder_name=folder_name,
+        modern_bias_0=False,
+        ff_ratio=4,
+    )
+    + gen_experim(
+        DIMENSION,
+        label=f"{DIMENSION}d_swiglu",
+        learning_rate=learning_rate,
+        activation="swiglu",
+        folder_name=folder_name,
+        modern_bias_0=False,
+        ff_ratio=4,
+    )
 )
-
 # optimizer variation experiments ?
 # positional encoding experiments
 # norm experiments
 # lr_schedule expeiremtns
 # initalizaiton experiments
+
+
+# remove_bias_lr = 10 ** (-2.25)
+remove_bias_lr = 10 ** (-2)
+transformer_scaled_init_lr = learning_rate
 INITIALIZATION_EXPERIMENTS = (
     # gen_experim(
     #     DIMENSION,
@@ -53,19 +73,20 @@ INITIALIZATION_EXPERIMENTS = (
     # )
     gen_experim(
         DIMENSION,
-        label=f"{DIMENSION}d_transformer_scaled_init",
+        label=f"{DIMENSION}d_transformer_scaled_init_{transformer_scaled_init_lr}",
         learning_rate=learning_rate,
         init_scheme="transformer_scaled",
         folder_name=folder_name,
-    )
-    + gen_experim(
-        DIMENSION,
-        label=f"{DIMENSION}d_removing_bias",
-        learning_rate=learning_rate,
-        init_scheme="bert_gpt",
-        folder_name=folder_name,
         modern_bias_0=False,
+        ff_ratio=4,
     )
+    # gen_experim(
+    #     DIMENSION,
+    #     label=f"{DIMENSION}d_removing_bias_{remove_bias_lr}",
+    #     learning_rate=learning_rate,
+    #     folder_name=folder_name,
+    #     modern_bias_0=False,
+    # )
 )
 
 
@@ -77,6 +98,8 @@ NORMALIZATION_EXPERIMENTS = (
         folder_name=folder_name,
         learning_rate=learning_rate,
         norm_type="layer",
+        modern_bias_0=False,
+        ff_ratio=4,
     )
     + gen_experim(
         DIMENSION,
@@ -84,6 +107,8 @@ NORMALIZATION_EXPERIMENTS = (
         folder_name=folder_name,
         learning_rate=learning_rate,
         norm_type="rms",
+        modern_bias_0=False,
+        ff_ratio=4,
     )
     # add no norm placement option
     + gen_experim(
@@ -92,6 +117,8 @@ NORMALIZATION_EXPERIMENTS = (
         folder_name=folder_name,
         learning_rate=1e-3,
         norm_placement="post",
+        modern_bias_0=False,
+        ff_ratio=4,
     )
 )
 
@@ -109,6 +136,8 @@ OPTIMIZER_EXPERIMENTS = (
         folder_name=folder_name,
         learning_rate=learning_rate,
         optimizer="adam",
+        modern_bias_0=False,
+        ff_ratio=4,
     )
 )
 
@@ -119,12 +148,16 @@ POSITIONAL_ENCODING_EXPERIMENTS = gen_experim(
     folder_name=folder_name,
     learning_rate=learning_rate,
     pos_encoding="sinusoidal",
+    modern_bias_0=False,
+    ff_ratio=4,
 ) + gen_experim(
     DIMENSION,
     label=f"{DIMENSION}d_learned",
     folder_name=folder_name,
     learning_rate=learning_rate,
     pos_encoding="learned",
+    modern_bias_0=False,
+    ff_ratio=4,
 )
 
 # you would probably have to do an lr tune for the linear warmup
@@ -135,6 +168,8 @@ LR_SCHEDULE_EXPERIMENTS = (
         folder_name=folder_name,
         learning_rate=learning_rate,
         lr_schedule="linear_warmup",
+        modern_bias_0=False,
+        ff_ratio=4,
     )
     + gen_experim(
         DIMENSION,
@@ -142,6 +177,8 @@ LR_SCHEDULE_EXPERIMENTS = (
         folder_name=folder_name,
         learning_rate=learning_rate,
         lr_schedule="inverse_sqrt",
+        modern_bias_0=False,
+        ff_ratio=4,
     )
     + gen_experim(
         DIMENSION,
@@ -149,10 +186,12 @@ LR_SCHEDULE_EXPERIMENTS = (
         folder_name=folder_name,
         learning_rate=learning_rate,
         lr_schedule="transformer",
+        modern_bias_0=False,
+        ff_ratio=4,
     )
 )
 
-LR_SWEEP = [10 ** (-2.5), 10 ** (-2), 10 ** (-1.5)]
+# LR_SWEEP = [10 ** (-2.5), 10 ** (-2), 10 ** (-1.5)]
 
 # post layer norm lr tune necessary
 # GRAND_VARIATION_EXPERIMENTS = create_multi_lr_experiments(
@@ -191,14 +230,14 @@ LR_SWEEP = [10 ** (-2.5), 10 ** (-2), 10 ** (-1.5)]
 # )
 
 
-GRAND_VARIATION_EXPERIMENTS = (
-    LR_SCHEDULE_EXPERIMENTS
-    + INITIALIZATION_EXPERIMENTS
-    + NORMALIZATION_EXPERIMENTS
-    + POSITIONAL_ENCODING_EXPERIMENTS
-    + ACTIVATION_EXPERIMENTS
-    + OPTIMIZER_EXPERIMENTS
-)
+# GRAND_VARIATION_EXPERIMENTS = (
+#     LR_SCHEDULE_EXPERIMENTS
+#     + INITIALIZATION_EXPERIMENTS
+#     + NORMALIZATION_EXPERIMENTS
+#     + POSITIONAL_ENCODING_EXPERIMENTS
+#     + ACTIVATION_EXPERIMENTS
+#     + OPTIMIZER_EXPERIMENTS
+# )
 
 
 HISTORICAL_ORDER = (
@@ -392,16 +431,16 @@ HISTORICAL_ORDER_LR_TUNE = create_multi_lr_experiments(
 )
 
 
-GRAND_VARIATION_EXPERIMENTS = create_multi_lr_experiments(
-    gen_experim(
-        DIMENSION,
-        label=f"{DIMENSION}d_post",
-        folder_name=folder_name,
-        learning_rate=1e-3,
-        norm_placement="post",
-    ),  # gen_experim returns a list of experiment dictionaries
-    [10**-3.25, 10**-2.75],
-)
+# GRAND_VARIATION_EXPERIMENTS = create_multi_lr_experiments(
+#     gen_experim(
+#         DIMENSION,
+#         label=f"{DIMENSION}d_post",
+#         folder_name=folder_name,
+#         learning_rate=1e-3,
+#         norm_placement="post",
+#     ),  # gen_experim returns a list of experiment dictionaries
+#     [10**-3.25, 10**-2.75],
+# )
 
 
 # GRAND_VARIATION_EXPERIMENTS = (
@@ -411,4 +450,118 @@ GRAND_VARIATION_EXPERIMENTS = create_multi_lr_experiments(
 #     + create_multi_seed_experiments(POSITIONAL_ENCODING_EXPERIMENTS, SEEDS)
 #     + create_multi_seed_experiments(ACTIVATION_EXPERIMENTS, SEEDS)
 # )
-GRAND_VARIATION_EXPERIMENTS = HISTORICAL_ORDER_LR_TUNE
+
+# gelu ablation
+
+# all_ablated_lr = 10**-2.75
+TEMP_EXPERIMENTS = gen_experim(
+    DIMENSION,
+    label=f"{DIMENSION}d_gelu_ff4",
+    learning_rate=1e-2,
+    activation="gelu",
+    folder_name=folder_name,
+    ff_ratio=4,
+) + gen_experim(
+    DIMENSION,
+    label=f"{DIMENSION}d_all_ablated_2.75e-3",
+    learning_rate=10**-2.75,
+    folder_name=folder_name,
+    norm_placement="post",
+    activation="gelu",
+    lr_schedule="inverse_sqrt",
+    pos_encoding="sinusoidal",
+    weight_decay=0.01,
+    dropout=0.0,
+    optimizer="adam",
+    modern_bias_0=False,
+)
+
+
+# GRAND_VARIATION_EXPERIMENTS = create_multi_lr_experiments(
+#     INITIALIZATION_EXPERIMENTS,
+#     [10**-3.25, 10**-3, 10**-2.75, 10**-2.5, 10**-2.25, 10**-2, 5.79e-3],
+# )
+
+all_ablated_lr = 10**-3
+all_ablated_lr_label = f"{all_ablated_lr:.3g}"
+
+# GRAND_VARIATION_EXPERIMENTS = (
+#     INITIALIZATION_EXPERIMENTS
+#     + gen_experim(
+#         DIMENSION,
+#         label=f"{DIMENSION}d_all_ablated_{all_ablated_lr_label}",
+#         learning_rate=all_ablated_lr,
+#         folder_name=folder_name,
+#         norm_placement="post",
+#         activation="gelu",
+#         lr_schedule="inverse_sqrt",
+#         pos_encoding="sinusoidal",
+#         weight_decay=0.01,
+#         dropout=0.0,
+#         optimizer="adam",
+#         modern_bias_0=False,
+#     )
+#     + create_multi_lr_experiments(
+#         OPTIMIZER_EXPERIMENTS,
+#         [
+#             10**-3.25,
+#             10**-3,
+#             10**-2.75,
+#             10**-2.5,
+#             10**-2.25,
+#             10**-2,
+#             learning_rate,
+#             10**-1.5,
+#         ],
+#     )
+# )
+
+
+# combine all experiments
+ALL_EXPERIMENTS = (
+    ACTIVATION_EXPERIMENTS
+    + INITIALIZATION_EXPERIMENTS
+    + NORMALIZATION_EXPERIMENTS
+    + POSITIONAL_ENCODING_EXPERIMENTS
+    + OPTIMIZER_EXPERIMENTS
+    + LR_SCHEDULE_EXPERIMENTS
+)
+
+# GRAND_VARIATION_EXPERIMENTS = gen_experim(
+#     DIMENSION,
+#     label=f"{DIMENSION}d_swiglu_ff4_standard_lr",
+#     learning_rate=learning_rate,
+#     activation="swiglu",
+#     folder_name=folder_name,
+#     modern_bias_0=False,
+#     ff_ratio=4,
+# ) + gen_experim(
+#     DIMENSION,
+#     label=f"{DIMENSION}d_swiglu_ff4_1e-2_lr",
+#     learning_rate=1e-2,
+#     activation="swiglu",
+#     folder_name=folder_name,
+#     modern_bias_0=False,
+#     ff_ratio=4,
+# )
+
+# 13*6 = 78
+ALL_EXPERIMENT_LR_TUNE = create_multi_lr_experiments(
+    ACTIVATION_EXPERIMENTS
+    + INITIALIZATION_EXPERIMENTS
+    + NORMALIZATION_EXPERIMENTS
+    + POSITIONAL_ENCODING_EXPERIMENTS
+    + OPTIMIZER_EXPERIMENTS
+    + LR_SCHEDULE_EXPERIMENTS,
+    [
+        learning_rate,
+        10**-3,
+        10**-2.75,
+        10**-2.5,
+        10**-2.25,
+        10**-2,
+        10**-1.5,
+    ],
+)
+
+GRAND_VARIATION_EXPERIMENTS = ALL_EXPERIMENTS
