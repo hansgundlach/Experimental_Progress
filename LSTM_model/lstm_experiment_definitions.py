@@ -10,6 +10,7 @@ from lstm_experiment_utils import (
     calculate_lstm_params,
     get_lstm_base_config,
 )
+
 # =================================================== FUNDAMENTAL EXPERIMENTS ===================================================
 LSTM_SCALING_STUDY_TRADITIONAL = (
     # gen_lstm_experim(
@@ -85,11 +86,27 @@ LSTM_SCALING_STUDY_TRADITIONAL = (
 )
 
 
-
-
-
-
-
+# MELSIS dropout vs no dropout
+NO_DROPOUT_COMPARISON = gen_lstm_experim(
+    64,
+    label="64d_melis_dropout",
+    folder_name="appendix_ablation_study",
+    learning_rate=3.1623e-2,
+    token_to_param_ratio=40,
+    input_dropout=0.6,
+    hidden_dropout=0.3,
+    output_dropout=0.7,
+    between_layers_dropout=0.0,
+) + gen_lstm_experim(
+    64,
+    label="64d_standard_no_dropout",
+    folder_name="appendix_ablation_study",
+    learning_rate=3.1623e-2,
+    token_to_param_ratio=40,
+)
+NO_DROPOUT_COMPARISON_LR = create_multi_lr_lstm_experiments(
+    NO_DROPOUT_COMPARISON, [10**-3, 10**-2.5, 10**-2, 10**-1.5, 10**-1]
+)
 
 
 # =================================================== LR SWEEPS ===================================================
@@ -1061,15 +1078,17 @@ GRAND_EXPERIMENT = gen_lstm_experim(
 #     )
 #     + LSTM_SEQ_LENGTH
 # )
-GRAND_EXPERIMENT = create_multi_lr_experiments(
-    LSTM_SEQ_LENGTH,
-    [
-        10 ** (-1.25),
-        10 ** (-1.75),
-        10 ** (-2.25),
-        10 ** (-2.75),
-        10 ** (-3.25),
-    ],
-)
+# GRAND_EXPERIMENT = create_multi_lr_experiments(
+#     LSTM_SEQ_LENGTH,
+#     [
+#         10 ** (-1.25),
+#         10 ** (-1.75),
+#         10 ** (-2.25),
+#         10 ** (-2.75),
+#         10 ** (-3.25),
+#     ],
+# )
+
+GRAND_EXPERIMENT = NO_DROPOUT_COMPARISON_LR
 
 # 48 experimetns

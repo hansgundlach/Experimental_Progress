@@ -819,7 +819,7 @@ def get_base_config():
         - Complete-P and muP scaling parameters
     """
     return {
-        "data_path": "Datasets/c4_subset_large.txt",  # Actual dataset file path
+        "data_path": "Datasets/c4_subset_large.npy",  # Actual dataset file path
         "val_data_path": None,  # Optional: separate validation dataset (e.g., WikiText for cross-dataset eval)
         "max_tokens_training": int(
             5 * 1e7 / 4

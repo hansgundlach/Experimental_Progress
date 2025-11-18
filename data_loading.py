@@ -117,15 +117,15 @@ class StreamingTextDataset(Dataset):
         self, file_path, seq_length, tokenizer, max_tokens=None, split="train", stride=128
     ):
         """
-        Memory-efficient streaming dataset that matches TextDataset behavior exactly.
+        Memory-efficient streaming dataset using memory-mapped files.
 
-        Tokenizes text once during init (memory efficient - stores token IDs only),
-        then creates sequences on-demand during __getitem__ (avoids storing all sequences).
+        If a pre-tokenized .npy file exists, uses memory mapping (no RAM usage!).
+        Otherwise falls back to loading and tokenizing the text file (uses RAM).
 
         Args:
-            file_path: Path to the text file
+            file_path: Path to the text file (or .npy file if pre-tokenized)
             seq_length: Length of each sequence
-            tokenizer: Tokenizer to use
+            tokenizer: Tokenizer to use (only needed if loading text)
             max_tokens: Maximum number of tokens to use (None = use all)
             split: 'train' or 'val' - determines which part of file to use
             stride: Stride for creating sequences (default: 128, same as TextDataset)
@@ -134,57 +134,95 @@ class StreamingTextDataset(Dataset):
         self.stride = stride
         self.tokenizer = tokenizer
 
-        # Get file size
-        file_size = Path(file_path).stat().st_size
+        # Check if pre-tokenized .npy file exists
+        npy_path = Path(file_path).with_suffix('.npy')
 
-        # Determine which part of the file to use (same logic as before)
-        if split == "train":
-            start_byte = 0
-            if max_tokens:
-                # Estimate characters needed (rough 4:1 char:token ratio)
-                chars_needed = max_tokens * 4
-                end_byte = min(chars_needed, int(file_size * 0.9))
+        if npy_path.exists():
+            # MEMORY-MAPPED LOADING (uses almost no RAM!)
+            print(f"🚀 Using memory-mapped file: {npy_path}")
+            print(f"   (This uses ~0MB RAM regardless of dataset size!)")
+
+            # Load as memory-mapped array (doesn't load into RAM)
+            all_tokens_mmap = np.load(str(npy_path), mmap_mode='r')
+            total_tokens = len(all_tokens_mmap)
+
+            print(f"   Total tokens in file: {total_tokens:,}")
+
+            # Determine which portion to use based on split
+            if split == "train":
+                start_idx = 0
+                if max_tokens:
+                    end_idx = min(max_tokens, int(total_tokens * 0.9))
+                else:
+                    end_idx = int(total_tokens * 0.9)  # Use 90% for training
+            elif split == "val":
+                # Use last 10% for validation
+                start_idx = int(total_tokens * 0.9)
+                end_idx = total_tokens
+                if max_tokens:
+                    end_idx = min(start_idx + max_tokens, total_tokens)
             else:
-                end_byte = int(file_size * 0.9)  # Use 90% for training
-        elif split == "val":
-            # Use last 10% for validation
-            start_byte = int(file_size * 0.9)
-            end_byte = file_size
-            if max_tokens:
-                # Limit validation size if specified
-                chars_needed = max_tokens * 4
-                end_byte = min(start_byte + chars_needed, file_size)
+                start_idx = 0
+                end_idx = total_tokens
+
+            # Store the memory-mapped view (just a reference, no RAM used)
+            self.tokens = all_tokens_mmap[start_idx:end_idx]
+            total_length = len(self.tokens)
+
+            print(f"   Using {split} portion: {total_length:,} tokens (indices {start_idx:,} to {end_idx:,})")
+
         else:
-            start_byte = 0
-            end_byte = file_size
+            # FALLBACK: Old behavior (loads everything into RAM)
+            print(f"⚠️  WARNING: No .npy file found at {npy_path}")
+            print(f"   Falling back to loading text file (uses ~{Path(file_path).stat().st_size / 1e9:.1f}GB RAM)")
+            print(f"   To avoid this, run: python pretokenize_dataset.py {file_path}")
 
-        # Load the text portion we need (one-time load)
-        with open(file_path, "r", encoding="utf-8") as f:
-            f.seek(start_byte)
-            text = f.read(end_byte - start_byte)
+            # Get file size
+            file_size = Path(file_path).stat().st_size
 
-        # Tokenize in chunks (IDENTICAL to TextDataset logic)
-        chunk_size = 2000  # Same as TextDataset
-        text_chunks = [
-            text[i : i + chunk_size] for i in range(0, len(text), chunk_size)
-        ]
+            # Determine which part of the file to use
+            if split == "train":
+                start_byte = 0
+                if max_tokens:
+                    chars_needed = max_tokens * 4
+                    end_byte = min(chars_needed, int(file_size * 0.9))
+                else:
+                    end_byte = int(file_size * 0.9)
+            elif split == "val":
+                start_byte = int(file_size * 0.9)
+                end_byte = file_size
+                if max_tokens:
+                    chars_needed = max_tokens * 4
+                    end_byte = min(start_byte + chars_needed, file_size)
+            else:
+                start_byte = 0
+                end_byte = file_size
 
-        all_tokens = []
-        for chunk in text_chunks:
-            chunk_tokens = tokenizer(chunk, truncation=True, max_length=1024)[
-                "input_ids"
+            # Load and tokenize (uses RAM)
+            with open(file_path, "r", encoding="utf-8") as f:
+                f.seek(start_byte)
+                text = f.read(end_byte - start_byte)
+
+            chunk_size = 2000
+            text_chunks = [
+                text[i : i + chunk_size] for i in range(0, len(text), chunk_size)
             ]
-            all_tokens.extend(chunk_tokens)
 
-        # Store tokens as list (memory efficient - no Tensor overhead)
-        self.tokens = all_tokens
-        total_length = len(self.tokens)
+            all_tokens = []
+            for chunk in text_chunks:
+                chunk_tokens = tokenizer(chunk, truncation=True, max_length=1024)[
+                    "input_ids"
+                ]
+                all_tokens.extend(chunk_tokens)
+
+            self.tokens = all_tokens
+            total_length = len(self.tokens)
 
         # Calculate number of complete sequences (IDENTICAL to TextDataset)
         self.n_seqs = (total_length - seq_length - 1) // stride
 
         print(
-            f"StreamingDataset ({split}): {self.n_seqs:,} sequences from {len(text):,} chars ({total_length:,} tokens)"
+            f"StreamingDataset ({split}): {self.n_seqs:,} sequences from {total_length:,} tokens"
         )
 
     def __len__(self):

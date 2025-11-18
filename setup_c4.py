@@ -6,7 +6,7 @@ from pathlib import Path
 CACHE_DIR = "/your/real/cache/dir"  # ← adjust as needed
 
 # How many GPT-2 tokens to collect (≈1e9)
-TOKEN_LIMIT = 10**10
+TOKEN_LIMIT = int(1.5 * 10**9)
 # 3*10**9 worked well
 
 # Ensure target directory exists
@@ -38,7 +38,7 @@ for example in load_dataset(
     total_tokens += len(text)
 
 # Write out one big text file
-out_file = Path("Datasets") / "c4_subset.txt"
+out_file = Path("Datasets") / "c4_subset_1half_billion.txt"
 with open(out_file, "w", encoding="utf-8") as f:
     f.write("\n".join(collected_texts))
 

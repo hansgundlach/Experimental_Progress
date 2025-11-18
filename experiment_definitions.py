@@ -558,16 +558,16 @@ BIASED_SCALING_STUDY = (
     #     ff_ratio=4,
     #     token_to_param_ratio=40,
     # )
-    # + gen_experim(
-    #     64,
-    #     label="64_modern_40",
-    #     folder_name="biased_modern",
-    #     learning_rate=5.79e-3,
-    #     norm_type="rms",
-    #     token_to_param_ratio=40,
-    #     modern_bias_0=False,
-    #     ff_ratio=4,
-    # )
+    + gen_experim(
+        64,
+        label="64_modern_40",
+        folder_name="biased_modern",
+        learning_rate=5.79e-3,
+        norm_type="rms",
+        token_to_param_ratio=40,
+        modern_bias_0=False,
+        ff_ratio=4,
+    )
     # + gen_experim(
     #     80,
     #     label="80_modern_40",
@@ -1107,20 +1107,22 @@ CROSS_DATASET_EXPERIMENTS = (
 #     ],
 # )
 
-GRAND_EXPERIMENT = gen_experim(
-    256,
-    label="256_hisotrical_test",
-    folder_name="i_just_need_a_name",
-    learning_rate=10 ** (-3.5),
-    activation="gelu",
-    norm_placement="post",
-    lr_schedule="inverse_sqrt",
-    pos_encoding="sinusoidal",
-    weight_decay=0.01,
-    dropout=0.0,
-    optimizer="adam",
-    modern_bias_0=False,
-    ff_ratio=4,
-    token_to_param_ratio=40,
-)
+# GRAND_EXPERIMENT = gen_experim(
+#     256,
+#     label="256_hisotrical_test",
+#     folder_name="i_just_need_a_name",
+#     learning_rate=10 ** (-3.5),
+#     activation="gelu",
+#     norm_placement="post",
+#     lr_schedule="inverse_sqrt",
+#     pos_encoding="sinusoidal",
+#     weight_decay=0.01,
+#     dropout=0.0,
+#     optimizer="adam",
+#     modern_bias_0=False,
+#     ff_ratio=4,
+#     token_to_param_ratio=40,
+#     gradient_accumulation_steps=4,
+# )
 # 7 * 4 experiments
+GRAND_EXPERIMENT = BIASED_SCALING_STUDY
