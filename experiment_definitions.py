@@ -558,16 +558,16 @@ BIASED_SCALING_STUDY = (
     #     ff_ratio=4,
     #     token_to_param_ratio=40,
     # )
-    + gen_experim(
-        64,
-        label="64_modern_40",
-        folder_name="biased_modern",
-        learning_rate=5.79e-3,
-        norm_type="rms",
-        token_to_param_ratio=40,
-        modern_bias_0=False,
-        ff_ratio=4,
-    )
+    # + gen_experim(
+    #     64,
+    #     label="64_modern_40",
+    #     folder_name="biased_modern",
+    #     learning_rate=5.79e-3,
+    #     norm_type="rms",
+    #     token_to_param_ratio=40,
+    #     modern_bias_0=False,
+    #     ff_ratio=4,
+    # )
     # + gen_experim(
     #     80,
     #     label="80_modern_40",

@@ -110,36 +110,8 @@ def tbptt_forward_backward(
     return per_token_loss, hidden
 
 
-class TextPreprocessor:
-    def __init__(self, tokenizer_path: str):
-        # Load tokenizer from local directory (offline mode)
-        self.tokenizer = GPT2Tokenizer.from_pretrained(
-            tokenizer_path,
-            local_files_only=True,  # Force offline mode
-            use_fast=False,  # Use slow tokenizer to avoid potential issues
-        )
-        # Set pad token if not already set
-        if self.tokenizer.pad_token is None:
-            self.tokenizer.pad_token = self.tokenizer.eos_token
-        self.vocab_size = len(self.tokenizer)
-        print(
-            f"Loaded tokenizer from local path with vocabulary size: {self.vocab_size}"
-        )
-
-    def text_to_indices(self, text: str) -> List[int]:
-        # Tokenize the text using the configured tokenizer
-        # FIXED: Use tokenizer directly to avoid sequence length validation
-        # The encode() method can trigger model max_length validation
-        tokens = self.tokenizer(
-            text,
-            add_special_tokens=False,
-            truncation=False,
-            padding=False,
-            return_tensors=None,  # Return Python list
-            return_attention_mask=False,
-            verbose=False,
-        )["input_ids"]
-        return tokens
+# TextPreprocessor class removed - tokenization now handled by shared data_loading.py
+# The tokenizer is returned directly from load_and_tokenize_text()
 
 
 class VariationalDropout(nn.Module):
@@ -699,18 +671,20 @@ class FLOPCounter:
 
 def load_and_preprocess_data(
     config: Dict,
-) -> Tuple[DataLoader, DataLoader, DataLoader, TextPreprocessor]:
+) -> Tuple[DataLoader, DataLoader, DataLoader, PreTrainedTokenizer]:
     """Load and preprocess text data with optimized DataLoaders"""
     print("Loading and preprocessing data...")
 
     # Use shared data loading function from data_loading.py
+    # This returns tokenizer from data_loading.py (already configured correctly)
     train_data, val_data, test_data, tokenizer = load_and_tokenize_text(config)
-
-    # Create TextPreprocessor for vocab_size (needed by LSTM model)
-    preprocessor = TextPreprocessor(config["tokenizer_path"])
 
     # Choose dataset type based on streaming config
     use_streaming = config.get("use_streaming", False)
+
+    # Check if test set has enough tokens
+    min_test_tokens = config["batch_size"] * config["sequence_length"] if use_streaming else config["sequence_length"] + 1
+    has_test_data = len(test_data) >= min_test_tokens
 
     if use_streaming:
         print("Using stateful (Melis/Merity style) datasets")
@@ -720,9 +694,13 @@ def load_and_preprocess_data(
         val_dataset = LSTMStatefulDataset(
             val_data, config["sequence_length"], config["batch_size"]
         )
-        test_dataset = LSTMStatefulDataset(
-            test_data, config["sequence_length"], config["batch_size"]
-        )
+        if has_test_data:
+            test_dataset = LSTMStatefulDataset(
+                test_data, config["sequence_length"], config["batch_size"]
+            )
+        else:
+            print(f"⚠️  Test set too small ({len(test_data)} tokens, need {min_test_tokens}), using validation set for test")
+            test_dataset = val_dataset  # Use validation set as test set
     else:
         print("Using non-streaming (sliding window) datasets")
         stride = config.get("stride", 1)
@@ -730,7 +708,11 @@ def load_and_preprocess_data(
             train_data, config["sequence_length"], stride=stride
         )
         val_dataset = TokenDataset(val_data, config["sequence_length"], stride=stride)
-        test_dataset = TokenDataset(test_data, config["sequence_length"], stride=stride)
+        if has_test_data:
+            test_dataset = TokenDataset(test_data, config["sequence_length"], stride=stride)
+        else:
+            print(f"⚠️  Test set too small ({len(test_data)} tokens, need {min_test_tokens}), using validation set for test")
+            test_dataset = val_dataset  # Use validation set as test set
 
     # CONSERVATIVE: Determine optimal number of workers for Supercloud
     if config.get("num_workers") == "auto":
@@ -799,7 +781,7 @@ def load_and_preprocess_data(
         f"Batches per epoch: Train={len(train_loader)}, Val={len(val_loader)}, Test={len(test_loader)}"
     )
 
-    return train_loader, val_loader, test_loader, preprocessor
+    return train_loader, val_loader, test_loader, tokenizer
 
 
 def evaluate_model(
@@ -1111,13 +1093,11 @@ def train_model(
     print(f"Using device: {device}")
 
     # Load data
-    train_loader, val_loader, test_loader, preprocessor = load_and_preprocess_data(
-        config
-    )
+    train_loader, val_loader, test_loader, tokenizer = load_and_preprocess_data(config)
 
     # Initialize model
     model = VanillaLSTMLanguageModel(
-        vocab_size=preprocessor.vocab_size,
+        vocab_size=len(tokenizer),
         hidden_size=config["hidden_size"],
         num_layers=config["num_layers"],
         input_dropout=config["input_dropout"],
@@ -1144,7 +1124,7 @@ def train_model(
         return model.init_hidden(batch_size, device)
 
     # Initialize FLOP counter
-    flop_counter = FLOPCounter(model, config, preprocessor.tokenizer)
+    flop_counter = FLOPCounter(model, config, tokenizer)
 
     # Loss and optimizer - use reduction='sum' for proper per-token scaling
     criterion = nn.CrossEntropyLoss(reduction="sum")

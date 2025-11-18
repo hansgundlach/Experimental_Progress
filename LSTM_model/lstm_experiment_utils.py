@@ -320,7 +320,7 @@ def get_lstm_base_config():
         Dictionary containing base configuration parameters
     """
     return {
-        "data_path": "../Datasets/c4_subset.txt",
+        "data_path": "../Datasets/c4_subset_6billion_char.npy",
         "val_data_path": None,  # Optional: separate validation dataset (e.g., WikiText for cross-dataset eval)
         "tokenizer_path": "../gpt2_tokenizer",
         "max_tokens_training": int(

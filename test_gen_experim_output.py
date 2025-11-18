@@ -43,14 +43,23 @@ def analyze_experiment(hidden_dim, label_suffix=""):
     print("\n" + "-" * 40)
     print("Key Scaling Information:")
 
-    # Calculate the number of parameters (with weight tying by default)
+    # Calculate the number of parameters (with weight tying by default).
+    # Use the activation from the generated config so SwiGLU vs GELU
+    # get the correct parameter counts.
+    act = config.get("activation", "swiglu")
     num_params = calculate_transformer_params(
-        config["hidden_dim"], config["num_layers"], tie_embeddings=True
+        config["hidden_dim"],
+        config["num_layers"],
+        activation=act,
+        tie_embeddings=True,
     )
 
     # Calculate non-embedding parameters (Kaplan et al. definition)
     non_embedding_params = calculate_non_embedding_params(
-        config["hidden_dim"], config["num_layers"], tie_embeddings=True
+        config["hidden_dim"],
+        config["num_layers"],
+        activation=act,
+        tie_embeddings=True,
     )
 
     print(f"- Hidden dimension: {config['hidden_dim']}")

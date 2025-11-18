@@ -17,7 +17,8 @@ import sys
 import time
 
 
-def pretokenize_dataset(text_path, output_path=None, checkpoint_interval=200_000_000):
+def pretokenize_dataset(text_path, output_path=None, checkpoint_interval=200_000_000,
+                        tokenization_mode="legacy"):
     """
     Tokenize a text file and save as memory-mapped numpy array.
     Saves checkpoints periodically to avoid losing progress.
@@ -26,6 +27,8 @@ def pretokenize_dataset(text_path, output_path=None, checkpoint_interval=200_000
         text_path: Path to text file
         output_path: Output path for .npy file (default: text_path.npy)
         checkpoint_interval: Save checkpoint every N tokens (default: 200M)
+        tokenization_mode: "legacy" (default, matches old StreamingTextDataset) or
+                          "paragraph" (new method, respects paragraph boundaries)
     """
     if output_path is None:
         output_path = str(Path(text_path).with_suffix(".npy"))
@@ -33,6 +36,11 @@ def pretokenize_dataset(text_path, output_path=None, checkpoint_interval=200_000
     print(f"\n{'='*60}")
     print(f"PRE-TOKENIZING DATASET (WITH CHECKPOINTS)")
     print(f"{'='*60}")
+    print(f"Tokenization mode: {tokenization_mode.upper()}")
+    if tokenization_mode == "legacy":
+        print(f"  Using legacy method (2000-char chunks, matches old StreamingTextDataset)")
+    else:
+        print(f"  Using paragraph method (respects newline boundaries)")
 
     print(f"Loading tokenizer (prioritizing fast tokenizer from HuggingFace)...")
     # Prioritize fast tokenizer - try HuggingFace Hub first (most reliable source)
@@ -103,15 +111,24 @@ def pretokenize_dataset(text_path, output_path=None, checkpoint_interval=200_000
             chunk_num += 1
             total_chars += len(chunk)
 
-            # Split on newlines to avoid breaking words
-            paragraphs = chunk.split("\n")
-
-            for paragraph in paragraphs:
-                if paragraph.strip():  # Skip empty paragraphs
+            # Tokenize based on selected mode
+            if tokenization_mode == "legacy":
+                # LEGACY MODE: 2000-char chunks (matches old StreamingTextDataset EXACTLY)
+                text_chunks = [chunk[i:i+2000] for i in range(0, len(chunk), 2000)]
+                for text_chunk in text_chunks:
                     tokens = tokenizer(
-                        paragraph, truncation=False, add_special_tokens=False
+                        text_chunk, truncation=True, max_length=1024
                     )["input_ids"]
                     all_token_ids.extend(tokens)
+            else:
+                # PARAGRAPH MODE: Split on newlines to respect paragraph boundaries
+                paragraphs = chunk.split("\n")
+                for paragraph in paragraphs:
+                    if paragraph.strip():  # Skip empty paragraphs
+                        tokens = tokenizer(
+                            paragraph, truncation=False, add_special_tokens=False
+                        )["input_ids"]
+                        all_token_ids.extend(tokens)
 
             # Checkpoint saving: Save every checkpoint_interval tokens
             current_tokens = len(all_token_ids)
@@ -176,13 +193,15 @@ def pretokenize_dataset(text_path, output_path=None, checkpoint_interval=200_000
 
 if __name__ == "__main__":
     if len(sys.argv) < 2:
-        print("Usage: python pretokenize_dataset.py <text_file> [checkpoint_interval]")
+        print("Usage: python pretokenize_dataset.py <text_file> [checkpoint_interval] [mode]")
         print("\nExamples:")
         print("  python pretokenize_dataset.py Datasets/c4_subset_large.txt")
-        print(
-            "  python pretokenize_dataset.py Datasets/c4_subset_large.txt 100000000  # 100M tokens"
-        )
-        print("\nNote: Checkpoints are saved every N tokens (default: 200M)")
+        print("  python pretokenize_dataset.py Datasets/c4_subset_large.txt 100000000")
+        print("  python pretokenize_dataset.py Datasets/c4_subset_large.txt 200000000 legacy")
+        print("  python pretokenize_dataset.py Datasets/c4_subset_large.txt 200000000 paragraph")
+        print("\nParameters:")
+        print("  checkpoint_interval: Save checkpoint every N tokens (default: 200M)")
+        print("  mode: 'legacy' (default, matches old results) or 'paragraph' (new method)")
         sys.exit(1)
 
     text_path = sys.argv[1]
@@ -196,8 +215,19 @@ if __name__ == "__main__":
             print(f"⚠️  Invalid checkpoint interval '{sys.argv[2]}', using default 200M")
             checkpoint_interval = 200_000_000
 
+    # Optional tokenization mode argument
+    tokenization_mode = "legacy"  # Default: legacy mode
+    if len(sys.argv) >= 4:
+        mode = sys.argv[3].lower()
+        if mode in ["legacy", "paragraph"]:
+            tokenization_mode = mode
+        else:
+            print(f"⚠️  Invalid mode '{sys.argv[3]}', using default 'legacy'")
+            tokenization_mode = "legacy"
+
     if not Path(text_path).exists():
         print(f"❌ Error: File not found: {text_path}")
         sys.exit(1)
 
-    pretokenize_dataset(text_path, checkpoint_interval=checkpoint_interval)
+    pretokenize_dataset(text_path, checkpoint_interval=checkpoint_interval,
+                       tokenization_mode=tokenization_mode)

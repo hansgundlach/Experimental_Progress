@@ -824,61 +824,106 @@ def load_and_tokenize_text(config):
     else:
         print(f"Loading text from: {data_path}")
 
-    # Smart loading logic (same as existing functions)
-    if max_tokens_training:
-        char_to_token_ratio = (
-            config.get("char_to_token_ratio", 4.0)
-            if hasattr(config, "get")
-            else getattr(config, "char_to_token_ratio", 4.0)
-        )
+    # ============================================================
+    # CHECK FOR MEMORY-MAPPED .npy FILE (SAME AS StreamingTextDataset)
+    # ============================================================
+    npy_path = Path(data_path).with_suffix('.npy')
+    # Also check parent-relative path for LSTM
+    if not npy_path.exists():
+        parent_npy = Path("..") / data_path
+        parent_npy = parent_npy.with_suffix('.npy')
+        if parent_npy.exists():
+            npy_path = parent_npy
 
-        if fixed_val_tokens:
-            total_tokens_needed = max_tokens_training + fixed_val_tokens
+    if npy_path.exists():
+        # MEMORY-MAPPED LOADING (SAME AS StreamingTextDataset)
+        print(f"🚀 LSTM: Using memory-mapped file: {npy_path}")
+        print(f"   (This uses ~0MB RAM regardless of dataset size!)")
+
+        # Load as memory-mapped array (doesn't load into RAM)
+        all_tokens_mmap = np.load(str(npy_path), mmap_mode='r')
+        total_tokens_available = len(all_tokens_mmap)
+        print(f"   Total tokens in file: {total_tokens_available:,}")
+
+        # Determine how many tokens to use
+        if max_tokens_training and fixed_val_tokens:
+            tokens_needed = int(max_tokens_training + fixed_val_tokens)
+        elif max_tokens_training:
+            tokens_needed = int(max_tokens_training / train_split)
         else:
-            total_tokens_needed = int(max_tokens_training / train_split)
+            tokens_needed = int(total_tokens_available)
 
-        max_characters_needed = int(total_tokens_needed * char_to_token_ratio)
+        tokens_to_use = int(min(tokens_needed, total_tokens_available))
 
-        # Get file size
-        file_size = Path(data_path).stat().st_size
+        # Extract tokens from memory-mapped array
+        tokens = all_tokens_mmap[:tokens_to_use].tolist()  # Convert to list for LSTM compatibility
+        print(f"   Using {len(tokens):,} tokens from memory-mapped file")
 
-        if file_size > max_characters_needed * 2:
-            # Smart loading
-            buffer_multiplier = 2.0
-            chars_to_load = min(
-                int(max_characters_needed * buffer_multiplier), file_size
+    else:
+        # FALLBACK: Load and tokenize text file (EXACTLY LIKE StreamingTextDataset)
+        print(f"⚠️  LSTM: No .npy file found at {npy_path}")
+        print(f"   Loading and tokenizing text file (uses RAM)")
+        print(f"   To use memory mapping, run: python pretokenize_dataset.py {data_path}")
+
+        # Smart loading logic (same as existing functions)
+        if max_tokens_training:
+            char_to_token_ratio = (
+                config.get("char_to_token_ratio", 4.0)
+                if hasattr(config, "get")
+                else getattr(config, "char_to_token_ratio", 4.0)
             )
 
-            with open(data_path, "r", encoding="utf-8") as f:
-                max_start = max(0, file_size - chars_to_load)
-                start_pos = random.randint(0, max_start) if max_start > 0 else 0
-                f.seek(start_pos)
-                if start_pos > 0:
-                    f.readline()
-                text = f.read(chars_to_load)
+            if fixed_val_tokens:
+                total_tokens_needed = max_tokens_training + fixed_val_tokens
+            else:
+                total_tokens_needed = int(max_tokens_training / train_split)
 
-            print(
-                f"Smart loading: loaded {len(text):,} chars from {file_size:,}-char file"
-            )
+            max_characters_needed = int(total_tokens_needed * char_to_token_ratio)
+
+            # Get file size
+            file_size = Path(data_path).stat().st_size
+
+            if file_size > max_characters_needed * 2:
+                # Smart loading
+                buffer_multiplier = 2.0
+                chars_to_load = min(
+                    int(max_characters_needed * buffer_multiplier), file_size
+                )
+
+                with open(data_path, "r", encoding="utf-8") as f:
+                    max_start = max(0, file_size - chars_to_load)
+                    start_pos = random.randint(0, max_start) if max_start > 0 else 0
+                    f.seek(start_pos)
+                    if start_pos > 0:
+                        f.readline()
+                    text = f.read(chars_to_load)
+
+                print(
+                    f"Smart loading: loaded {len(text):,} chars from {file_size:,}-char file"
+                )
+            else:
+                text = Path(data_path).read_text(encoding="utf-8")
+                print(f"Standard loading: {len(text):,} characters")
         else:
             text = Path(data_path).read_text(encoding="utf-8")
-            print(f"Standard loading: {len(text):,} characters")
-    else:
-        text = Path(data_path).read_text(encoding="utf-8")
-        print(f"Full loading (no limit): {len(text):,} characters")
+            print(f"Full loading (no limit): {len(text):,} characters")
 
-    # Tokenize text (no chunking - process all at once for LSTM)
-    print(f"Tokenizing {len(text):,} characters...")
-    tokens = tokenizer(
-        text,
-        add_special_tokens=False,
-        truncation=False,
-        padding=False,
-        return_tensors=None,  # Return Python list (LSTM compatibility)
-        return_attention_mask=False,
-        verbose=False,
-    )["input_ids"]
-    print(f"Tokenization complete: {len(tokens):,} tokens")
+        # Tokenize in 2000-char chunks (EXACTLY LIKE StreamingTextDataset/Transformer)
+        print(f"Tokenizing {len(text):,} characters (using Transformer-style chunking)...")
+        chunk_size = 2000  # SAME AS StreamingTextDataset
+        text_chunks = [text[i : i + chunk_size] for i in range(0, len(text), chunk_size)]
+
+        tokens = []
+        for chunk in text_chunks:
+            chunk_tokens = tokenizer(
+                chunk,
+                truncation=True,      # SAME AS StreamingTextDataset
+                max_length=1024       # SAME AS StreamingTextDataset
+                # add_special_tokens defaults to True (SAME AS StreamingTextDataset)
+            )["input_ids"]
+            tokens.extend(chunk_tokens)
+
+        print(f"Tokenization complete: {len(tokens):,} tokens (Transformer-compatible)")
 
     # Check if separate validation dataset is specified
     if val_data_path:
@@ -891,19 +936,39 @@ def load_and_tokenize_text(config):
                 val_data_path = str(parent_relative)
                 print(f"  (adjusted path: {val_data_path})")
 
-        # Load and tokenize validation file
-        val_text = Path(val_data_path).read_text(encoding="utf-8")
-        print(f"  Tokenizing {len(val_text):,} characters...")
-        val_tokens = tokenizer(
-            val_text,
-            add_special_tokens=False,
-            truncation=False,
-            padding=False,
-            return_tensors=None,
-            return_attention_mask=False,
-            verbose=False,
-        )["input_ids"]
-        print(f"  Validation: {len(val_tokens):,} tokens (from separate file)")
+        # Check for .npy file for validation dataset too
+        val_npy_path = Path(val_data_path).with_suffix('.npy')
+        if not val_npy_path.exists():
+            parent_val_npy = Path("..") / val_data_path
+            parent_val_npy = parent_val_npy.with_suffix('.npy')
+            if parent_val_npy.exists():
+                val_npy_path = parent_val_npy
+
+        if val_npy_path.exists():
+            # Load from memory-mapped file
+            print(f"  🚀 Using memory-mapped validation file: {val_npy_path}")
+            val_tokens_mmap = np.load(str(val_npy_path), mmap_mode='r')
+            val_tokens = val_tokens_mmap[:].tolist()  # Convert to list
+            print(f"  Validation: {len(val_tokens):,} tokens (from memory-mapped file)")
+        else:
+            # Load and tokenize validation file (EXACTLY LIKE Transformer)
+            val_text = Path(val_data_path).read_text(encoding="utf-8")
+            print(f"  Tokenizing {len(val_text):,} characters (Transformer-style)...")
+
+            # Use 2000-char chunks (SAME AS StreamingTextDataset)
+            chunk_size = 2000
+            text_chunks = [val_text[i : i + chunk_size] for i in range(0, len(val_text), chunk_size)]
+
+            val_tokens = []
+            for chunk in text_chunks:
+                chunk_tokens = tokenizer(
+                    chunk,
+                    truncation=True,
+                    max_length=1024
+                )["input_ids"]
+                val_tokens.extend(chunk_tokens)
+
+            print(f"  Validation: {len(val_tokens):,} tokens (from separate file, Transformer-compatible)")
 
         # For train/test split, only split the training data
         train_tokens = tokens  # All tokens from training file

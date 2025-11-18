@@ -204,10 +204,12 @@ if __name__ == "__main__":
         print(f"Completed LSTM experiment: {run_name}")
 
     print(f"\nNode {args.job_id} has completed all its assigned experiments.")
-    
+
     # Generate LR sweep summary if this was a learning rate sweep experiment
-    # Generate summary regardless of job count - each job will generate the same summary safely
-    if True:  # Always attempt to generate summary if experiments have generate_summary=True
+    # ONLY generate from the last job to avoid duplicate generation
+    is_last_job = (args.job_id == args.total_jobs - 1) or (args.total_jobs == 1)
+
+    if is_last_job:  # Only last job generates summary
         try:
             # Check if any experiment has summary info (indicates lr sweep with generate_summary=True)
             summary_info = None
@@ -219,6 +221,7 @@ if __name__ == "__main__":
             if summary_info and summary_info.get('generate_summary', False):
                 print("\n" + "="*50)
                 print("Generating Learning Rate Sweep Summary...")
+                print(f"(Job {args.job_id} is the last job - generating summary)")
                 print("="*50)
                 
                 # Get the base results folder from LSTM config

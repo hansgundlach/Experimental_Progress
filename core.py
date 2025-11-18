@@ -33,87 +33,6 @@ os.environ["WANDB_MODE"] = "offline"
 os.environ["WANDB_MODE"] = "offline"
 
 
-def get_mup_learning_rates_transformer(
-    model, base_lr, use_mup=False, mup_base_width=128
-):
-    """Get muP-scaled learning rates for different parameter groups in transformer"""
-    if not use_mup:
-        return [{"params": model.parameters(), "lr": base_lr}]
-
-    # Calculate scaling factor
-    if hasattr(model, "module"):  # Handle DataParallel/DDP
-        hidden_dim = model.module.hidden_dim
-        embedding = model.module.embedding
-        layers = model.module.layers
-        fc = model.module.fc
-        pos_emb = getattr(model.module, "pos_emb", None)
-    else:
-        hidden_dim = model.hidden_dim
-        embedding = model.embedding
-        layers = model.layers
-        fc = model.fc
-        pos_emb = getattr(model, "pos_emb", None)
-
-    # Calculate width ratio for muP scaling
-    width_ratio = hidden_dim / mup_base_width
-
-    # Check if embeddings are tied
-    tie_embeddings = getattr(
-        model.module if hasattr(model, "module") else model, "tie_embeddings", False
-    )
-
-    param_groups = []
-
-    # Correct muP learning rate scaling:
-    # - Embedding parameters: base_lr (no scaling)
-    # - Hidden layer parameters: base_lr / width_ratio
-    # - Output layer parameters: base_lr / width_ratio
-    embedding_lr = base_lr  # No scaling for embeddings
-    layer_lr = base_lr / width_ratio  # Scale hidden layers by 1/width
-    output_lr = base_lr / width_ratio  # Scale output layer by 1/width
-
-    # Handle embedding parameters based on weight tying
-    if tie_embeddings:
-        # When weights are tied, use output layer scaling since same weights serve both functions
-        tied_lr = output_lr
-
-        embedding_params = list(embedding.parameters())
-        if pos_emb is not None:
-            embedding_params.append(pos_emb)
-        param_groups.append(
-            {"params": embedding_params, "lr": tied_lr, "name": "embedding_tied"}
-        )
-    else:
-        # Separate embedding and output parameters when not tied
-        embedding_params = list(embedding.parameters())
-        if pos_emb is not None:
-            embedding_params.append(pos_emb)
-        param_groups.append(
-            {"params": embedding_params, "lr": embedding_lr, "name": "embedding"}
-        )
-        # Output layer parameters: scaled by 1/width
-        param_groups.append(
-            {"params": fc.parameters(), "lr": output_lr, "name": "output"}
-        )
-
-    # Transformer layer parameters: lr scaled by 1/width
-    layer_params = []
-    for layer in layers:
-        layer_params.extend(list(layer.parameters()))
-    param_groups.append({"params": layer_params, "lr": layer_lr, "name": "layers"})
-
-    if tie_embeddings:
-        print(
-            f"muP learning rates (tied): embedding/output={tied_lr:.6f}, layers={layer_lr:.6f}"
-        )
-    else:
-        print(
-            f"muP learning rates: embedding={embedding_lr:.6f}, layers={layer_lr:.6f}, output={output_lr:.6f}"
-        )
-
-    return param_groups
-
-
 # TextDataset moved to data_loading.py
 
 
@@ -470,15 +389,11 @@ class SimpleTransformer(nn.Module):
         num_layers,
         dropout=0.1,
         config=None,
-        use_mup=False,
-        mup_base_width=128,
         tie_embeddings=True,
     ):
         super().__init__()
         self.vocab_size = vocab_size
         self.hidden_dim = hidden_dim
-        self.use_mup = use_mup
-        self.mup_base_width = mup_base_width
         self.tie_embeddings = tie_embeddings
 
         self.embedding = nn.Embedding(vocab_size, hidden_dim)
@@ -527,66 +442,6 @@ class SimpleTransformer(nn.Module):
         if self.tie_embeddings:
             self.fc.weight = self.embedding.weight
 
-        # Apply muP initialization if enabled
-        if use_mup:
-            self._apply_mup_init()
-
-    def _apply_mup_init(self):
-        """Apply muP (Maximal Update Parametrization) initialization"""
-
-        # Correct muP initialization scaling:
-        # - Embedding: std = 1/sqrt(width) (matches hidden layers)
-        # - Hidden layers: std = 1/sqrt(width)
-        # - Output layer: std = 1/width (not 1/sqrt(width))
-
-        # Calculate standard deviation for initialization
-        hidden_std = 1.0 / math.sqrt(self.hidden_dim)
-
-        # Embedding layer: scale by 1/sqrt(width)
-        nn.init.normal_(self.embedding.weight, mean=0.0, std=hidden_std)
-
-        # Learned positional embeddings: scale by 1/sqrt(width)
-        if self.pos_encoding == "learned" and hasattr(self, "pos_emb"):
-            nn.init.normal_(self.pos_emb, mean=0.0, std=hidden_std)
-
-        # Transformer layers: scale by 1/sqrt(width)
-        for layer in self.layers:
-            # QKV projection: scale by 1/sqrt(width)
-            nn.init.normal_(layer.qkv.weight, mean=0.0, std=hidden_std)
-            if layer.qkv.bias is not None:
-                nn.init.zeros_(layer.qkv.bias)
-
-            # Output projection: scale by 1/sqrt(width)
-            nn.init.normal_(layer.out_proj.weight, mean=0.0, std=hidden_std)
-            if layer.out_proj.bias is not None:
-                nn.init.zeros_(layer.out_proj.bias)
-
-            # Feedforward layers: scale by 1/sqrt(width)
-            if hasattr(layer.ff, "linear1"):
-                nn.init.normal_(layer.ff.linear1.weight, mean=0.0, std=hidden_std)
-                if layer.ff.linear1.bias is not None:
-                    nn.init.zeros_(layer.ff.linear1.bias)
-            if hasattr(layer.ff, "linear2"):
-                nn.init.normal_(layer.ff.linear2.weight, mean=0.0, std=hidden_std)
-                if layer.ff.linear2.bias is not None:
-                    nn.init.zeros_(layer.ff.linear2.bias)
-            if hasattr(layer.ff, "to_out"):
-                nn.init.normal_(layer.ff.to_out.weight, mean=0.0, std=hidden_std)
-                if layer.ff.to_out.bias is not None:
-                    nn.init.zeros_(layer.ff.to_out.bias)
-            if hasattr(layer.ff, "proj"):
-                nn.init.normal_(layer.ff.proj.weight, mean=0.0, std=hidden_std)
-                if layer.ff.proj.bias is not None:
-                    nn.init.zeros_(layer.ff.proj.bias)
-
-        # Output layer: scale by 1/width (not 1/sqrt(width)) for muP
-        # Only initialize if not tied to embedding
-        if not self.tie_embeddings:
-            output_std = 1.0 / self.hidden_dim  # Note: 1/width, not 1/sqrt(width)
-            nn.init.normal_(self.fc.weight, mean=0.0, std=output_std)
-        if self.fc.bias is not None:
-            nn.init.zeros_(self.fc.bias)
-
     def forward(self, x):
         B, L = x.shape
         x = self.embedding(x)
@@ -604,8 +459,6 @@ class SimpleTransformer(nn.Module):
 
         x = self.norm(x)
         x = self.fc(x)
-
-        # No output scaling needed for muP - the learning rate scaling handles the parametrization
         return x
 
 
@@ -882,8 +735,12 @@ def train(gpu_id=None, csv_log_path=None):
         raise ValueError(f"dropout must be in [0, 1), got: {config.dropout}")
 
     # Initialize model
-    print(f"\n🔨 Initializing model with hidden_dim={config.hidden_dim}, num_layers={config.num_layers}, num_heads={config.num_heads}")
-    print(f"   Batch size={config.batch_size}, Grad accum={config.gradient_accumulation_steps}, Seq length={config.seq_length}")
+    print(
+        f"\n🔨 Initializing model with hidden_dim={config.hidden_dim}, num_layers={config.num_layers}, num_heads={config.num_heads}"
+    )
+    print(
+        f"   Batch size={config.batch_size}, Grad accum={config.gradient_accumulation_steps}, Seq length={config.seq_length}"
+    )
 
     model = SimpleTransformer(
         vocab_size=len(primary_tokenizer),
@@ -892,8 +749,6 @@ def train(gpu_id=None, csv_log_path=None):
         num_layers=config.num_layers,
         dropout=config.dropout,
         config=config,
-        use_mup=getattr(config, "use_mup", False),
-        mup_base_width=getattr(config, "mup_base_width", 128),
         tie_embeddings=getattr(config, "tie_embeddings", True),  # Default to True
     )
     print(f"✅ Model initialized successfully")
@@ -1058,9 +913,7 @@ def train(gpu_id=None, csv_log_path=None):
     else:
         criterion = nn.CrossEntropyLoss()
 
-    # Choose optimizer based on config (supports Complete-P param groups and muP)
-    use_mup = getattr(config, "use_mup", False)
-
+    # Choose optimizer based on config (supports Complete-P param groups)
     if getattr(config, "enable_completep", False):
         groups = build_completep_param_groups(
             model, config, getattr(config, "optimizer", "adamw")
@@ -1102,61 +955,6 @@ def train(gpu_id=None, csv_log_path=None):
             optimizer = optim.Adagrad(
                 groups,
                 lr_decay=getattr(config, "adagrad_lr_decay", 0.0),
-                initial_accumulator_value=getattr(config, "adagrad_init_acc", 0.0),
-                eps=getattr(config, "eps", 1e-10),
-            )
-        else:
-            raise ValueError(f"Unsupported optimizer: {config.optimizer}")
-    elif use_mup:
-        # Use muP parameter groups
-        param_groups = get_mup_learning_rates_transformer(
-            model,
-            config.learning_rate,
-            use_mup=True,
-            mup_base_width=getattr(config, "mup_base_width", 128),
-        )
-        opt_name = getattr(config, "optimizer", "adamw").lower()
-        if opt_name == "adam":
-            optimizer = optim.Adam(
-                param_groups,
-                weight_decay=config.weight_decay,
-                betas=(
-                    getattr(config, "adam_beta1", 0.9),
-                    getattr(config, "adam_beta2", 0.999),
-                ),
-                eps=getattr(config, "adam_epsilon", 1e-8),
-            )
-        elif opt_name == "adamw":
-            optimizer = optim.AdamW(
-                param_groups,
-                weight_decay=config.weight_decay,
-                betas=(
-                    getattr(config, "adam_beta1", 0.9),
-                    getattr(config, "adam_beta2", 0.999),
-                ),
-                eps=getattr(config, "adam_epsilon", 1e-8),
-            )
-        elif opt_name == "sgd":
-            optimizer = optim.SGD(
-                param_groups,
-                momentum=getattr(config, "sgd_momentum", 0.9),
-                nesterov=getattr(config, "sgd_nesterov", False),
-                weight_decay=config.weight_decay,
-            )
-        elif opt_name == "rmsprop":
-            optimizer = optim.RMSprop(
-                param_groups,
-                alpha=getattr(config, "rmsprop_alpha", 0.99),
-                eps=getattr(config, "eps", 1e-8),
-                momentum=getattr(config, "momentum", 0.0),
-                centered=getattr(config, "rmsprop_centered", False),
-                weight_decay=config.weight_decay,
-            )
-        elif opt_name == "adagrad":
-            optimizer = optim.Adagrad(
-                param_groups,
-                lr_decay=getattr(config, "adagrad_lr_decay", 0.0),
-                weight_decay=config.weight_decay,
                 initial_accumulator_value=getattr(config, "adagrad_init_acc", 0.0),
                 eps=getattr(config, "eps", 1e-10),
             )
@@ -1415,7 +1213,9 @@ def train(gpu_id=None, csv_log_path=None):
             tokens_cumulative += batch_tokens
 
             if epoch == 0 and batch_idx == 0:
-                print(f"   Processing first batch (batch_size={data.size(0)}, seq_length={data.size(1)})...")
+                print(
+                    f"   Processing first batch (batch_size={data.size(0)}, seq_length={data.size(1)})..."
+                )
                 with profiler:
                     output = model(data)
                     print(f"   ✅ Forward pass complete, computing loss...")
@@ -1428,7 +1228,9 @@ def train(gpu_id=None, csv_log_path=None):
                     target_flat = target[:, :-1].contiguous().view(-1)
                     raw_loss = criterion(output, target_flat)
                     scaled_loss = raw_loss / config.gradient_accumulation_steps
-                print(f"   ✅ Loss computed (loss={raw_loss.item():.4f}), starting backward pass...")
+                print(
+                    f"   ✅ Loss computed (loss={raw_loss.item():.4f}), starting backward pass..."
+                )
                 scaler.scale(scaled_loss).backward()
                 print(f"   ✅ First batch complete!")
 

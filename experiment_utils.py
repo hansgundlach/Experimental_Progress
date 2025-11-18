@@ -250,9 +250,8 @@ def generate_lr_sweep_summary(
         base_experiments = experiment_info["base_experiments"]
         learning_rates = experiment_info["learning_rates"]
 
-        # Create timestamp for summary file
-        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-        summary_filename = f"summary_{folder_name}_{timestamp}.csv"
+        # Create summary filename (no timestamp - will overwrite previous)
+        summary_filename = f"summary_{folder_name}.csv"
 
         # Determine the folder where lr sweep results are stored
         lr_sweep_folder = os.path.join(results_base_folder, f"{folder_name}_lr_sweep")
@@ -397,6 +396,7 @@ def generate_lr_sweep_summary(
 def calculate_transformer_params(
     hidden_dim,
     num_layers,
+    activation="swiglu",
     vocab_size=50257,
     seq_length=128,
     pos_encoding="rotary",
@@ -429,9 +429,20 @@ def calculate_transformer_params(
     # Per-layer parameters (based on standard transformer architecture)
     # Each layer has:
     # - Multi-head attention: 4 * hidden_dim^2 (Q, K, V, O projections)
-    # - Feed-forward: 2 * hidden_dim * (ff_ratio * hidden_dim) = 2 * ff_ratio * hidden_dim^2
+    # - Feed-forward:
+    #     * GELU/ReLU-style MLP: 2 * hidden_dim * (ff_ratio * hidden_dim)
+    #       → 2 * ff_ratio * hidden_dim^2
+    #     * SwiGLU-style MLP: hidden_dim → 2 * ff_ratio * hidden_dim (gate + value)
+    #       then → ff_ratio * hidden_dim, so ≈ 3 * ff_ratio * hidden_dim^2
     # - Layer norms: 2 * hidden_dim (small, can be ignored for scaling)
-    params_per_layer = 4 * hidden_dim**2 + 2 * ff_ratio * hidden_dim**2
+    act = (activation or "swiglu").lower()
+    if act == "swiglu":
+        ff_params = 3 * ff_ratio * hidden_dim**2
+    else:
+        # Default: standard 2-layer MLP (GELU / ReLU)
+        ff_params = 2 * ff_ratio * hidden_dim**2
+
+    params_per_layer = 4 * hidden_dim**2 + ff_params
     layer_params = num_layers * params_per_layer
 
     # Final linear layer: hidden_dim * vocab_size (only if not tied to embedding)
@@ -453,6 +464,7 @@ def calculate_transformer_params(
 def calculate_non_embedding_params(
     hidden_dim,
     num_layers,
+    activation="swiglu",
     vocab_size=50257,
     seq_length=128,
     pos_encoding="rotary",
@@ -478,9 +490,15 @@ def calculate_non_embedding_params(
     # Per-layer parameters (based on standard transformer architecture)
     # Each layer has:
     # - Multi-head attention: 4 * hidden_dim^2 (Q, K, V, O projections)
-    # - Feed-forward: 2 * hidden_dim * (ff_ratio * hidden_dim) = 2 * ff_ratio * hidden_dim^2
+    # - Feed-forward: depends on activation (see calculate_transformer_params)
     # - Layer norms: 2 * hidden_dim (small, can be ignored for scaling)
-    params_per_layer = 4 * hidden_dim**2 + 2 * ff_ratio * hidden_dim**2
+    act = (activation or "swiglu").lower()
+    if act == "swiglu":
+        ff_params = 3 * ff_ratio * hidden_dim**2
+    else:
+        ff_params = 2 * ff_ratio * hidden_dim**2
+
+    params_per_layer = 4 * hidden_dim**2 + ff_params
     layer_params = num_layers * params_per_layer
 
     # Final linear layer: hidden_dim * vocab_size (only if not tied to embedding)
@@ -503,6 +521,7 @@ def estimate_gpu_memory_and_grad_accum(
     seq_length,
     gpu_type="V100",
     ff_ratio=4,
+    activation="swiglu",
 ):
     """
     Estimate optimal per-step batch size and gradient accumulation steps.
@@ -531,7 +550,11 @@ def estimate_gpu_memory_and_grad_accum(
 
     # Use more conservative memory thresholds for larger models
     # Larger models have much more complex memory patterns and spikes
-    if hidden_dim >= 128:
+    if hidden_dim >= 256:
+        memory_threshold = (
+            0.20 * available_memory
+        )  # EXTREMELY conservative for 256d+ models (profiler overhead!)
+    elif hidden_dim >= 128:
         memory_threshold = 0.35 * available_memory  # Very conservative for large models
     elif hidden_dim >= 64:
         memory_threshold = 0.45 * available_memory  # Conservative for medium models
@@ -576,7 +599,18 @@ def estimate_gpu_memory_and_grad_accum(
 
     # 4. QKV and feed-forward
     qkv_per_batch = 3 * seq_length * hidden_dim * 4
-    ff_per_batch = seq_length * (ff_ratio * hidden_dim) * num_layers * 4
+    # Feed-forward activations depend on activation type
+    act = (activation or "swiglu").lower()
+    if act == "swiglu":
+        # SwiGLU stores both gate and value activations; treat it as ~1.5x wider
+        ff_hidden_multiplier = 1.5
+    else:
+        # Standard 2-layer MLP (GELU / ReLU)
+        ff_hidden_multiplier = 1.0
+
+    ff_per_batch = (
+        seq_length * (ff_hidden_multiplier * ff_ratio * hidden_dim) * num_layers * 4
+    )
 
     # 5. Gradient storage for all activations
     gradient_storage_per_batch = (
@@ -675,13 +709,15 @@ def gen_experim(
                 num_heads -= 1
 
     # 3. Calculate total parameters and scale max_tokens based on scaling law
-    # Use user overrides for tie_embeddings and ff_ratio if provided
+    # Use user overrides for tie_embeddings / ff_ratio / activation if provided
     tie_embeddings = overrides.get("tie_embeddings", base_config["tie_embeddings"])
     ff_ratio = overrides.get("ff_ratio", base_config["ff_ratio"])
+    activation = overrides.get("activation", base_config.get("activation", "swiglu"))
 
     total_params = calculate_transformer_params(
         hidden_dim,
         num_layers,
+        activation=activation,
         pos_encoding=pos_encoding,
         tie_embeddings=tie_embeddings,
         ff_ratio=ff_ratio,
@@ -720,6 +756,7 @@ def gen_experim(
         seq_length,
         gpu_type,
         ff_ratio,
+        activation=activation,
     )
 
     # Calculate the actual per-step batch size to use
@@ -819,7 +856,7 @@ def get_base_config():
         - Complete-P and muP scaling parameters
     """
     return {
-        "data_path": "Datasets/c4_subset_large.npy",  # Actual dataset file path
+        "data_path": "Datasets/c4_subset_6billion_char.npy",  # Actual dataset file path
         "val_data_path": None,  # Optional: separate validation dataset (e.g., WikiText for cross-dataset eval)
         "max_tokens_training": int(
             5 * 1e7 / 4
@@ -882,7 +919,7 @@ def get_base_config():
         ),  # Fixed number of tokens for validation set (None = use percentage split)
         "char_to_token_ratio": 4.0,  # Character-to-token ratio for dataset loading (e.g., 4.0 = load 4 chars per expected token)
         "use_streaming_dataset": True,  # Use streaming dataset for large files (default: False = memory-based loading)
-        "ff_ratio": 2.5,  # Feedforward dimension to model dimension ratio (default: 4)
-        "modern_bias_0": True,  # Modern architecture: remove biases from layers followed by normalization (default: False)
+        "ff_ratio": 4,  # Feedforward dimension to model dimension ratio (default: 4)
+        "modern_bias_0": False,  # Modern architecture: remove biases from layers followed by normalization (default: False)
         "token_to_param_ratio": 20,  # Chinchilla: D ≈ 20*N (linear scaling). Kaplan: D ≈ N^0.74 (sublinear)
     }
