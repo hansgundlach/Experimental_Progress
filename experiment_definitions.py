@@ -481,46 +481,46 @@ MODERN_SCALING_STUDY = (
     #     norm_type="rms",
     #     token_to_param_ratio=40,
     # )
-    + gen_experim(
-        128,
-        label="128_modern_40",
-        folder_name="new_modern_scaling_study",
-        learning_rate=3.37e-3,
-        modern_bias_0=True,
-        ff_ratio=2.5,
-        norm_type="rms",
-        token_to_param_ratio=40,
-    )
-    + gen_experim(
-        160,
-        label="160_modern_40",
-        folder_name="new_modern_scaling_study",
-        learning_rate=2.83e-3,
-        modern_bias_0=True,
-        ff_ratio=2.5,
-        norm_type="rms",
-        token_to_param_ratio=40,
-    )
-    + gen_experim(
-        192,
-        label="192_modern_40",
-        folder_name="new_modern_scaling_study",
-        learning_rate=2.4626e-3,
-        modern_bias_0=True,
-        ff_ratio=2.5,
-        norm_type="rms",
-        token_to_param_ratio=40,
-    )
-    + gen_experim(
-        224,
-        label="224_modern_40",
-        folder_name="new_modern_scaling_study",
-        learning_rate=2.1837e-3,
-        modern_bias_0=True,
-        ff_ratio=2.5,
-        norm_type="rms",
-        token_to_param_ratio=40,
-    )
+    # + gen_experim(
+    #     128,
+    #     label="128_modern_40",
+    #     folder_name="new_modern_scaling_study",
+    #     learning_rate=3.37e-3,
+    #     modern_bias_0=True,
+    #     ff_ratio=2.5,
+    #     norm_type="rms",
+    #     token_to_param_ratio=40,
+    # )
+    # + gen_experim(
+    #     160,
+    #     label="160_modern_40",
+    #     folder_name="new_modern_scaling_study",
+    #     learning_rate=2.83e-3,
+    #     modern_bias_0=True,
+    #     ff_ratio=2.5,
+    #     norm_type="rms",
+    #     token_to_param_ratio=40,
+    # )
+    # + gen_experim(
+    #     192,
+    #     label="192_modern_40",
+    #     folder_name="new_modern_scaling_study",
+    #     learning_rate=2.4626e-3,
+    #     modern_bias_0=True,
+    #     ff_ratio=2.5,
+    #     norm_type="rms",
+    #     token_to_param_ratio=40,
+    # )
+    # + gen_experim(
+    #     224,
+    #     label="224_modern_40",
+    #     folder_name="new_modern_scaling_study",
+    #     learning_rate=2.1837e-3,
+    #     modern_bias_0=True,
+    #     ff_ratio=2.5,
+    #     norm_type="rms",
+    #     token_to_param_ratio=40,
+    # )
     + gen_experim(
         256,
         label="256_modern_40",
@@ -548,26 +548,26 @@ BIASED_SCALING_STUDY = (
         modern_bias_0=False,
         ff_ratio=4,
     )
-    + gen_experim(
-        48,
-        label="48_modern",
-        folder_name="biased_modern",
-        learning_rate=7.2259e-3,
-        modern_bias_0=False,
-        norm_type="rms",
-        ff_ratio=4,
-        token_to_param_ratio=40,
-    )
-    + gen_experim(
-        64,
-        label="64_modern_40",
-        folder_name="biased_modern",
-        learning_rate=5.79e-3,
-        norm_type="rms",
-        token_to_param_ratio=40,
-        modern_bias_0=False,
-        ff_ratio=4,
-    )
+    # + gen_experim(
+    #     48,
+    #     label="48_modern",
+    #     folder_name="biased_modern",
+    #     learning_rate=7.2259e-3,
+    #     modern_bias_0=False,
+    #     norm_type="rms",
+    #     ff_ratio=4,
+    #     token_to_param_ratio=40,
+    # )
+    # + gen_experim(
+    #     64,
+    #     label="64_modern_40",
+    #     folder_name="biased_modern",
+    #     learning_rate=5.79e-3,
+    #     norm_type="rms",
+    #     token_to_param_ratio=40,
+    #     modern_bias_0=False,
+    #     ff_ratio=4,
+    # )
     # + gen_experim(
     #     80,
     #     label="80_modern_40",
@@ -578,16 +578,16 @@ BIASED_SCALING_STUDY = (
     #     modern_bias_0=False,
     #     ff_ratio=4,
     # )
-    + gen_experim(
-        96,
-        label="96_modern_40",
-        folder_name="biased_modern",
-        learning_rate=4.23e-3,
-        norm_type="rms",
-        token_to_param_ratio=40,
-        modern_bias_0=False,
-        ff_ratio=4,
-    )
+    # + gen_experim(
+    #     96,
+    #     label="96_modern_40",
+    #     folder_name="biased_modern",
+    #     learning_rate=4.23e-3,
+    #     norm_type="rms",
+    #     token_to_param_ratio=40,
+    #     modern_bias_0=False,
+    #     ff_ratio=4,
+    # )
     # + gen_experim(
     #     104,
     #     label="104_modern",
@@ -598,36 +598,36 @@ BIASED_SCALING_STUDY = (
     #     norm_type="rms",
     #     token_to_param_ratio=40,
     # )
-    + gen_experim(
-        128,
-        label="128_modern_40",
-        folder_name="biased_modern",
-        learning_rate=3.37e-3,
-        modern_bias_0=False,
-        norm_type="rms",
-        token_to_param_ratio=40,
-        ff_ratio=4,
-    )
-    + gen_experim(
-        160,
-        label="160_modern_40",
-        folder_name="biased_modern",
-        learning_rate=2.83e-3,
-        modern_bias_0=False,
-        norm_type="rms",
-        token_to_param_ratio=40,
-        ff_ratio=4,
-    )
-    + gen_experim(
-        192,
-        label="192_modern_40",
-        folder_name="biased_modern",
-        learning_rate=2.4626e-3,
-        modern_bias_0=False,
-        norm_type="rms",
-        token_to_param_ratio=40,
-        ff_ratio=4,
-    )
+    # + gen_experim(
+    #     128,
+    #     label="128_modern_40",
+    #     folder_name="biased_modern",
+    #     learning_rate=3.37e-3,
+    #     modern_bias_0=False,
+    #     norm_type="rms",
+    #     token_to_param_ratio=40,
+    #     ff_ratio=4,
+    # )
+    # + gen_experim(
+    #     160,
+    #     label="160_modern_40",
+    #     folder_name="biased_modern",
+    #     learning_rate=2.83e-3,
+    #     modern_bias_0=False,
+    #     norm_type="rms",
+    #     token_to_param_ratio=40,
+    #     ff_ratio=4,
+    # )
+    # + gen_experim(
+    #     192,
+    #     label="192_modern_40",
+    #     folder_name="biased_modern",
+    #     learning_rate=2.4626e-3,
+    #     modern_bias_0=False,
+    #     norm_type="rms",
+    #     token_to_param_ratio=40,
+    #     ff_ratio=4,
+    # )
     # + gen_experim(
     #     224,
     #     label="224_modern_40",
@@ -1107,5 +1107,20 @@ CROSS_DATASET_EXPERIMENTS = (
 #     ],
 # )
 
-GRAND_EXPERIMENT = BIASED_SCALING_STUDY
+GRAND_EXPERIMENT = gen_experim(
+    256,
+    label="256_hisotrical_test",
+    folder_name="i_just_need_a_name",
+    learning_rate=10 ** (-3.5),
+    activation="gelu",
+    norm_placement="post",
+    lr_schedule="inverse_sqrt",
+    pos_encoding="sinusoidal",
+    weight_decay=0.01,
+    dropout=0.0,
+    optimizer="adam",
+    modern_bias_0=False,
+    ff_ratio=4,
+    token_to_param_ratio=40,
+)
 # 7 * 4 experiments

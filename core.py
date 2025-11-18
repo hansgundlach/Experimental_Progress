@@ -882,6 +882,9 @@ def train(gpu_id=None, csv_log_path=None):
         raise ValueError(f"dropout must be in [0, 1), got: {config.dropout}")
 
     # Initialize model
+    print(f"\n🔨 Initializing model with hidden_dim={config.hidden_dim}, num_layers={config.num_layers}, num_heads={config.num_heads}")
+    print(f"   Batch size={config.batch_size}, Grad accum={config.gradient_accumulation_steps}, Seq length={config.seq_length}")
+
     model = SimpleTransformer(
         vocab_size=len(primary_tokenizer),
         hidden_dim=config.hidden_dim,
@@ -893,6 +896,7 @@ def train(gpu_id=None, csv_log_path=None):
         mup_base_width=getattr(config, "mup_base_width", 128),
         tie_embeddings=getattr(config, "tie_embeddings", True),  # Default to True
     )
+    print(f"✅ Model initialized successfully")
 
     # Count non-embedding parameters for theoretical FLOPs calculation
     num_params = sum(p.numel() for p in model.parameters() if p.requires_grad)
@@ -1045,7 +1049,9 @@ def train(gpu_id=None, csv_log_path=None):
                 f"Model compilation failed, falling back to default model. Error: {e}"
             )
 
+    print(f"\n📦 Moving model to device: {device}")
     model.to(device)
+    print(f"✅ Model successfully moved to {device}")
 
     if config.label_smoothing > 0:
         criterion = nn.CrossEntropyLoss(label_smoothing=config.label_smoothing)
@@ -1386,6 +1392,7 @@ def train(gpu_id=None, csv_log_path=None):
         total_loss = 0
 
         if epoch == 0:
+            print(f"\n🚀 Starting training loop (Epoch 0)...")
             profiler = torch.profiler.profile(
                 activities=[
                     torch.profiler.ProfilerActivity.CPU,
@@ -1408,8 +1415,10 @@ def train(gpu_id=None, csv_log_path=None):
             tokens_cumulative += batch_tokens
 
             if epoch == 0 and batch_idx == 0:
+                print(f"   Processing first batch (batch_size={data.size(0)}, seq_length={data.size(1)})...")
                 with profiler:
                     output = model(data)
+                    print(f"   ✅ Forward pass complete, computing loss...")
                     # drop last position, flatten for loss
                     output = (
                         output[:, :-1, :]
@@ -1419,7 +1428,9 @@ def train(gpu_id=None, csv_log_path=None):
                     target_flat = target[:, :-1].contiguous().view(-1)
                     raw_loss = criterion(output, target_flat)
                     scaled_loss = raw_loss / config.gradient_accumulation_steps
+                print(f"   ✅ Loss computed (loss={raw_loss.item():.4f}), starting backward pass...")
                 scaler.scale(scaled_loss).backward()
+                print(f"   ✅ First batch complete!")
 
             else:
                 # Forward pass and compute raw and scaled losses

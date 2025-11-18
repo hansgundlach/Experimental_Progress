@@ -10,7 +10,89 @@ from lstm_experiment_utils import (
     calculate_lstm_params,
     get_lstm_base_config,
 )
+# =================================================== FUNDAMENTAL EXPERIMENTS ===================================================
+LSTM_SCALING_STUDY_TRADITIONAL = (
+    # gen_lstm_experim(
+    #     32,
+    #     label="32d",
+    #     folder_name="lstm_layer1",
+    #     learning_rate=5.6234e-2,
+    #     token_to_param_ratio=40,
+    # )
+    # + gen_lstm_experim(
+    #     48,
+    #     label="48d",
+    #     folder_name="lstm_layer1",
+    #     learning_rate=4.0157e-2,
+    #     token_to_param_ratio=40,
+    # )
+    gen_lstm_experim(
+        64,
+        label="64d_huge_data_160",
+        folder_name="lstm_layer1",
+        learning_rate=3.1623e-2,
+        token_to_param_ratio=160,
+    )
+    # + gen_lstm_experim(
+    #     80,
+    #     label="80d",
+    #     folder_name="lstm_layer1",
+    #     learning_rate=2.627e-2,
+    #     token_to_param_ratio=40,
+    # )
+    # + gen_lstm_experim(
+    #     104,
+    #     label="104d",
+    #     folder_name="lstm_layer1",
+    #     learning_rate=2.1130e-2,
+    #     token_to_param_ratio=40,
+    # )
+    + gen_lstm_experim(
+        128,
+        label="128d_80_huge_data",
+        folder_name="lstm_layer1",
+        learning_rate=1.7783e-2,
+        token_to_param_ratio=80,
+    )
+    # + gen_lstm_experim(
+    #     160,
+    #     label="160d",
+    #     folder_name="lstm_layer1",
+    #     learning_rate=1.4775e-2,
+    #     token_to_param_ratio=40,
+    # )
+    # gen_lstm_experim(
+    #     192,
+    #     label="192d",
+    #     folder_name="lstm_layer1",
+    #     learning_rate=1.269e-2,
+    #     token_to_param_ratio=40,
+    # )
+    # + gen_lstm_experim(
+    #     224,
+    #     label="224d",
+    #     folder_name="lstm_layer1",
+    #     learning_rate=1.1173e-2,
+    #     token_to_param_ratio=40,
+    # )
+    # gen_lstm_experim(
+    #     256,
+    #     label="256d",
+    #     folder_name="lstm_layer1",
+    #     learning_rate=1.0e-2,
+    #     token_to_param_ratio=40,
+    # )
+)
 
+
+
+
+
+
+
+
+
+# =================================================== LR SWEEPS ===================================================
 NARROW_LR_SWEEP = [
     10 ** (-3),
     10 ** (-2.5),
@@ -782,78 +864,6 @@ LSTM_LR_STUDY = (
 
 # LSTM SCALING STUDY
 # 32 48 64 80 104 128 160 256
-LSTM_SCALING_STUDY_TRADITIONAL = (
-    # gen_lstm_experim(
-    #     32,
-    #     label="32d",
-    #     folder_name="lstm_layer1",
-    #     learning_rate=5.6234e-2,
-    #     token_to_param_ratio=40,
-    # )
-    # + gen_lstm_experim(
-    #     48,
-    #     label="48d",
-    #     folder_name="lstm_layer1",
-    #     learning_rate=4.0157e-2,
-    #     token_to_param_ratio=40,
-    # )
-    gen_lstm_experim(
-        64,
-        label="64d_huge_data_160",
-        folder_name="lstm_layer1",
-        learning_rate=3.1623e-2,
-        token_to_param_ratio=160,
-    )
-    # + gen_lstm_experim(
-    #     80,
-    #     label="80d",
-    #     folder_name="lstm_layer1",
-    #     learning_rate=2.627e-2,
-    #     token_to_param_ratio=40,
-    # )
-    # + gen_lstm_experim(
-    #     104,
-    #     label="104d",
-    #     folder_name="lstm_layer1",
-    #     learning_rate=2.1130e-2,
-    #     token_to_param_ratio=40,
-    # )
-    + gen_lstm_experim(
-        128,
-        label="128d_80_huge_data",
-        folder_name="lstm_layer1",
-        learning_rate=1.7783e-2,
-        token_to_param_ratio=80,
-    )
-    # + gen_lstm_experim(
-    #     160,
-    #     label="160d",
-    #     folder_name="lstm_layer1",
-    #     learning_rate=1.4775e-2,
-    #     token_to_param_ratio=40,
-    # )
-    # gen_lstm_experim(
-    #     192,
-    #     label="192d",
-    #     folder_name="lstm_layer1",
-    #     learning_rate=1.269e-2,
-    #     token_to_param_ratio=40,
-    # )
-    # + gen_lstm_experim(
-    #     224,
-    #     label="224d",
-    #     folder_name="lstm_layer1",
-    #     learning_rate=1.1173e-2,
-    #     token_to_param_ratio=40,
-    # )
-    # gen_lstm_experim(
-    #     256,
-    #     label="256d",
-    #     folder_name="lstm_layer1",
-    #     learning_rate=1.0e-2,
-    #     token_to_param_ratio=40,
-    # )
-)
 
 
 LSTM_SEQ_LENGTH = (

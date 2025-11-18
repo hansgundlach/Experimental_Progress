@@ -80,22 +80,31 @@ def create_multi_lr_experiments(
     multi_lr_experiments = []
 
     for experiment in base_experiments:
-        # Check if any sub-experiment has a custom results folder
+        # Extract custom folder from experiment name if it exists
+        # gen_experim() moves folder_name to the experiment "name" field, so check there first
         custom_folder = None
-        for sub_exp in experiment["subexperiments"]:
-            if "overrides" in sub_exp:
-                # Check for both folder_name and results_folder
-                custom_folder = sub_exp["overrides"].get("folder_name") or sub_exp[
-                    "overrides"
-                ].get("results_folder")
-                if custom_folder:
-                    break
-            elif "config" in sub_exp:
-                custom_folder = sub_exp["config"].get("folder_name") or sub_exp[
-                    "config"
-                ].get("results_folder")
-                if custom_folder:
-                    break
+
+        # First, check if experiment name itself is the folder (most common case)
+        # This happens when gen_experim(folder_name=X) creates experiments
+        experiment_name = experiment.get("name", "")
+        if experiment_name and not experiment_name.startswith("generated_experiments"):
+            custom_folder = experiment_name
+
+        # Fallback: check subexperiments for folder_name/results_folder in overrides or config
+        if not custom_folder:
+            for sub_exp in experiment["subexperiments"]:
+                if "overrides" in sub_exp:
+                    custom_folder = sub_exp["overrides"].get("folder_name") or sub_exp[
+                        "overrides"
+                    ].get("results_folder")
+                    if custom_folder:
+                        break
+                elif "config" in sub_exp:
+                    custom_folder = sub_exp["config"].get("folder_name") or sub_exp[
+                        "config"
+                    ].get("results_folder")
+                    if custom_folder:
+                        break
 
         # Create a new experiment group name
         if custom_folder:
@@ -715,6 +724,20 @@ def gen_experim(
 
     # Calculate the actual per-step batch size to use
     per_step_batch_size = max(1, target_effective_batch_size // grad_accum_steps)
+
+    # DIAGNOSTIC: Print memory estimation for large models
+    if hidden_dim >= 256:
+        print(f"\n{'='*60}")
+        print(f"MEMORY DIAGNOSTIC FOR {hidden_dim}d MODEL:")
+        print(f"  Total params: {total_params:,}")
+        print(f"  Num layers: {num_layers}, Num heads: {num_heads}")
+        print(f"  GPU type: {gpu_type}")
+        print(f"  Target effective batch size: {target_effective_batch_size}")
+        print(f"  Calculated grad_accum_steps: {grad_accum_steps}")
+        print(f"  Per-step batch size: {per_step_batch_size}")
+        print(f"  Sequence length: {seq_length}")
+        print(f"  Max training tokens: {max_tokens_training:,}")
+        print(f"{'='*60}\n")
 
     # 5. Handle folder_name parameter (for backward compatibility)
     if folder_name is not None and results_folder is None:
