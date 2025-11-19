@@ -15,20 +15,20 @@ LSTM_SCALING_STUDY_TRADITIONAL = (
     gen_lstm_experim(
         32,
         label="32d",
-        folder_name="lstm_layer1",
+        folder_name="x1_lstm_layer1",
         learning_rate=5.6234e-2,
         token_to_param_ratio=40,
     )
     + gen_lstm_experim(
         48,
         label="48d",
-        folder_name="lstm_layer1",
+        folder_name="x1_lstm_layer1",
         learning_rate=4.0157e-2,
         token_to_param_ratio=40,
     )
     + gen_lstm_experim(
         64,
-        label="64d_huge_data_160",
+        label="64d",
         folder_name="x1_lstm_layer1",
         learning_rate=3.1623e-2,
         token_to_param_ratio=40,
@@ -49,7 +49,7 @@ LSTM_SCALING_STUDY_TRADITIONAL = (
     # )
     + gen_lstm_experim(
         128,
-        label="128d_80_huge_data",
+        label="128d",
         folder_name="x1_lstm_layer1",
         learning_rate=1.7783e-2,
         token_to_param_ratio=40,
@@ -57,28 +57,28 @@ LSTM_SCALING_STUDY_TRADITIONAL = (
     + gen_lstm_experim(
         160,
         label="160d",
-        folder_name="lstm_layer1",
+        folder_name="x1_lstm_layer1",
         learning_rate=1.4775e-2,
         token_to_param_ratio=40,
     )
     + gen_lstm_experim(
         192,
         label="192d",
-        folder_name="lstm_layer1",
+        folder_name="x1_lstm_layer1",
         learning_rate=1.269e-2,
         token_to_param_ratio=40,
     )
     + gen_lstm_experim(
         224,
         label="224d",
-        folder_name="lstm_layer1",
+        folder_name="x1_lstm_layer1",
         learning_rate=1.1173e-2,
         token_to_param_ratio=40,
     )
     + gen_lstm_experim(
         256,
         label="256d",
-        folder_name="lstm_layer1",
+        folder_name="x1_lstm_layer1",
         learning_rate=1.0e-2,
         token_to_param_ratio=40,
     )
@@ -131,7 +131,6 @@ NO_DROPOUT_COMPARISON = gen_lstm_experim(
     label="64d_melis_dropout",
     folder_name="appendix_ablation_study",
     learning_rate=3.1623e-2,
-    token_to_param_ratio=40,
     input_dropout=0.6,
     hidden_dropout=0.3,
     output_dropout=0.7,
@@ -141,7 +140,6 @@ NO_DROPOUT_COMPARISON = gen_lstm_experim(
     label="64d_standard_no_dropout",
     folder_name="appendix_ablation_study",
     learning_rate=3.1623e-2,
-    token_to_param_ratio=40,
 )
 NO_DROPOUT_COMPARISON_LR = create_multi_lr_experiments(
     NO_DROPOUT_COMPARISON,
@@ -151,6 +149,6 @@ NO_DROPOUT_COMPARISON_LR = create_multi_lr_experiments(
 
 # =================================================== LR SWEEPS ===================================================
 
-GRAND_EXPERIMENT = LSTM_LR_STUDY
+GRAND_EXPERIMENT = NO_DROPOUT_COMPARISON_LR
 
 # 48 experimetns

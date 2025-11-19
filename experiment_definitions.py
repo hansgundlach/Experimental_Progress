@@ -658,7 +658,7 @@ BIASED_LR_SCALING_STUDY = (
     gen_experim(
         32,
         label="32_modern",
-        folder_name="biased_lr_scaling_study",
+        folder_name="x1_biased_lr_scaling_study",
         learning_rate=10**-2,
         modern_bias_0=False,
         norm_type="rms",
@@ -667,16 +667,16 @@ BIASED_LR_SCALING_STUDY = (
     + gen_experim(
         64,
         label="64_modern",
-        folder_name="biased_lr_scaling_study",
+        folder_name="x1_biased_lr_scaling_study",
         learning_rate=10**-2,
         modern_bias_0=False,
         ff_ratio=4,
         norm_type="rms",
     )
     + gen_experim(
-        80,
-        label="80_modern",
-        folder_name="biased_lr_scaling_study",
+        96,
+        label="96_modern",
+        folder_name="x1_biased_lr_scaling_study",
         learning_rate=10**-2,
         modern_bias_0=False,
         ff_ratio=4,
@@ -685,7 +685,7 @@ BIASED_LR_SCALING_STUDY = (
     + gen_experim(
         160,
         label="160_modern",
-        folder_name="biased_lr_scaling_study",
+        folder_name="x1_biased_lr_scaling_study",
         learning_rate=10**-2.5,
         modern_bias_0=False,
         ff_ratio=4,
@@ -694,7 +694,7 @@ BIASED_LR_SCALING_STUDY = (
     + gen_experim(
         256,
         label="256_modern",
-        folder_name="biased_lr_scaling_study",
+        folder_name="x1_biased_lr_scaling_study",
         learning_rate=10**-2.5,
         modern_bias_0=False,
         ff_ratio=4,
@@ -1125,4 +1125,7 @@ CROSS_DATASET_EXPERIMENTS = (
 #     gradient_accumulation_steps=4,
 # )
 # 7 * 4 experiments
-GRAND_EXPERIMENT = BIASED_SCALING_STUDY
+GRAND_EXPERIMENT = create_multi_lr_experiments(
+    BIASED_LR_SCALING_STUDY,
+    [10**-1.75, 10**-2, 10**-2.25, 10**-2.5, 10**-2.75, 10**-3, 10**-3.25],
+)

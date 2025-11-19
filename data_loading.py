@@ -114,7 +114,7 @@ class TextDataset(Dataset):
 
 class StreamingTextDataset(Dataset):
     def __init__(
-        self, file_path, seq_length, tokenizer, max_tokens=None, split="train", stride=128
+        self, file_path, seq_length, tokenizer, max_tokens, stride=128, offset=0
     ):
         """
         Memory-efficient streaming dataset using memory-mapped files.
@@ -126,10 +126,13 @@ class StreamingTextDataset(Dataset):
             file_path: Path to the text file (or .npy file if pre-tokenized)
             seq_length: Length of each sequence
             tokenizer: Tokenizer to use (only needed if loading text)
-            max_tokens: Maximum number of tokens to use (None = use all)
-            split: 'train' or 'val' - determines which part of file to use
+            max_tokens: Exact number of tokens to use (REQUIRED)
             stride: Stride for creating sequences (default: 128, same as TextDataset)
+            offset: Number of tokens to skip from start (for validation split)
         """
+        if not max_tokens:
+            raise ValueError("max_tokens is required - percentage splits are no longer supported")
+
         self.seq_length = seq_length
         self.stride = stride
         self.tokenizer = tokenizer
@@ -148,60 +151,37 @@ class StreamingTextDataset(Dataset):
 
             print(f"   Total tokens in file: {total_tokens:,}")
 
-            # Determine which portion to use based on split
-            if split == "train":
-                start_idx = 0
-                if max_tokens:
-                    end_idx = min(max_tokens, int(total_tokens * 0.9))
-                else:
-                    end_idx = int(total_tokens * 0.9)  # Use 90% for training
-            elif split == "val":
-                # Use last 10% for validation
-                start_idx = int(total_tokens * 0.9)
+            # Handle negative offset (from end of file)
+            if offset < 0:
+                # Negative offset = from end (like old 90/10 split for validation)
+                start_idx = max(0, total_tokens + offset)  # offset is negative, so this subtracts
                 end_idx = total_tokens
-                if max_tokens:
-                    end_idx = min(start_idx + max_tokens, total_tokens)
+                print(f"   Loading from END of file (last {max_tokens:,} tokens)")
             else:
-                start_idx = 0
-                end_idx = total_tokens
+                # Positive offset = from start
+                start_idx = offset
+                end_idx = min(offset + max_tokens, total_tokens)
 
             # Store the memory-mapped view (just a reference, no RAM used)
             self.tokens = all_tokens_mmap[start_idx:end_idx]
             total_length = len(self.tokens)
 
-            print(f"   Using {split} portion: {total_length:,} tokens (indices {start_idx:,} to {end_idx:,})")
+            print(f"   Using {total_length:,} tokens (indices {start_idx:,} to {end_idx:,})")
 
         else:
-            # FALLBACK: Old behavior (loads everything into RAM)
+            # FALLBACK: Load text file (loads into RAM)
             print(f"⚠️  WARNING: No .npy file found at {npy_path}")
             print(f"   Falling back to loading text file (uses ~{Path(file_path).stat().st_size / 1e9:.1f}GB RAM)")
             print(f"   To avoid this, run: python pretokenize_dataset.py {file_path}")
 
-            # Get file size
+            # Load exactly max_tokens worth of text
+            chars_needed = max_tokens * 4  # Approximate 4 chars per token
             file_size = Path(file_path).stat().st_size
-
-            # Determine which part of the file to use
-            if split == "train":
-                start_byte = 0
-                if max_tokens:
-                    chars_needed = max_tokens * 4
-                    end_byte = min(chars_needed, int(file_size * 0.9))
-                else:
-                    end_byte = int(file_size * 0.9)
-            elif split == "val":
-                start_byte = int(file_size * 0.9)
-                end_byte = file_size
-                if max_tokens:
-                    chars_needed = max_tokens * 4
-                    end_byte = min(start_byte + chars_needed, file_size)
-            else:
-                start_byte = 0
-                end_byte = file_size
+            chars_to_load = min(chars_needed, file_size)
 
             # Load and tokenize (uses RAM)
             with open(file_path, "r", encoding="utf-8") as f:
-                f.seek(start_byte)
-                text = f.read(end_byte - start_byte)
+                text = f.read(chars_to_load)
 
             chunk_size = 2000
             text_chunks = [
@@ -215,14 +195,15 @@ class StreamingTextDataset(Dataset):
                 ]
                 all_tokens.extend(chunk_tokens)
 
-            self.tokens = all_tokens
+            # Limit to exactly max_tokens
+            self.tokens = all_tokens[:max_tokens]
             total_length = len(self.tokens)
 
         # Calculate number of complete sequences (IDENTICAL to TextDataset)
         self.n_seqs = (total_length - seq_length - 1) // stride
 
         print(
-            f"StreamingDataset ({split}): {self.n_seqs:,} sequences from {total_length:,} tokens"
+            f"StreamingDataset: {self.n_seqs:,} sequences from {total_length:,} tokens"
         )
 
     def __len__(self):
@@ -676,21 +657,17 @@ def get_streaming_dataset(config):
             "Please ensure you have downloaded and copied the dataset file."
         )
 
+    # Validate fixed_val_tokens is provided
+    if not fixed_val_tokens:
+        raise ValueError("fixed_val_tokens is required - percentage splits are no longer supported")
+
     print(f"Loading streaming dataset from: {data_path}")
+    print(f"  Training tokens: {max_tokens_training:,}")
+    print(f"  Validation tokens: {fixed_val_tokens:,}")
 
-    # Create streaming datasets
-    train_dataset = StreamingTextDataset(
-        file_path=data_path,
-        seq_length=seq_length,
-        tokenizer=tokenizer,
-        max_tokens=max_tokens_training,
-        split="train",
-        stride=stride,
-    )
-
-    # Check if separate validation dataset is specified
+    # Check if using separate validation file
     if val_data_path:
-        print(f"\nLoading separate validation dataset from: {val_data_path}")
+        print(f"\nUsing separate validation dataset: {val_data_path}")
         # Handle relative paths (for LSTM running from subdirectory)
         val_path_obj = Path(val_data_path)
         if not val_path_obj.exists():
@@ -699,20 +676,46 @@ def get_streaming_dataset(config):
                 val_data_path = str(parent_relative)
                 print(f"  (adjusted path: {val_data_path})")
 
-        val_file_path = val_data_path
-        val_split = None  # Use entire file (no split)
-    else:
-        val_file_path = data_path
-        val_split = "val"  # Use validation split from training file
+        # Create separate train and val datasets from different files
+        train_dataset = StreamingTextDataset(
+            file_path=data_path,
+            seq_length=seq_length,
+            tokenizer=tokenizer,
+            max_tokens=max_tokens_training,
+            stride=stride,
+        )
 
-    val_dataset = StreamingTextDataset(
-        file_path=val_file_path,
-        seq_length=seq_length,
-        tokenizer=tokenizer,
-        max_tokens=fixed_val_tokens if not val_data_path else None,  # Use all of separate file
-        split=val_split or "train",  # If separate file, treat as "train" (use 90%)
-        stride=stride,
-    )
+        val_dataset = StreamingTextDataset(
+            file_path=val_data_path,
+            seq_length=seq_length,
+            tokenizer=tokenizer,
+            max_tokens=fixed_val_tokens,
+            stride=stride,
+        )
+    else:
+        # Create train and val datasets from same file
+        # Training: first max_tokens_training tokens
+        train_dataset = StreamingTextDataset(
+            file_path=data_path,
+            seq_length=seq_length,
+            tokenizer=tokenizer,
+            max_tokens=max_tokens_training,
+            stride=stride,
+            offset=0,
+        )
+
+        # Validation: last fixed_val_tokens tokens (from END of file, like old 90/10 split)
+        print(f"\nCreating validation dataset from END of file (last {fixed_val_tokens:,} tokens)")
+        # Need to get total tokens to calculate offset from end
+        # Use "from_end" offset = -fixed_val_tokens to load from end
+        val_dataset = StreamingTextDataset(
+            file_path=data_path,
+            seq_length=seq_length,
+            tokenizer=tokenizer,
+            max_tokens=fixed_val_tokens,
+            stride=stride,
+            offset=-fixed_val_tokens,  # Negative = from end of file
+        )
 
     return train_dataset, val_dataset, tokenizer, "streaming_text"
 
@@ -754,11 +757,9 @@ def load_and_tokenize_text(config):
         config: Configuration dict with keys:
             - data_path: Path to text file
             - seed: Random seed
-            - max_tokens_training: Target training tokens
-            - fixed_val_tokens: Fixed validation tokens (optional)
-            - train_split: Train fraction (default 0.8 for LSTM)
-            - val_split: Val fraction (default 0.1 for LSTM)
-            - test_split: Test fraction (computed as remainder)
+            - max_tokens_training: Target training tokens (REQUIRED)
+            - fixed_val_tokens: Fixed validation tokens (REQUIRED)
+            - val_data_path: Optional separate validation dataset
             - char_to_token_ratio: Chars per token estimate (default 4.0)
 
     Returns:
@@ -769,21 +770,23 @@ def load_and_tokenize_text(config):
     if hasattr(config, "get"):
         seed = config.get("seed", 123)
         data_path = config.get("data_path", None)
-        val_data_path = config.get("val_data_path", None)  # NEW: separate validation dataset
+        val_data_path = config.get("val_data_path", None)
         max_tokens_training = config.get("max_tokens_training", None)
         fixed_val_tokens = config.get("fixed_val_tokens", None)
-        train_split = config.get("train_split", 0.8)  # LSTM default
-        val_split = config.get("val_split", 0.1)  # LSTM default
-        tokenizer_path = config.get("tokenizer_path", "./gpt2_tokenizer")  # LSTM uses this
+        tokenizer_path = config.get("tokenizer_path", "./gpt2_tokenizer")
     else:
         seed = getattr(config, "seed", 123)
         data_path = getattr(config, "data_path", None)
-        val_data_path = getattr(config, "val_data_path", None)  # NEW: separate validation dataset
+        val_data_path = getattr(config, "val_data_path", None)
         max_tokens_training = getattr(config, "max_tokens_training", None)
         fixed_val_tokens = getattr(config, "fixed_val_tokens", None)
-        train_split = getattr(config, "train_split", 0.8)
-        val_split = getattr(config, "val_split", 0.1)
         tokenizer_path = getattr(config, "tokenizer_path", "./gpt2_tokenizer")
+
+    # Validate required parameters
+    if not max_tokens_training:
+        raise ValueError("max_tokens_training is required in config")
+    if not fixed_val_tokens:
+        raise ValueError("fixed_val_tokens is required in config - percentage splits are no longer supported")
 
     # Set random seeds
     torch.manual_seed(seed)
@@ -845,14 +848,8 @@ def load_and_tokenize_text(config):
         total_tokens_available = len(all_tokens_mmap)
         print(f"   Total tokens in file: {total_tokens_available:,}")
 
-        # Determine how many tokens to use
-        if max_tokens_training and fixed_val_tokens:
-            tokens_needed = int(max_tokens_training + fixed_val_tokens)
-        elif max_tokens_training:
-            tokens_needed = int(max_tokens_training / train_split)
-        else:
-            tokens_needed = int(total_tokens_available)
-
+        # Determine how many tokens to use (fixed sizes only)
+        tokens_needed = int(max_tokens_training + fixed_val_tokens)
         tokens_to_use = int(min(tokens_needed, total_tokens_available))
 
         # Extract tokens from memory-mapped array
@@ -873,11 +870,8 @@ def load_and_tokenize_text(config):
                 else getattr(config, "char_to_token_ratio", 4.0)
             )
 
-            if fixed_val_tokens:
-                total_tokens_needed = max_tokens_training + fixed_val_tokens
-            else:
-                total_tokens_needed = int(max_tokens_training / train_split)
-
+            # Calculate total tokens needed (fixed sizes only)
+            total_tokens_needed = max_tokens_training + fixed_val_tokens
             max_characters_needed = int(total_tokens_needed * char_to_token_ratio)
 
             # Get file size
@@ -976,42 +970,33 @@ def load_and_tokenize_text(config):
     else:
         val_tokens = None  # Will be split from training data below
 
-    # Split into train/val/test (only if val_tokens not already set)
+    # Split into train/val/test (only if val_tokens not already set from separate file)
     if val_tokens is None:
         n = len(tokens)
 
-        if fixed_val_tokens and max_tokens_training:
-            # Use exact token counts
-            n_train = int(max_tokens_training)
-            n_val = int(fixed_val_tokens)
+        # Use exact token counts (required)
+        n_train = int(max_tokens_training)
+        n_val = int(fixed_val_tokens)
 
-            if n_train + n_val > n:
-                raise ValueError(
-                    f"Not enough tokenized data: need {n_train + n_val:,} tokens "
-                    f"({n_train:,} training + {n_val:,} validation) "
-                    f"but only have {n:,} tokens available"
-                )
+        if n_train + n_val > n:
+            raise ValueError(
+                f"Not enough tokenized data: need {n_train + n_val:,} tokens "
+                f"({n_train:,} training + {n_val:,} validation) "
+                f"but only have {n:,} tokens available"
+            )
 
-            train_tokens = tokens[:n_train]
-            val_tokens = tokens[n_train : n_train + n_val]
-            test_tokens = tokens[n_train + n_val :]
+        # Training: first n_train tokens
+        train_tokens = tokens[:n_train]
 
-            print(f"Dataset split with exact token counts:")
-            print(f"  Training: {len(train_tokens):,} tokens (exactly as specified)")
-            print(f"  Validation: {len(val_tokens):,} tokens (exactly as specified)")
-            print(f"  Test: {len(test_tokens):,} tokens (remainder)")
-        else:
-            # Use percentage-based split
-            n_train = int(n * train_split)
-            n_val = int(n * val_split)
+        # Validation: LAST n_val tokens (from END of file, like old 90/10 split)
+        val_tokens = tokens[-n_val:]
 
-            train_tokens = tokens[:n_train]
-            val_tokens = tokens[n_train : n_train + n_val]
-            test_tokens = tokens[n_train + n_val :]
+        # Test: tokens between training and validation (middle section)
+        test_tokens = tokens[n_train:-n_val] if n_val > 0 else tokens[n_train:]
 
-            print(f"Dataset split with percentage split:")
-            print(f"  Training: {len(train_tokens):,} tokens ({train_split*100:.1f}%)")
-            print(f"  Validation: {len(val_tokens):,} tokens ({val_split*100:.1f}%)")
-            print(f"  Test: {len(test_tokens):,} tokens (remainder)")
+        print(f"Dataset split with fixed token counts:")
+        print(f"  Training: {len(train_tokens):,} tokens (from start)")
+        print(f"  Validation: {len(val_tokens):,} tokens (from END, like old 90/10)")
+        print(f"  Test: {len(test_tokens):,} tokens (middle section)")
 
     return train_tokens, val_tokens, test_tokens, tokenizer

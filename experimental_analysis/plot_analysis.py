@@ -252,7 +252,7 @@ analyzer.plot_training_curves_by_class(
         # "lstm": (1e16, 1e17 * 5),
         # "2017 transformer": (1e15, 1e17 * 5),
         # "2017 Transformer": (1e14, 1e17),
-        "sin transformer": (1e15, 1e17 * 5),
+        "sin transformer": (1e16, 1e17 * 5),
         # "no_bias": (1e15, 1e17 * 5),
         # "sgd": (10 ** (16), 1e17 * 5),
     },
@@ -280,7 +280,7 @@ analyzer.plot_training_curves_by_class(
 # %%
 
 # no-bias comparison
-classes_to_plot_2 = ["no_bias"]
+classes_to_plot_2 = ["no_bias", "lstm"]
 #  Second plot with different classes
 # classes_to_plot_2 = ["no_bias","sin transformer"]
 
@@ -292,11 +292,11 @@ analyzer.plot_training_curves_by_class(
     classes_to_plot=classes_to_plot_2,
     flop_range_by_class={
         # "transformer": (1e16, 5 * 1e17),
-        # "lstm": (1e16, 1e17 * 5),
+        "lstm": (1e16, 1e17 * 5),
         # "2017 transformer": (1e15, 1e17 * 5),
         # "2017 Transformer": (1e14, 1e17),
         # "sin transformer": (1e15, 1e17 * 5),
-        "no_bias": (1e15, 1e17 * 5),
+        "no_bias": (1e16, 1e17 * 5),
         # "sgd": (10 ** (16), 1e17 * 5),
     },
     extrapolation_factor=20.0,  # Extend trend lines 3x beyond data range

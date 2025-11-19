@@ -1740,7 +1740,7 @@ if __name__ == "__main__":
     experiments_config = [
         {
             "name": "32d corrected melis scaling experiments",
-            "csv_path": "../experimental_data_folder/lstm_layer1/32d.csv",
+            "csv_path": "../experimental_data_folder/x1_lstm_layer1/32d.csv",
             "marker": "o",
             "include_in_in_frontier": False,  # Include in frontier analysis
             "class": "lstm",
@@ -1749,7 +1749,7 @@ if __name__ == "__main__":
         # 64 96 128 160 corrected melis scaling
         {
             "name": "64d corrected melis scaling experiments",
-            "csv_path": "../experimental_data_folder/lstm_layer1/64d.csv",
+            "csv_path": "../experimental_data_folder/lstm_layer1/x1_64d.csv",
             "marker": "o",
             "include_in_in_frontier": False,  # Include in frontier analysis
             "class": "lstm",
@@ -1757,7 +1757,7 @@ if __name__ == "__main__":
         },
         {
             "name": "96d corrected melis scaling experiments",
-            "csv_path": "../experimental_data_folder/lstm_layer1/96d.csv",
+            "csv_path": "../experimental_data_folder/x1_lstm_layer1/96d.csv",
             "marker": "o",
             "include_in_in_frontier": False,  # Include in frontier analysis
             "class": "lstm",
@@ -1765,7 +1765,7 @@ if __name__ == "__main__":
         },
         {
             "name": "128d corrected melis scaling experiments",
-            "csv_path": "../experimental_data_folder/lstm_layer1/128d.csv",
+            "csv_path": "../experimental_data_folder/x1_lstm_layer1/128d.csv",
             "marker": "o",
             "include_in_in_frontier": False,  # Include in frontier analysis
             "class": "lstm",
@@ -1773,7 +1773,7 @@ if __name__ == "__main__":
         },
         {
             "name": "160d corrected melis scaling experiments",
-            "csv_path": "../experimental_data_folder/lstm_layer1/160d.csv",
+            "csv_path": "../experimental_data_folder/x1_lstm_layer1/160d.csv",
             "marker": "o",
             "include_in_in_frontier": False,  # Include in frontier analysis
             "class": "lstm",
@@ -1782,7 +1782,7 @@ if __name__ == "__main__":
         # 192 and 224
         {
             "name": "192d corrected melis scaling experiments",
-            "csv_path": "../experimental_data_folder/lstm_layer1/192d.csv",
+            "csv_path": "../experimental_data_folder/x1_lstm_layer1/192d.csv",
             "marker": "o",
             "include_in_in_frontier": False,  # Include in frontier analysis
             "class": "lstm",
@@ -1790,7 +1790,7 @@ if __name__ == "__main__":
         },
         {
             "name": "224d corrected melis scaling experiments",
-            "csv_path": "../experimental_data_folder/lstm_layer1/224d.csv",
+            "csv_path": "../experimental_data_folder/x1_lstm_layer1/224d.csv",
             "marker": "o",
             "include_in_in_frontier": False,  # Include in frontier analysis
             "class": "lstm",
@@ -1804,14 +1804,14 @@ if __name__ == "__main__":
         #     "class": "lstm",
         #     "hidden_dim": 192,
         # },
-        # {
-        #     "name": "256d corrected melis scaling experiments",
-        #     "csv_path": "../experimental_data_folder/lstm_layer1/25d.csv",
-        #     "marker": "o",
-        #     "include_in_in_frontier": False,  # Include in frontier analysis
-        #     "class": "lstm",
-        #     "hidden_dim": 256,
-        # },
+        {
+            "name": "256d corrected melis scaling experiments",
+            "csv_path": "../experimental_data_folder/lstm_layer1/25d.csv",
+            "marker": "o",
+            "include_in_in_frontier": False,  # Include in frontier analysis
+            "class": "lstm",
+            "hidden_dim": 256,
+        },
         # # lstm sgd
         # {
         #     "name": "48d melis sgd",
