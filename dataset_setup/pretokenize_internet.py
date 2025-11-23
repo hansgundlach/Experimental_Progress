@@ -6,9 +6,9 @@ This version allows internet downloads to get fast tokenizer files if needed.
 This allows datasets larger than RAM to be used without loading everything into memory.
 
 Usage:
-    python pretokenize_internet.py Datasets/c4_subset_large.txt
-    python pretokenize_internet.py Datasets/openwebtext_subset.txt
-    python pretokenize_internet.py Datasets/wikitext103_train.txt
+    python pretokenize_internet.py ../Datasets/c4_subset_large.txt
+    python pretokenize_internet.py ../Datasets/openwebtext_subset.txt
+    python pretokenize_internet.py ../Datasets/wikitext103_train.txt
 """
 
 import numpy as np
@@ -50,7 +50,7 @@ def pretokenize_dataset(text_path, output_path=None):
             # Fallback: try local directory with internet enabled (may download missing files)
             print("  📥 Trying local tokenizer directory with internet fallback...")
             tokenizer = GPT2Tokenizer.from_pretrained(
-                "./gpt2_tokenizer", local_files_only=False, use_fast=True
+                "../gpt2_tokenizer", local_files_only=False, use_fast=True
             )
             print(
                 "  ✅ Using fast tokenizer (Rust-based, much faster) - local/updated files"
@@ -60,7 +60,7 @@ def pretokenize_dataset(text_path, output_path=None):
                 # Fallback: try local fast tokenizer only (no internet)
                 print("  📥 Trying local fast tokenizer...")
                 tokenizer = GPT2Tokenizer.from_pretrained(
-                    "./gpt2_tokenizer", local_files_only=True, use_fast=True
+                    "../gpt2_tokenizer", local_files_only=True, use_fast=True
                 )
                 print(
                     "  ✅ Using fast tokenizer (Rust-based, much faster) - local files only"
@@ -77,7 +77,7 @@ def pretokenize_dataset(text_path, output_path=None):
                     )
                 except:
                     tokenizer = GPT2Tokenizer.from_pretrained(
-                        "./gpt2_tokenizer", local_files_only=True, use_fast=False
+                        "../gpt2_tokenizer", local_files_only=True, use_fast=False
                     )
                     print(
                         "  ⚠️  Using slow tokenizer (Python-based, slower) - local files only"
@@ -161,9 +161,9 @@ if __name__ == "__main__":
     if len(sys.argv) < 2:
         print("Usage: python pretokenize_internet.py <text_file>")
         print("\nExamples:")
-        print("  python pretokenize_internet.py Datasets/c4_subset_large.txt")
-        print("  python pretokenize_internet.py Datasets/openwebtext_subset.txt")
-        print("  python pretokenize_internet.py Datasets/wikitext103_train.txt")
+        print("  python pretokenize_internet.py ../Datasets/c4_subset_large.txt")
+        print("  python pretokenize_internet.py ../Datasets/openwebtext_subset.txt")
+        print("  python pretokenize_internet.py ../Datasets/wikitext103_train.txt")
         sys.exit(1)
 
     text_path = sys.argv[1]

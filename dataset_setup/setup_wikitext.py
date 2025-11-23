@@ -7,10 +7,10 @@ from pathlib import Path
 # We'll download both train and validation/test splits
 
 # Ensure target directory exists
-Path("Datasets").mkdir(exist_ok=True)
+Path("../Datasets").mkdir(exist_ok=True)
 
 # Load your local GPT-2 tokenizer
-tokenizer = GPT2Tokenizer.from_pretrained("./gpt2_tokenizer")
+tokenizer = GPT2Tokenizer.from_pretrained("../gpt2_tokenizer")
 
 print("Downloading WikiText-103 dataset...")
 
@@ -35,7 +35,7 @@ for split_name in ["train", "validation", "test"]:
             total_chars += len(text)
 
     # Write out text file
-    out_file = Path("Datasets") / f"wikitext103_{split_name}.txt"
+    out_file = Path("../Datasets") / f"wikitext103_{split_name}.txt"
     with open(out_file, "w", encoding="utf-8") as f:
         f.write("\n".join(all_text))
 
@@ -50,7 +50,7 @@ print("\n" + "="*60)
 print("WikiText-103 download complete!")
 print("="*60)
 print("Files created:")
-print("  Datasets/wikitext103_train.txt       (training data)")
-print("  Datasets/wikitext103_validation.txt  (validation data)")
-print("  Datasets/wikitext103_test.txt        (test data)")
+print("  ../Datasets/wikitext103_train.txt       (training data)")
+print("  ../Datasets/wikitext103_validation.txt  (validation data)")
+print("  ../Datasets/wikitext103_test.txt        (test data)")
 print("\nUse validation.txt for cross-dataset evaluation experiments.")

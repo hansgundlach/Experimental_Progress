@@ -5,9 +5,9 @@ This version allows internet downloads to get fast tokenizer files if needed.
 Saves checkpoints every 200M tokens for safety.
 
 Usage:
-    python pretokenize_dataset.py Datasets/c4_subset_large.txt
-    python pretokenize_dataset.py Datasets/openwebtext_subset.txt
-    python pretokenize_dataset.py Datasets/wikitext103_train.txt
+    python pretokenize_dataset.py ../Datasets/c4_subset_large.txt
+    python pretokenize_dataset.py ../Datasets/openwebtext_subset.txt
+    python pretokenize_dataset.py ../Datasets/wikitext103_train.txt
 """
 
 import numpy as np
@@ -55,7 +55,7 @@ def pretokenize_dataset(text_path, output_path=None, checkpoint_interval=200_000
         try:
             print("  📥 Trying local tokenizer directory with internet fallback...")
             tokenizer = GPT2Tokenizer.from_pretrained(
-                "./gpt2_tokenizer", local_files_only=False, use_fast=True
+                "../gpt2_tokenizer", local_files_only=False, use_fast=True
             )
             print(
                 "  ✅ Using fast tokenizer (Rust-based, much faster) - local/updated files"
@@ -64,7 +64,7 @@ def pretokenize_dataset(text_path, output_path=None, checkpoint_interval=200_000
             try:
                 print("  📥 Trying local fast tokenizer...")
                 tokenizer = GPT2Tokenizer.from_pretrained(
-                    "./gpt2_tokenizer", local_files_only=True, use_fast=True
+                    "../gpt2_tokenizer", local_files_only=True, use_fast=True
                 )
                 print(
                     "  ✅ Using fast tokenizer (Rust-based, much faster) - local files only"
@@ -80,7 +80,7 @@ def pretokenize_dataset(text_path, output_path=None, checkpoint_interval=200_000
                     )
                 except:
                     tokenizer = GPT2Tokenizer.from_pretrained(
-                        "./gpt2_tokenizer", local_files_only=True, use_fast=False
+                        "../gpt2_tokenizer", local_files_only=True, use_fast=False
                     )
                     print(
                         "  ⚠️  Using slow tokenizer (Python-based, slower) - local files only"
@@ -195,10 +195,10 @@ if __name__ == "__main__":
     if len(sys.argv) < 2:
         print("Usage: python pretokenize_dataset.py <text_file> [checkpoint_interval] [mode]")
         print("\nExamples:")
-        print("  python pretokenize_dataset.py Datasets/c4_subset_large.txt")
-        print("  python pretokenize_dataset.py Datasets/c4_subset_large.txt 100000000")
-        print("  python pretokenize_dataset.py Datasets/c4_subset_large.txt 200000000 legacy")
-        print("  python pretokenize_dataset.py Datasets/c4_subset_large.txt 200000000 paragraph")
+        print("  python pretokenize_dataset.py ../Datasets/c4_subset_large.txt")
+        print("  python pretokenize_dataset.py ../Datasets/c4_subset_large.txt 100000000")
+        print("  python pretokenize_dataset.py ../Datasets/c4_subset_large.txt 200000000 legacy")
+        print("  python pretokenize_dataset.py ../Datasets/c4_subset_large.txt 200000000 paragraph")
         print("\nParameters:")
         print("  checkpoint_interval: Save checkpoint every N tokens (default: 200M)")
         print("  mode: 'legacy' (default, matches old results) or 'paragraph' (new method)")

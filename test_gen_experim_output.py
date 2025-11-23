@@ -20,7 +20,10 @@ def analyze_experiment(hidden_dim, label_suffix=""):
 
     # Generate the experiment
     result = gen_experim(
-        hidden_dim, label=f"{hidden_dim}d_test_experiment", learning_rate=0.001
+        hidden_dim,
+        label=f"{hidden_dim}d_test_experiment",
+        learning_rate=0.001,
+        activation="swiglu",
     )
 
     # Extract the configuration

@@ -10,10 +10,10 @@ CHARACTER_LIMIT = int(6 * 10**9)
 # 3*10**9 worked well
 
 # Ensure target directory exists
-Path("Datasets").mkdir(exist_ok=True)
+Path("../Datasets").mkdir(exist_ok=True)
 
 # Load your local GPT-2 tokenizer
-tokenizer = GPT2Tokenizer.from_pretrained("./gpt2_tokenizer")
+tokenizer = GPT2Tokenizer.from_pretrained("../gpt2_tokenizer")
 
 # Configure streaming download
 download_config = DownloadConfig(use_etag=False, cache_dir=CACHE_DIR)
@@ -38,7 +38,7 @@ for example in load_dataset(
     total_tokens += len(text)
 
 # Write out one big text file
-out_file = Path("Datasets") / "c4_subset_6billion_char.txt"
+out_file = Path("../Datasets") / "c4_subset_6billion_char.txt"
 with open(out_file, "w", encoding="utf-8") as f:
     f.write("\n".join(collected_texts))
 

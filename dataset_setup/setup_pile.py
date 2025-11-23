@@ -9,10 +9,10 @@ CACHE_DIR = "./hf_cache"  # ← adjust as needed
 CHAR_LIMIT = 4 * 10**9  # ~1B tokens
 
 # Ensure target directory exists
-Path("Datasets").mkdir(exist_ok=True)
+Path("../Datasets").mkdir(exist_ok=True)
 
 # Load your local GPT-2 tokenizer
-tokenizer = GPT2Tokenizer.from_pretrained("./gpt2_tokenizer")
+tokenizer = GPT2Tokenizer.from_pretrained("../gpt2_tokenizer")
 
 # Configure streaming download
 download_config = DownloadConfig(use_etag=False, cache_dir=CACHE_DIR)
@@ -20,11 +20,13 @@ download_config = DownloadConfig(use_etag=False, cache_dir=CACHE_DIR)
 collected_texts = []
 total_chars = 0
 
-print(f"Downloading OpenWebText (~{CHAR_LIMIT//4:,} tokens)...")
+print(f"Downloading The Pile (~{CHAR_LIMIT//4:,} tokens)...")
+print("Note: The Pile is very large (825GB). First download may take a while.")
 
-# Stream through OpenWebText until we hit CHAR_LIMIT
+# Stream through The Pile until we hit CHAR_LIMIT
 for example in load_dataset(
-    "openwebtext",
+    "EleutherAI/pile",
+    "all",
     split="train",
     streaming=True,
     download_config=download_config,
@@ -40,7 +42,7 @@ for example in load_dataset(
         print(f"  {len(collected_texts)} examples, {total_chars:,} chars ({total_chars//4:,} tokens)")
 
 # Write out one big text file
-out_file = Path("Datasets") / "openwebtext_subset.txt"
+out_file = Path("../Datasets") / "pile_subset.txt"
 with open(out_file, "w", encoding="utf-8") as f:
     f.write("\n".join(collected_texts))
 

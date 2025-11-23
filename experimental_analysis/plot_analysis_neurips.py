@@ -366,7 +366,7 @@ def plot_panel_to_axis(
 # ============================================================================
 # CREATE TWO-PANEL NEURIPS FIGURE
 # ============================================================================
-
+#%%
 # NeurIPS two-column width is typically ~7 inches
 fig = plt.figure(figsize=(14, 5.5))
 

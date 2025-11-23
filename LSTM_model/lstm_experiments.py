@@ -24,79 +24,11 @@ from lstm_experiment_utils import (
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 from experiment_utils import generate_lr_sweep_summary
 
-# Configuration
-# has 1.66 total params
-# CONFIG = {
-#     "data_path": "../Datasets/c4_subset.txt",
-#     "tokenizer_path": "../gpt2_tokenizer",
-#     "max_characters": 5 * 1e7,  # Maximum number of characters to use from dataset
-#     "sequence_length": 128,
-#     "batch_size": 32,  # Keep physical batch size small, has no effect on model
-#     "hidden_size": 16,
-#     "num_layers": 2,
-#     "dropout": 0.0,  # dropout zer here to match transformer but may need to adjust for LSTM
-#     "learning_rate": 0.001 * math.sqrt(4),  # Scale by sqrt of accumulation steps
-#     "lr_schedule": "cosine",
-#     "step_size": 10,
-#     "gamma": 0.1,  # parameter usedf for stepLR step decay
-#     "num_epochs": 1,
-#     "train_split": 0.8,
-#     "val_split": 0.1,
-#     "test_split": 0.1,
-#     "device": "cuda" if torch.cuda.is_available() else "cpu",
-#     "wandb_project": "lstm-language-modeling",
-#     "wandb_offline": True,
-#     "print_every": 100,  # Print loss every N batches
-#     # Gradient clipping settings
-#     "use_gradient_clipping": True,
-#     "gradient_clip_val": 1.0,
-#     # NEW: CSV logging settings
-#     "results_folder": "Experiments_Folder",
-#     "csv_log_interval": 20,
-#     # NEW: Data loading optimization settings
-#     "num_workers": "auto",  # Will be set automatically based on CPU cores
-#     "pin_memory": True,  # Faster GPU memory transfer
-#     "persistent_workers": True,  # Keep data loading workers alive between epochs
-#     "prefetch_factor": 4,  # Number of batches to prefetch per worker
-#     # NEW: Mixed precision settings
-#     "use_amp": False,  # Enable Automatic Mixed Precision
-#     "amp_opt_level": "O1",  # Not used with native AMP, but kept for reference
-#     # NEW: Gradient accumulation settings
-#     "gradient_accumulation_steps": 16,  # For tracking only
-#     # NEW: whether to compile the model (PyTorch 2.0+)
-#     "use_compile": False,
-#     "seed": 123,
-#     "optimizer": "adamw",  # NEW: choose from "adam", "adamw", or "sgd"
-#     "weight_decay": 0.01,
-#     "stride": 128,  # NEW: sliding-window stride to match transformer
-#     # Add three separate variational dropout parameters
-#     "input_dropout": 0.2,  # Applied to embeddings
-#     "hidden_dropout": 0.1,  # Applied between LSTM layers
-#     "output_dropout": 0.2,  # Applied before final linear layer
-#     "use_layer_norm": True,  # Enable/disable LayerNorm
-#     "layer_norm_position": "output",  # Options: "input", "output", "both", "gates"
-#     "use_mup": True,
-#     "mup_base_width": 16,
-#     "tie_embeddings": True,  # Enable weight tying by default
-# }
 CONFIG = get_lstm_base_config()
 
 
 # ====================================================================
 # EXPERIMENT SELECTION
-# ====================================================================
-
-# The EXPERIMENTS variable is imported from lstm_experiment_definitions.py
-# You can override it here if needed, or modify the default in the definitions file
-
-# Example overrides:
-# EXPERIMENTS = MUP_SCALING_EXPERIMENTS
-# EXPERIMENTS = LSTM_LR_EXPERIMENTS
-# EXPERIMENTS = subset_experiments(LSTM_SGD_MUP_SCALING, {"lstm_16d_sgd_mup", "lstm_24d_sgd_mup"})
-
-
-# ====================================================================
-# UTILITY FUNCTIONS
 # ====================================================================
 
 

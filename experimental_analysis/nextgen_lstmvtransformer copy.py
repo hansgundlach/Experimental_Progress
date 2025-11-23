@@ -2119,7 +2119,7 @@ if __name__ == "__main__":
         # retry_historical_experiments/96_all_reset.csv
         {
             "name": "32d sin transformer",
-            "csv_path": "../experimental_data_folder/retry_historical_experiments/32_all_reset.csv",
+            "csv_path": "../experimental_data_folder/x1_retry_historical_experiments/32_all_reset.csv",
             "marker": "o",
             "include_in_frontier": True,  # Include in frontier analysis
             "class": "sin transformer",
@@ -2128,7 +2128,7 @@ if __name__ == "__main__":
         # do this for 64, 80, 96, 128, 160, 192, 224, 256
         {
             "name": "64d sin transformer",
-            "csv_path": "../experimental_data_folder/retry_historical_experiments/64_all_reset.csv",
+            "csv_path": "../experimental_data_folder/x1_retry_historical_experiments/64_all_reset.csv",
             "marker": "o",
             "include_in_frontier": True,  # Include in frontier analysis
             "class": "sin transformer",
@@ -2136,7 +2136,7 @@ if __name__ == "__main__":
         },
         {
             "name": "80d sin transformer",
-            "csv_path": "../experimental_data_folder/retry_historical_experiments/80_all_reset.csv",
+            "csv_path": "../experimental_data_folder/x1_retry_historical_experiments/80_all_reset.csv",
             "marker": "o",
             "include_in_frontier": True,  # Include in frontier analysis
             "class": "sin transformer",
@@ -2144,7 +2144,7 @@ if __name__ == "__main__":
         },
         {
             "name": "96d sin transformer",
-            "csv_path": "../experimental_data_folder/retry_historical_experiments/96_all_reset.csv",
+            "csv_path": "../experimental_data_folder/x1_retry_historical_experiments/96_all_reset.csv",
             "marker": "o",
             "include_in_frontier": True,  # Include in frontier analysis
             "class": "sin transformer",
@@ -2152,7 +2152,7 @@ if __name__ == "__main__":
         },
         {
             "name": "128d sin transformer",
-            "csv_path": "../experimental_data_folder/retry_historical_experiments/128_all_reset.csv",
+            "csv_path": "../experimental_data_folder/x1_retry_historical_experiments/128_all_reset.csv",
             "marker": "o",
             "include_in_frontier": True,  # Include in frontier analysis
             "class": "sin transformer",
@@ -2160,7 +2160,7 @@ if __name__ == "__main__":
         },
         {
             "name": "160d sin transformer",
-            "csv_path": "../experimental_data_folder/retry_historical_experiments/160_all_reset.csv",
+            "csv_path": "../experimental_data_folder/x1_retry_historical_experiments/160_all_reset.csv",
             "marker": "o",
             "include_in_frontier": True,  # Include in frontier analysis
             "class": "sin transformer",
@@ -2168,7 +2168,7 @@ if __name__ == "__main__":
         },
         {
             "name": "192d sin transformer",
-            "csv_path": "../experimental_data_folder/retry_historical_experiments/192_all_reset.csv",
+            "csv_path": "../experimental_data_folder/x1_retry_historical_experiments/192_all_reset.csv",
             "marker": "o",
             "include_in_frontier": True,  # Include in frontier analysis
             "class": "sin transformer",
@@ -2176,7 +2176,7 @@ if __name__ == "__main__":
         },
         {
             "name": "224d sin transformer",
-            "csv_path": "../experimental_data_folder/retry_historical_experiments/224_all_reset.csv",
+            "csv_path": "../experimental_data_folder/x1_retry_historical_experiments/224_all_reset.csv",
             "marker": "o",
             "include_in_frontier": True,  # Include in frontier analysis
             "class": "sin transformer",
@@ -2184,7 +2184,7 @@ if __name__ == "__main__":
         },
         {
             "name": "256d sin transformer",
-            "csv_path": "../experimental_data_folder/retry_historical_experiments/256_all_reset.csv",
+            "csv_path": "../experimental_data_folder/x1_retry_historical_experiments/256_all_reset.csv",
             "marker": "o",
             "include_in_frontier": True,  # Include in frontier analysis
             "class": "sin transformer",
@@ -2192,7 +2192,7 @@ if __name__ == "__main__":
         },
         {
             "name": "orig 32d sgd scaling further",
-            "csv_path": "../experimental_data_folder/new_sgd_scaling/32d_sgdbs64.csv",
+            "csv_path": "../experimental_data_folder/x1_new_sgd_scaling/32d_sgdbs64.csv",
             "marker": "o",
             "include_in_frontier": True,  # Include in frontier analysis
             "class": "sgd",
@@ -2200,7 +2200,7 @@ if __name__ == "__main__":
         },
         {
             "name": "orig 48d sgd scaling further",
-            "csv_path": "../experimental_data_folder/new_sgd_scaling/48d_sgdbs64.csv",
+            "csv_path": "../experimental_data_folder/x1_new_sgd_scaling/48d_sgdbs64.csv",
             "marker": "o",
             "include_in_frontier": True,  # Include in frontier analysis
             "class": "sgd",
@@ -2209,7 +2209,7 @@ if __name__ == "__main__":
         },
         {
             "name": "orig 64d sgd scaling further",
-            "csv_path": "../experimental_data_folder/new_sgd_scaling/64d_sgdbs64.csv",
+            "csv_path": "../experimental_data_folder/x1_new_sgd_scaling/64d_sgdbs64.csv",
             "marker": "o",
             "include_in_frontier": True,  # Include in frontier analysis
             "class": "sgd",
@@ -2218,7 +2218,7 @@ if __name__ == "__main__":
         },
         {
             "name": "orig 96d sgd scaling further",
-            "csv_path": "../experimental_data_folder/new_sgd_scaling/96d_sgdbs64.csv",
+            "csv_path": "../experimental_data_folder/x1_new_sgd_scaling/96d_sgdbs64.csv",
             "marker": "o",
             "include_in_frontier": True,  # Include in frontier analysis
             "class": "sgd",
@@ -2226,7 +2226,7 @@ if __name__ == "__main__":
         },
         {
             "name": "orig 128d sgd scaling further",
-            "csv_path": "../experimental_data_folder/new_sgd_scaling/128d_sgdbs64.csv",
+            "csv_path": "../experimental_data_folder/x1_new_sgd_scaling/128d_sgdbs64.csv",
             "marker": "o",
             "include_in_frontier": True,  # Include in frontier analysis
             "class": "sgd",
@@ -2234,7 +2234,7 @@ if __name__ == "__main__":
         },
         {
             "name": "orig 160d sgd scaling further",
-            "csv_path": "../experimental_data_folder/new_sgd_scaling/160d_sgdbs64.csv",
+            "csv_path": "../experimental_data_folder/x1_new_sgd_scaling/160d_sgdbs64.csv",
             "marker": "o",
             "include_in_frontier": True,  # Include in frontier analysis
             "class": "sgd",
@@ -2243,7 +2243,7 @@ if __name__ == "__main__":
         # 192 and 256
         {
             "name": "orig 192d sgd scaling further",
-            "csv_path": "../experimental_data_folder/new_sgd_scaling/192d_sgdbs64.csv",
+            "csv_path": "../experimental_data_folder/x1_new_sgd_scaling/192d_sgdbs64.csv",
             "marker": "o",
             "include_in_frontier": True,  # Include in frontier analysis
             "class": "sgd",
@@ -2251,7 +2251,7 @@ if __name__ == "__main__":
         },
         {
             "name": "orig 256d sgd scaling further",
-            "csv_path": "../experimental_data_folder/new_sgd_scaling/256d_sgdbs64.csv",
+            "csv_path": "../experimental_data_folder/x1_new_sgd_scaling/256d_sgdbs64.csv",
             "marker": "o",
             "include_in_frontier": True,  # Include in frontier analysis
             "class": "sgd",
@@ -2314,6 +2314,79 @@ if __name__ == "__main__":
             "include_in_frontier": True,  # Include in frontier analysis
             "class": "no_bias",
             "hidden_dim": 192,
+        },
+        {
+            "name": "no bias 32d transformer",
+            "csv_path": "../experimental_data_folder/x1_biased_modern/32_modern_40.csv",
+            "marker": "o",
+            "include_in_frontier": True,  # Include in frontier analysis
+            "class": "x1_no_bias",
+            "hidden_dim": 32,
+        },
+        # 48
+        {
+            "name": "no bias 48d transformer",
+            "csv_path": "../experimental_data_folder/x1_biased_modern/48_modern.csv",
+            "marker": "o",
+            "include_in_frontier": True,  # Include in frontier analysis
+            "class": "x1_no_bias",
+            "hidden_dim": 48,
+        },
+        {
+            "name": "no bias 64d transformer",
+            "csv_path": "../experimental_data_folder/x1_biased_modern/64_modern_40.csv",
+            "marker": "o",
+            "include_in_frontier": True,  # Include in frontier analysis
+            "class": "x1_no_bias",
+            "hidden_dim": 64,
+        },
+        {
+            "name": "no bias 96d transformer",
+            "csv_path": "../experimental_data_folder/x1_biased_modern/96_modern_40.csv",
+            "marker": "o",
+            "include_in_frontier": True,  # Include in frontier analysis
+            "class": "x1_no_bias",
+            "hidden_dim": 96,
+        },
+        {
+            "name": "no bias 128d transformer",
+            "csv_path": "../experimental_data_folder/x1_biased_modern/128_modern_40.csv",
+            "marker": "o",
+            "include_in_frontier": True,  # Include in frontier analysis
+            "class": "x1_no_bias",
+            "hidden_dim": 128,
+        },
+        {
+            "name": "no bias 160d transformer",
+            "csv_path": "../experimental_data_folder/x1_biased_modern/160_modern_40.csv",
+            "marker": "o",
+            "include_in_frontier": True,  # Include in frontier analysis
+            "class": "x1_no_bias",
+            "hidden_dim": 160,
+        },
+        {
+            "name": "no bias 192d transformer",
+            "csv_path": "../experimental_data_folder/x1_biased_modern/192_modern_40.csv",
+            "marker": "o",
+            "include_in_frontier": True,  # Include in frontier analysis
+            "class": "x1_no_bias",
+            "hidden_dim": 192,
+        },
+        {
+            "name": "no bias 224d transformer",
+            "csv_path": "../experimental_data_folder/x1_biased_modern/224_modern_40.csv",
+            "marker": "o",
+            "include_in_frontier": True,  # Include in frontier analysis
+            "class": "x1_no_bias",
+            "hidden_dim": 224,
+        },
+        {
+            "name": "no bias 256d transformer",
+            "csv_path": "../experimental_data_folder/x1_biased_modern/256_modern_40.csv",
+            "marker": "o",
+            "include_in_frontier": True,  # Include in frontier analysis
+            "class": "x1_no_bias",
+            "hidden_dim": 256,
         },
     ]
 
