@@ -11,8 +11,9 @@ to reach the same validation loss value.
 import pandas as pd
 import numpy as np
 import matplotlib.pyplot as plt
-from typing import Tuple, Optional
+from typing import Tuple, Optional, Union
 import seaborn as sns
+import os
 
 # %%
 
@@ -58,169 +59,438 @@ def find_closest_loss_row(
 
 
 def compute_multiplier_closest_approach(
-    csv_file: str,
-    E: float,
-    A: float,
-    alpha: float,
+    input_a: Union[str, Tuple[float, float, float]],
+    input_b: Union[str, Tuple[float, float, float], None] = None,
+    E: Optional[float] = None,
+    A: Optional[float] = None,
+    alpha: Optional[float] = None,
     compute_column: str = "total_flops_profiler",
     loss_column: str = "validation_loss",
     verbose: bool = True,
+    compute_range: Optional[Tuple[float, float]] = None,
+    num_samples: int = 1000,
 ) -> Tuple[float, dict]:
     """
-    Find the closest approach point between empirical curve and power law fit,
+    Find the closest approach point between two curves (empirical or power law),
     then compute the compute multiplier at that point.
 
     The power law fit has the form: Loss = E + A * C^(-alpha)
 
-    For each point on the empirical curve (C_empirical, L_empirical):
-    - We solve for C_powerlaw where: E + A * C_powerlaw^(-alpha) = L_empirical
-    - This gives: C_powerlaw = (A / (L_empirical - E))^(1/alpha)
-    - We compute the x-axis distance: |C_empirical - C_powerlaw|
+    Usage modes:
+    1. CSV vs Power Law (legacy mode):
+       compute_multiplier_closest_approach(csv_file, E=E, A=A, alpha=alpha)
 
-    The closest approach is the point with minimum x-axis distance.
-    The multiplier is: C_powerlaw / C_empirical at the closest approach point.
+    2. CSV vs Power Law (new mode):
+       compute_multiplier_closest_approach(csv_file, (E, A, alpha))
+
+    3. Power Law vs Power Law:
+       compute_multiplier_closest_approach((E1, A1, alpha1), (E2, A2, alpha2))
+
+    For CSV vs Power Law:
+    - For each point on the empirical curve (C_empirical, L_empirical):
+      - We solve for C_powerlaw where: E + A * C_powerlaw^(-alpha) = L_empirical
+      - This gives: C_powerlaw = (A / (L_empirical - E))^(1/alpha)
+      - We compute the x-axis distance: |C_empirical - C_powerlaw|
+    - The closest approach is the point with minimum x-axis distance.
+    - The multiplier is: C_powerlaw / C_empirical at closest approach point.
+
+    For Power Law vs Power Law:
+    - We sample compute values across a range
+    - For each C1 on power law 1: L1 = E1 + A1 * C1^(-alpha1)
+      - We solve for C2 on power law 2: E2 + A2 * C2^(-alpha2) = L1
+      - We compute the x-axis distance: |C1 - C2|
+    - The closest approach is the point with minimum x-axis distance.
+    - The multiplier is: C2 / C1 at closest approach point.
 
     Args:
-        csv_file: Path to CSV file with empirical training curve
-        E: Irreducible loss parameter in power law: Loss = E + A*C^(-alpha)
-        A: Amplitude parameter in power law
-        alpha: Exponent parameter in power law
+        input_a: Either a CSV file path (str) or power law parameters (E, A, alpha) tuple
+        input_b: Either power law parameters (E, A, alpha) tuple or None
+                 If None, use E, A, alpha parameters instead
+        E: Irreducible loss parameter (legacy parameter, used if input_b is None)
+        A: Amplitude parameter (legacy parameter, used if input_b is None)
+        alpha: Exponent parameter (legacy parameter, used if input_b is None)
         compute_column: Name of compute column (default: 'total_flops_profiler')
         loss_column: Name of loss column (default: 'validation_loss')
         verbose: Whether to print detailed information
+        compute_range: Tuple (min_compute, max_compute) for power law vs power law comparison
+                       If None, automatically determined from the data/power laws
+        num_samples: Number of samples for power law vs power law comparison
 
     Returns:
         Tuple of (multiplier, details_dict) where:
-        - multiplier: compute_powerlaw / compute_empirical at closest approach
+        - multiplier: compute_b / compute_a at closest approach
         - details_dict: Dictionary with detailed information about the comparison
     """
 
     try:
-        # Read the CSV file
-        df = pd.read_csv(csv_file)
+        # Determine input types and normalize parameters
+        is_csv_a = isinstance(input_a, str)
+        is_powerlaw_a = isinstance(input_a, tuple) and len(input_a) == 3
 
-        if verbose:
-            print(f"Loaded {csv_file}: {len(df)} rows")
-
-        # Validate columns exist
-        if loss_column not in df.columns:
-            raise ValueError(
-                f"Column '{loss_column}' not found in DataFrame. Available columns: {list(df.columns)}"
-            )
-        if compute_column not in df.columns:
-            raise ValueError(
-                f"Column '{compute_column}' not found in DataFrame. Available columns: {list(df.columns)}"
-            )
-
-        # Remove rows with NaN values
-        valid_df = df.dropna(subset=[loss_column, compute_column])
-
-        if len(valid_df) == 0:
-            raise ValueError(f"No valid (non-NaN) values found in required columns")
-
-        # For each empirical point, find the corresponding power law compute
-        distances = []
-        powerlaw_computes = []
-
-        for idx, row in valid_df.iterrows():
-            C_empirical = row[compute_column]
-            L_empirical = row[loss_column]
-
-            # Check if loss is above irreducible loss
-            if L_empirical <= E:
-                # Loss is at or below irreducible loss, power law cannot reach it
-                # Skip this point
-                distances.append(np.inf)
-                powerlaw_computes.append(np.nan)
-                continue
-
-            # Solve for C_powerlaw: E + A * C_powerlaw^(-alpha) = L_empirical
-            # => C_powerlaw = (A / (L_empirical - E))^(1/alpha)
-            try:
-                C_powerlaw = (A / (L_empirical - E)) ** (1.0 / alpha)
-
-                # Compute x-axis distance
-                distance = abs(C_empirical - C_powerlaw)
-
-                distances.append(distance)
-                powerlaw_computes.append(C_powerlaw)
-            except (ZeroDivisionError, ValueError, OverflowError):
-                distances.append(np.inf)
-                powerlaw_computes.append(np.nan)
-
-        # Add columns to dataframe
-        valid_df = valid_df.copy()
-        valid_df["powerlaw_compute"] = powerlaw_computes
-        valid_df["x_distance"] = distances
-
-        # Find the point with minimum distance
-        finite_distances = valid_df[np.isfinite(valid_df["x_distance"])]
-
-        if len(finite_distances) == 0:
-            raise ValueError(
-                "No valid closest approach points found (all distances are infinite)"
-            )
-
-        closest_idx = finite_distances["x_distance"].idxmin()
-
-        # Get values at closest approach
-        closest_row = valid_df.loc[closest_idx]
-        C_empirical_closest = closest_row[compute_column]
-        L_closest = closest_row[loss_column]
-        C_powerlaw_closest = closest_row["powerlaw_compute"]
-        distance_closest = closest_row["x_distance"]
-
-        # Compute multiplier (power law / empirical)
-        multiplier = C_powerlaw_closest / C_empirical_closest
-
-        # Prepare detailed results
-        details = {
-            "power_law_params": {
-                "E": E,
-                "A": A,
-                "alpha": alpha,
-            },
-            "closest_approach": {
-                "loss": L_closest,
-                "empirical_compute": C_empirical_closest,
-                "powerlaw_compute": C_powerlaw_closest,
-                "x_distance": distance_closest,
-                "row_index": closest_idx,
-            },
-            "multiplier": multiplier,
-            "compute_ratio_powerlaw_to_empirical": multiplier,
-        }
-
-        if verbose:
-            print(f"\nPower Law: Loss = {E:.4f} + {A:.4f} * C^(-{alpha:.4f})")
-            print("=" * 60)
-            print(f"\nClosest Approach Point:")
-            print(f"  Validation Loss: {L_closest:.4f}")
-            print(f"  Empirical Compute: {C_empirical_closest:.2e} FLOPs")
-            print(f"  Power Law Compute: {C_powerlaw_closest:.2e} FLOPs")
-            print(f"  X-axis Distance: {distance_closest:.2e} FLOPs")
-            print(f"  Row index: {closest_idx}")
-            print(f"\nCompute Multiplier: {multiplier:.3f}x")
-
-            if multiplier > 1:
-                print(
-                    f"Power law requires {multiplier:.3f}x MORE compute than empirical curve at this loss"
+        # Handle input_b - could be tuple, or None (legacy mode with E, A, alpha)
+        if input_b is None:
+            # Legacy mode: CSV vs power law using E, A, alpha parameters
+            if E is None or A is None or alpha is None:
+                raise ValueError(
+                    "Must provide either input_b tuple or E, A, alpha parameters"
                 )
-            else:
-                print(
-                    f"Power law requires {1/multiplier:.3f}x LESS compute than empirical curve at this loss"
+            is_powerlaw_b = True
+            powerlaw_b = (E, A, alpha)
+        else:
+            is_powerlaw_b = isinstance(input_b, tuple) and len(input_b) == 3
+            powerlaw_b = input_b
+
+        if not is_csv_a and not is_powerlaw_a:
+            raise ValueError(
+                "input_a must be either a CSV file path (str) or power law parameters (E, A, alpha) tuple"
+            )
+
+        if not is_powerlaw_b:
+            raise ValueError("input_b must be power law parameters (E, A, alpha) tuple")
+
+        # Extract power law B parameters
+        E_b, A_b, alpha_b = powerlaw_b
+
+        # Case 1: CSV vs Power Law
+        if is_csv_a:
+            csv_file = input_a
+
+            # Read the CSV file
+            df = pd.read_csv(csv_file)
+
+            if verbose:
+                print(f"Loaded {csv_file}: {len(df)} rows")
+
+            # Validate columns exist
+            if loss_column not in df.columns:
+                raise ValueError(
+                    f"Column '{loss_column}' not found in DataFrame. Available columns: {list(df.columns)}"
+                )
+            if compute_column not in df.columns:
+                raise ValueError(
+                    f"Column '{compute_column}' not found in DataFrame. Available columns: {list(df.columns)}"
                 )
 
-        return multiplier, details
+            # Remove rows with NaN values
+            valid_df = df.dropna(subset=[loss_column, compute_column])
+
+            if len(valid_df) == 0:
+                raise ValueError(f"No valid (non-NaN) values found in required columns")
+
+            # For each empirical point, find the corresponding power law compute
+            distances = []
+            powerlaw_computes = []
+
+            for idx, row in valid_df.iterrows():
+                C_a = float(row[compute_column])
+                L_a = float(row[loss_column])
+
+                # Check if loss is above irreducible loss
+                if L_a <= E_b:
+                    # Loss is at or below irreducible loss, power law cannot reach it
+                    # Skip this point
+                    distances.append(np.inf)
+                    powerlaw_computes.append(np.nan)
+                    continue
+
+                # Solve for C_b: E_b + A_b * C_b^(-alpha_b) = L_a
+                # => C_b = (A_b / (L_a - E_b))^(1/alpha_b)
+                try:
+                    C_b = (A_b / (L_a - E_b)) ** (1.0 / alpha_b)
+
+                    # Compute x-axis distance
+                    distance = abs(C_a - C_b)
+
+                    distances.append(distance)
+                    powerlaw_computes.append(C_b)
+                except (ZeroDivisionError, ValueError, OverflowError):
+                    distances.append(np.inf)
+                    powerlaw_computes.append(np.nan)
+
+            # Add columns to dataframe
+            valid_df = valid_df.copy()
+            valid_df["powerlaw_b_compute"] = powerlaw_computes
+            valid_df["x_distance"] = distances
+
+            # Find the point with minimum distance
+            finite_distances = valid_df[np.isfinite(valid_df["x_distance"])]
+
+            if len(finite_distances) == 0:
+                raise ValueError(
+                    "No valid closest approach points found (all distances are infinite)"
+                )
+
+            closest_idx = finite_distances["x_distance"].idxmin()
+
+            # Get values at closest approach
+            closest_row = valid_df.loc[closest_idx]
+            C_a_closest = float(closest_row[compute_column])
+            L_closest = float(closest_row[loss_column])
+            C_b_closest = float(closest_row["powerlaw_b_compute"])
+            distance_closest = float(closest_row["x_distance"])
+
+            # Compute multiplier (power law B / CSV A)
+            multiplier = C_b_closest / C_a_closest
+
+            # Prepare detailed results
+            details = {
+                "comparison_type": "csv_vs_powerlaw",
+                "input_a": {
+                    "type": "csv",
+                    "file": csv_file,
+                },
+                "input_b": {
+                    "type": "powerlaw",
+                    "E": E_b,
+                    "A": A_b,
+                    "alpha": alpha_b,
+                },
+                "closest_approach": {
+                    "loss": L_closest,
+                    "compute_a": C_a_closest,
+                    "compute_b": C_b_closest,
+                    "x_distance": distance_closest,
+                    "row_index": closest_idx,
+                },
+                "multiplier": multiplier,
+                "compute_ratio_b_to_a": multiplier,
+            }
+
+            if verbose:
+                print(f"\nComparison: CSV vs Power Law")
+                print(f"CSV: {csv_file}")
+                print(f"Power Law B: Loss = {E_b:.4f} + {A_b:.4e} * C^(-{alpha_b:.4f})")
+                print("=" * 60)
+                print(f"\nClosest Approach Point:")
+                print(f"  Validation Loss: {L_closest:.4f}")
+                print(f"  CSV Compute (A): {C_a_closest:.2e} FLOPs")
+                print(f"  Power Law Compute (B): {C_b_closest:.2e} FLOPs")
+                print(f"  X-axis Distance: {distance_closest:.2e} FLOPs")
+                print(f"  Row index: {closest_idx}")
+                print(f"\nCompute Multiplier: {multiplier:.3f}x")
+
+                if multiplier > 1:
+                    print(
+                        f"Power law B requires {multiplier:.3f}x MORE compute than CSV A at this loss"
+                    )
+                else:
+                    print(
+                        f"Power law B requires {1/multiplier:.3f}x LESS compute than CSV A at this loss"
+                    )
+
+            return multiplier, details
+
+        # Case 2: Power Law vs Power Law
+        else:
+            E_a, A_a, alpha_a = input_a
+
+            # Determine compute range for sampling
+            if compute_range is None:
+                # Auto-determine range based on power law parameters
+                # Sample from where loss is significant (e.g., 2x irreducible loss) to very high compute
+                # For power law A: at 2x irreducible loss: E_a + A_a * C^(-alpha_a) = 2 * E_a
+                # => C = (A_a / E_a)^(1/alpha_a)
+                try:
+                    C_min = (A_a / max(E_a, 0.1)) ** (
+                        1.0 / alpha_a
+                    ) / 100  # Start earlier
+                    C_max = (A_a / max(E_a, 0.1)) ** (
+                        1.0 / alpha_a
+                    ) * 100  # Go much further
+                except (ZeroDivisionError, ValueError, OverflowError):
+                    # Fallback to reasonable defaults
+                    C_min = 1e14
+                    C_max = 1e19
+                compute_range = (C_min, C_max)
+
+            C_min, C_max = compute_range
+
+            if verbose:
+                print(f"Sampling compute range: {C_min:.2e} to {C_max:.2e} FLOPs")
+
+            # Sample compute values logarithmically
+            C_samples_a = np.logspace(np.log10(C_min), np.log10(C_max), num_samples)
+
+            distances = []
+            C_b_values = []
+            L_values = []
+
+            for C_a in C_samples_a:
+                # Calculate loss at C_a on power law A
+                try:
+                    L_a = E_a + A_a * (C_a ** (-alpha_a))
+
+                    # Check if power law B can reach this loss
+                    if L_a <= E_b:
+                        distances.append(np.inf)
+                        C_b_values.append(np.nan)
+                        L_values.append(L_a)
+                        continue
+
+                    # Solve for C_b: E_b + A_b * C_b^(-alpha_b) = L_a
+                    # => C_b = (A_b / (L_a - E_b))^(1/alpha_b)
+                    C_b = (A_b / (L_a - E_b)) ** (1.0 / alpha_b)
+
+                    # Compute x-axis distance
+                    distance = abs(C_a - C_b)
+
+                    distances.append(distance)
+                    C_b_values.append(C_b)
+                    L_values.append(L_a)
+
+                except (ZeroDivisionError, ValueError, OverflowError):
+                    distances.append(np.inf)
+                    C_b_values.append(np.nan)
+                    L_values.append(np.nan)
+
+            # Find minimum distance
+            finite_indices = np.isfinite(distances)
+            if not np.any(finite_indices):
+                raise ValueError(
+                    "No valid closest approach points found (all distances are infinite)"
+                )
+
+            distances_array = np.array(distances)
+            min_idx = np.nanargmin(np.where(finite_indices, distances_array, np.inf))
+
+            # Get values at closest approach
+            C_a_closest = float(C_samples_a[min_idx])
+            C_b_closest = float(C_b_values[min_idx])
+            L_closest = float(L_values[min_idx])
+            distance_closest = float(distances[min_idx])
+
+            # Compute multiplier (power law B / power law A)
+            multiplier = C_b_closest / C_a_closest
+
+            # Prepare detailed results
+            details = {
+                "comparison_type": "powerlaw_vs_powerlaw",
+                "input_a": {
+                    "type": "powerlaw",
+                    "E": E_a,
+                    "A": A_a,
+                    "alpha": alpha_a,
+                },
+                "input_b": {
+                    "type": "powerlaw",
+                    "E": E_b,
+                    "A": A_b,
+                    "alpha": alpha_b,
+                },
+                "closest_approach": {
+                    "loss": L_closest,
+                    "compute_a": C_a_closest,
+                    "compute_b": C_b_closest,
+                    "x_distance": distance_closest,
+                },
+                "multiplier": multiplier,
+                "compute_ratio_b_to_a": multiplier,
+                "sampling_info": {
+                    "compute_range": compute_range,
+                    "num_samples": num_samples,
+                },
+            }
+
+            if verbose:
+                print(f"\nComparison: Power Law A vs Power Law B")
+                print(f"Power Law A: Loss = {E_a:.4f} + {A_a:.4e} * C^(-{alpha_a:.4f})")
+                print(f"Power Law B: Loss = {E_b:.4f} + {A_b:.4e} * C^(-{alpha_b:.4f})")
+                print("=" * 60)
+                print(f"\nClosest Approach Point:")
+                print(f"  Validation Loss: {L_closest:.4f}")
+                print(f"  Power Law A Compute: {C_a_closest:.2e} FLOPs")
+                print(f"  Power Law B Compute: {C_b_closest:.2e} FLOPs")
+                print(f"  X-axis Distance: {distance_closest:.2e} FLOPs")
+                print(f"\nCompute Multiplier: {multiplier:.3f}x")
+
+                if multiplier > 1:
+                    print(
+                        f"Power law B requires {multiplier:.3f}x MORE compute than Power law A at this loss"
+                    )
+                else:
+                    print(
+                        f"Power law B requires {1/multiplier:.3f}x LESS compute than Power law A at this loss"
+                    )
+
+            return multiplier, details
 
     except Exception as e:
         print(f"Error computing closest approach multiplier: {e}")
         raise
 
 
+def _get_compute_from_input(
+    input_value: Union[str, float, int],
+    target_loss: float,
+    loss_column: str = "validation_loss",
+    verbose: bool = True,
+) -> Tuple[float, dict]:
+    """
+    Helper function to get compute value from either a CSV file or a numeric value.
+
+    Args:
+        input_value: Either a CSV file path (str) or a numeric compute value (float/int)
+        target_loss: Target loss value (only used if input_value is a CSV)
+        loss_column: Name of the loss column (only used if input_value is a CSV)
+        verbose: Whether to print detailed information
+
+    Returns:
+        Tuple of (compute_value, details_dict)
+    """
+    # Check if input is a number
+    if isinstance(input_value, (int, float)):
+        compute_value = float(input_value)
+        details = {
+            "is_numeric": True,
+            "compute": compute_value,
+            "source": f"Direct numeric value: {compute_value:.2e}",
+        }
+        if verbose:
+            print(f"Using direct numeric compute value: {compute_value:.2e} FLOPs")
+        return compute_value, details
+
+    # Otherwise, treat as CSV file path
+    if not isinstance(input_value, str):
+        raise ValueError(
+            f"Input must be either a CSV file path (str) or a numeric value (int/float), got {type(input_value)}"
+        )
+
+    # Check if file exists
+    if not os.path.exists(input_value):
+        raise FileNotFoundError(f"CSV file not found: {input_value}")
+
+    # Read CSV and find closest loss point
+    df = pd.read_csv(input_value)
+    if verbose:
+        print(f"Loaded {input_value}: {len(df)} rows")
+
+    idx, actual_loss, compute_value = find_closest_loss_row(
+        df, target_loss, loss_column
+    )
+
+    details = {
+        "is_numeric": False,
+        "file": input_value,
+        "closest_row": idx,
+        "actual_loss": actual_loss,
+        "compute": compute_value,
+        "loss_difference": abs(actual_loss - target_loss),
+        "source": f"CSV file: {input_value}",
+    }
+
+    if verbose:
+        print(
+            f"  Closest loss: {actual_loss:.4f} (diff: {abs(actual_loss - target_loss):.4f})"
+        )
+        print(f"  Compute: {compute_value:.2e} FLOPs")
+        print(f"  Row index: {idx}")
+
+    return compute_value, details
+
+
 def compute_multiplier_by_loss(
-    csv_file_a: str,
-    csv_file_b: str,
+    input_a: Union[str, float, int],
+    input_b: Union[str, float, int],
     target_loss: float,
     loss_column: str = "validation_loss",
     verbose: bool = True,
@@ -229,30 +499,36 @@ def compute_multiplier_by_loss(
     Compute how much less compute model A needs vs model B to reach the same loss.
 
     Args:
-        csv_file_a: Path to first CSV file (model A)
-        csv_file_b: Path to second CSV file (model B)
-        target_loss: Target loss value to compare at
-        loss_column: Name of the loss column (default: 'validation_loss')
+        input_a: Path to first CSV file (str) OR numeric compute value (float/int) for model A
+        input_b: Path to second CSV file (str) OR numeric compute value (float/int) for model B
+        target_loss: Target loss value to compare at (only used if inputs are CSV files)
+        loss_column: Name of the loss column (default: 'validation_loss', only used if inputs are CSV files)
         verbose: Whether to print detailed information
 
     Returns:
         Tuple of (multiplier, details_dict) where:
         - multiplier: compute_B / compute_A (how many times less compute A needs)
         - details_dict: Dictionary with detailed information about the comparison
+
+    Examples:
+        # Both CSV files
+        multiplier, details = compute_multiplier_by_loss('model_a.csv', 'model_b.csv', 5.0)
+
+        # One CSV, one numeric value
+        multiplier, details = compute_multiplier_by_loss('model_a.csv', 1e17, 5.0)
+
+        # Both numeric values
+        multiplier, details = compute_multiplier_by_loss(6e16, 1e17, 5.0)
     """
 
     try:
-        # Read the CSV files
-        df_a = pd.read_csv(csv_file_a)
-        df_b = pd.read_csv(csv_file_b)
-
-        if verbose:
-            print(f"Loaded {csv_file_a}: {len(df_a)} rows")
-            print(f"Loaded {csv_file_b}: {len(df_b)} rows")
-
-        # Find closest loss points in both files
-        idx_a, loss_a, compute_a = find_closest_loss_row(df_a, target_loss, loss_column)
-        idx_b, loss_b, compute_b = find_closest_loss_row(df_b, target_loss, loss_column)
+        # Get compute values from both inputs
+        compute_a, details_a = _get_compute_from_input(
+            input_a, target_loss, loss_column, verbose
+        )
+        compute_b, details_b = _get_compute_from_input(
+            input_b, target_loss, loss_column, verbose
+        )
 
         # Calculate multiplier (how many times less compute A needs vs B)
         multiplier = compute_b / compute_a
@@ -260,20 +536,8 @@ def compute_multiplier_by_loss(
         # Prepare detailed results
         details = {
             "target_loss": target_loss,
-            "model_a": {
-                "file": csv_file_a,
-                "closest_row": idx_a,
-                "actual_loss": loss_a,
-                "compute": compute_a,
-                "loss_difference": abs(loss_a - target_loss),
-            },
-            "model_b": {
-                "file": csv_file_b,
-                "closest_row": idx_b,
-                "actual_loss": loss_b,
-                "compute": compute_b,
-                "loss_difference": abs(loss_b - target_loss),
-            },
+            "model_a": details_a,
+            "model_b": details_b,
             "multiplier": multiplier,
             "compute_ratio_b_to_a": multiplier,
             "percent_compute_reduction": (
@@ -284,19 +548,27 @@ def compute_multiplier_by_loss(
         if verbose:
             print(f"\nResults for target loss: {target_loss}")
             print("=" * 50)
-            print(f"Model A ({csv_file_a}):")
-            print(
-                f"  Closest loss: {loss_a:.4f} (diff: {abs(loss_a - target_loss):.4f})"
-            )
-            print(f"  Compute: {compute_a:.2e} FLOPs")
-            print(f"  Row index: {idx_a}")
+            print(f"Model A:")
+            if details_a.get("is_numeric"):
+                print(f"  Compute: {compute_a:.2e} FLOPs (direct numeric value)")
+            else:
+                print(f"  Source: {details_a.get('file', 'Unknown')}")
+                print(
+                    f"  Closest loss: {details_a.get('actual_loss', 'N/A'):.4f} (diff: {details_a.get('loss_difference', 0):.4f})"
+                )
+                print(f"  Compute: {compute_a:.2e} FLOPs")
+                print(f"  Row index: {details_a.get('closest_row', 'N/A')}")
 
-            print(f"\nModel B ({csv_file_b}):")
-            print(
-                f"  Closest loss: {loss_b:.4f} (diff: {abs(loss_b - target_loss):.4f})"
-            )
-            print(f"  Compute: {compute_b:.2e} FLOPs")
-            print(f"  Row index: {idx_b}")
+            print(f"\nModel B:")
+            if details_b.get("is_numeric"):
+                print(f"  Compute: {compute_b:.2e} FLOPs (direct numeric value)")
+            else:
+                print(f"  Source: {details_b.get('file', 'Unknown')}")
+                print(
+                    f"  Closest loss: {details_b.get('actual_loss', 'N/A'):.4f} (diff: {details_b.get('loss_difference', 0):.4f})"
+                )
+                print(f"  Compute: {compute_b:.2e} FLOPs")
+                print(f"  Row index: {details_b.get('closest_row', 'N/A')}")
 
             print(f"\nCompute Multiplier: {multiplier:.3f}x")
             if multiplier > 1:
@@ -351,8 +623,12 @@ def compare_multiple_loss_points(
                 {
                     "target_loss": target_loss,
                     "multiplier": multiplier,
-                    "model_a_actual_loss": details["model_a"]["actual_loss"],
-                    "model_b_actual_loss": details["model_b"]["actual_loss"],
+                    "model_a_actual_loss": details["model_a"].get(
+                        "actual_loss", target_loss
+                    ),
+                    "model_b_actual_loss": details["model_b"].get(
+                        "actual_loss", target_loss
+                    ),
                     "model_a_compute": details["model_a"]["compute"],
                     "model_b_compute": details["model_b"]["compute"],
                     "compute_reduction_percent": details["percent_compute_reduction"],
@@ -1090,5 +1366,24 @@ def create_stacked_comparison_plot(
 
 # print(f"\nMultiplier at closest approach: {multiplier:.3f}x")
 # print(f"Details: {details}")
+
+# %%
+# Example usage with two power laws
+# Power Law 1: Loss = E1 + A1 * C^(-alpha1)
+# Power Law 2: Loss = E2 + A2 * C^(-alpha2)
+
+# E1, A1, alpha1 = 3.5, 1e14, 0.05  # Modern transformer
+# E2, A2, alpha2 = 3.8, 2e14, 0.045  # Older transformer (less efficient)
+
+# multiplier, details = compute_multiplier_closest_approach(
+#     (E1, A1, alpha1),  # Power law A
+#     (E2, A2, alpha2),  # Power law B
+#     verbose=True,
+#     compute_range=(1e15, 1e18),  # Optional: specify compute range
+#     num_samples=2000  # Optional: number of samples for comparison
+# )
+
+# print(f"\nMultiplier at closest approach: {multiplier:.3f}x")
+# print(f"At the closest approach point, Power Law 2 needs {multiplier:.3f}x compute vs Power Law 1")
 
 # %%

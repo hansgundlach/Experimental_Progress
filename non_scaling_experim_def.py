@@ -13,8 +13,9 @@ NARROW_LR_SWEEP = [
 ]
 DIMENSION = 64
 SEEDS = [123, 456, 789, 101]
-folder_name = "all_ablations"
+folder_name = "x20_all_ablations"
 learning_rate = 5.798e-3
+token_to_param_ratio = 20
 
 # activation variation experiments
 ACTIVATION_EXPERIMENTS = (
@@ -26,6 +27,7 @@ ACTIVATION_EXPERIMENTS = (
         folder_name=folder_name,
         modern_bias_0=False,
         ff_ratio=4,
+        token_to_param_ratio=token_to_param_ratio,
     )
     + gen_experim(
         DIMENSION,
@@ -35,6 +37,7 @@ ACTIVATION_EXPERIMENTS = (
         folder_name=folder_name,
         modern_bias_0=False,
         ff_ratio=4,
+        token_to_param_ratio=token_to_param_ratio,
     )
     + gen_experim(
         DIMENSION,
@@ -44,6 +47,7 @@ ACTIVATION_EXPERIMENTS = (
         folder_name=folder_name,
         modern_bias_0=False,
         ff_ratio=4,
+        token_to_param_ratio=token_to_param_ratio,
     )
 )
 # optimizer variation experiments ?
@@ -56,38 +60,39 @@ ACTIVATION_EXPERIMENTS = (
 # remove_bias_lr = 10 ** (-2.25)
 remove_bias_lr = 10 ** (-2)
 transformer_scaled_init_lr = learning_rate
-INITIALIZATION_EXPERIMENTS = (
-    # gen_experim(
-    #     DIMENSION,
-    #     label="64d_xavier_normal",
-    #     learning_rate=0.01,
-    #     init_scheme="xavier_normal",
-    #     folder_name="alg_mult",
-    # )
-    # + gen_experim(
-    #     DIMENSION,
-    #     label="64d_kaiming_normal",
-    #     learning_rate=0.01,
-    #     init_scheme="kaiming_normal",
-    #     folder_name="alg_mult",
-    # )
-    gen_experim(
-        DIMENSION,
-        label=f"{DIMENSION}d_transformer_scaled_init_{transformer_scaled_init_lr}",
-        learning_rate=learning_rate,
-        init_scheme="transformer_scaled",
-        folder_name=folder_name,
-        modern_bias_0=False,
-        ff_ratio=4,
-    )
-    # gen_experim(
-    #     DIMENSION,
-    #     label=f"{DIMENSION}d_removing_bias_{remove_bias_lr}",
-    #     learning_rate=learning_rate,
-    #     folder_name=folder_name,
-    #     modern_bias_0=False,
-    # )
-)
+# INITIALIZATION_EXPERIMENTS = (
+#     # gen_experim(
+#     #     DIMENSION,
+#     #     label="64d_xavier_normal",
+#     #     learning_rate=0.01,
+#     #     init_scheme="xavier_normal",
+#     #     folder_name="alg_mult",
+#     # )
+#     # + gen_experim(
+#     #     DIMENSION,
+#     #     label="64d_kaiming_normal",
+#     #     learning_rate=0.01,
+#     #     init_scheme="kaiming_normal",
+#     #     folder_name="alg_mult",
+#     # )
+#     gen_experim(
+#         DIMENSION,
+#         label=f"{DIMENSION}d_transformer_scaled_init_{transformer_scaled_init_lr}",
+#         learning_rate=learning_rate,
+#         init_scheme="transformer_scaled",
+#         folder_name=folder_name,
+#         modern_bias_0=False,
+#         ff_ratio=4,
+#         token_to_param_ratio=token_to_param_ratio,
+#     )
+#     # gen_experim(
+#     #     DIMENSION,
+#     #     label=f"{DIMENSION}d_removing_bias_{remove_bias_lr}",
+#     #     learning_rate=learning_rate,
+#     #     folder_name=folder_name,
+#     #     modern_bias_0=False,
+#     # )
+# )
 
 
 # normalization experiments
@@ -100,6 +105,7 @@ NORMALIZATION_EXPERIMENTS = (
         norm_type="layer",
         modern_bias_0=False,
         ff_ratio=4,
+        token_to_param_ratio=token_to_param_ratio,
     )
     + gen_experim(
         DIMENSION,
@@ -109,6 +115,7 @@ NORMALIZATION_EXPERIMENTS = (
         norm_type="rms",
         modern_bias_0=False,
         ff_ratio=4,
+        token_to_param_ratio=token_to_param_ratio,
     )
     # add no norm placement option
     + gen_experim(
@@ -119,6 +126,7 @@ NORMALIZATION_EXPERIMENTS = (
         norm_placement="post",
         modern_bias_0=False,
         ff_ratio=4,
+        token_to_param_ratio=token_to_param_ratio,
     )
 )
 
@@ -138,6 +146,7 @@ OPTIMIZER_EXPERIMENTS = (
         optimizer="adam",
         modern_bias_0=False,
         ff_ratio=4,
+        token_to_param_ratio=token_to_param_ratio,
     )
 )
 
@@ -150,6 +159,7 @@ POSITIONAL_ENCODING_EXPERIMENTS = gen_experim(
     pos_encoding="sinusoidal",
     modern_bias_0=False,
     ff_ratio=4,
+    token_to_param_ratio=token_to_param_ratio,
 ) + gen_experim(
     DIMENSION,
     label=f"{DIMENSION}d_learned",
@@ -158,6 +168,7 @@ POSITIONAL_ENCODING_EXPERIMENTS = gen_experim(
     pos_encoding="learned",
     modern_bias_0=False,
     ff_ratio=4,
+    token_to_param_ratio=token_to_param_ratio,
 )
 
 # you would probably have to do an lr tune for the linear warmup
@@ -170,6 +181,7 @@ LR_SCHEDULE_EXPERIMENTS = (
         lr_schedule="linear_warmup",
         modern_bias_0=False,
         ff_ratio=4,
+        token_to_param_ratio=token_to_param_ratio,
     )
     + gen_experim(
         DIMENSION,
@@ -179,6 +191,7 @@ LR_SCHEDULE_EXPERIMENTS = (
         lr_schedule="inverse_sqrt",
         modern_bias_0=False,
         ff_ratio=4,
+        token_to_param_ratio=token_to_param_ratio,
     )
     + gen_experim(
         DIMENSION,
@@ -188,6 +201,7 @@ LR_SCHEDULE_EXPERIMENTS = (
         lr_schedule="transformer",
         modern_bias_0=False,
         ff_ratio=4,
+        token_to_param_ratio=token_to_param_ratio,
     )
 )
 
@@ -520,7 +534,6 @@ all_ablated_lr_label = f"{all_ablated_lr:.3g}"
 # combine all experiments
 ALL_EXPERIMENTS = (
     ACTIVATION_EXPERIMENTS
-    + INITIALIZATION_EXPERIMENTS
     + NORMALIZATION_EXPERIMENTS
     + POSITIONAL_ENCODING_EXPERIMENTS
     + OPTIMIZER_EXPERIMENTS
@@ -547,12 +560,13 @@ ALL_EXPERIMENTS = (
 
 # 13*6 = 78
 ALL_EXPERIMENT_LR_TUNE = create_multi_lr_experiments(
-    ACTIVATION_EXPERIMENTS
-    + INITIALIZATION_EXPERIMENTS
-    + NORMALIZATION_EXPERIMENTS
-    + POSITIONAL_ENCODING_EXPERIMENTS
-    + OPTIMIZER_EXPERIMENTS
-    + LR_SCHEDULE_EXPERIMENTS,
+    (
+        ACTIVATION_EXPERIMENTS
+        + NORMALIZATION_EXPERIMENTS
+        + POSITIONAL_ENCODING_EXPERIMENTS
+        + OPTIMIZER_EXPERIMENTS
+        + LR_SCHEDULE_EXPERIMENTS
+    ),
     [
         learning_rate,
         10**-3,

@@ -40,10 +40,8 @@ NEURIPS_FONT_CONFIG = {
     "title_weight": "bold",
     "major_tick_size": 12,
     "minor_tick_size": 10,
-    "legend_size": 13,  # Increased for bold text readability
+    "legend_size": 11,  # Increased for bold text readability
     "fit_label_size": 10,
-    "equation_size": 18,  # Font size for inline equations when legend is disabled
-    "multiplier_size": 15,  # Font size for compute ratio annotations (e.g., "10.5x")
 }
 
 # Configuration
@@ -156,10 +154,6 @@ def plot_panel_to_axis(
     show_power_law_fit=True,
     theoretical_scaling_laws=None,
     panel_label=None,
-    panel_title=None,
-    target_loss_line=None,
-    show_legend=False,
-    equation_positions=None,
 ):
     """
     Plot training curves to a specific matplotlib axis for multi-panel figures.
@@ -173,19 +167,6 @@ def plot_panel_to_axis(
         show_power_law_fit: Whether to show power law fits
         theoretical_scaling_laws: Optional list of theoretical scaling law dicts
         panel_label: Optional label like "(a)" or "(b)" for the panel
-        panel_title: Optional title for the panel
-        target_loss_line: Optional dict with keys:
-                        - 'loss': float, the target validation loss level
-                        - 'classes': List[str], the two classes to compare (must have power law fits)
-                        - 'linestyle': str, line style for horizontal line (default: '-')
-                        - 'linewidth': float, line width (default: 3)
-                        - 'color': str, color of line and annotation (default: 'black')
-                        - 'alpha': float, transparency (default: 1.0)
-                        - 'theoretical_law': Optional dict with keys 'class', 'E', 'A', 'gamma' to use theoretical law instead of fit
-        show_legend: Whether to show the legend (default: True)
-        equation_positions: Optional dict mapping class names to (x, y) positions for equation annotations.
-                          Position is in data coordinates. Example: {'lstm': (1e15, 2.0), 'transformer': (1e16, 1.5)}
-                          If None, equations will be positioned automatically.
     """
     # Compute frontiers for these classes
     analyzer.identify_frontier_by_class(
@@ -281,60 +262,15 @@ def plot_panel_to_axis(
             else:
                 legend_label = cls
 
-            class_color = analyzer.get_class_color(cls)
-
-            # Plot the fit line (with or without label depending on show_legend)
-            if show_legend:
-                ax.plot(
-                    x_fit,
-                    y_fit,
-                    "--",
-                    linewidth=3,
-                    alpha=ALPHA_CONFIG["power_law_fit_alpha"],
-                    label=f"{legend_label} fit:\n{a:.1f} · C^({b:.3f})",
-                    color=class_color,
-                )
-            else:
-                ax.plot(
-                    x_fit,
-                    y_fit,
-                    "--",
-                    linewidth=3,
-                    alpha=ALPHA_CONFIG["power_law_fit_alpha"],
-                    color=class_color,
-                )
-
-                # Add equation annotation next to the fit line
-                # Determine position for the equation
-                if equation_positions is not None and cls in equation_positions:
-                    # Use user-specified position
-                    eq_x, eq_y = equation_positions[cls]
-                else:
-                    # Auto-position: place at middle of fit line
-                    mid_idx = len(x_fit) // 2
-                    eq_x = x_fit[mid_idx]
-                    eq_y = y_fit[mid_idx] * 1.3  # Slightly above the line
-
-                # Format equation with proper exponents using LaTeX
-                equation_text = f"${a:.1f} \\cdot C^{{{b:.3f}}}$"
-
-                ax.text(
-                    eq_x,
-                    eq_y,
-                    equation_text,
-                    fontsize=NEURIPS_FONT_CONFIG["equation_size"],
-                    color="black",
-                    weight="bold",
-                    ha="center",
-                    va="bottom",
-                    bbox=dict(
-                        boxstyle="round,pad=0.5",
-                        facecolor="white",
-                        alpha=0.8,
-                        edgecolor=class_color,
-                        linewidth=2,
-                    ),
-                )
+            ax.plot(
+                x_fit,
+                y_fit,
+                "--",
+                linewidth=3,
+                alpha=ALPHA_CONFIG["power_law_fit_alpha"],
+                label=f"{legend_label} fit:\n{a:.2e} × C^({b:.3f})",
+                color=analyzer.get_class_color(cls),
+            )
 
     # Plot theoretical scaling laws
     if theoretical_scaling_laws:
@@ -347,11 +283,20 @@ def plot_panel_to_axis(
             linestyle = law_config.get("linestyle", "-")
             linewidth = law_config.get("linewidth", 3)
             alpha_val = law_config.get("alpha", 0.8)
+            show_constant = law_config.get(
+                "show_constant", True
+            )  # Option to hide E term
 
             extended_min, extended_max = extrapolation_range
             x_theory = np.logspace(np.log10(extended_min), np.log10(extended_max), 200)
             y_theory = (E - analyzer.irreducible_loss) + A * np.power(x_theory, gamma)
             irred_removed_E = E - analyzer.irreducible_loss
+
+            # Build label based on whether to show constant term
+            if show_constant:
+                equation_label = f"{irred_removed_E:.3f} + {A:.2e} × C^({gamma:.3f})"
+            else:
+                equation_label = f"{A:.2e} × C^({gamma:.3f})"
 
             ax.plot(
                 x_theory,
@@ -360,118 +305,8 @@ def plot_panel_to_axis(
                 linestyle=linestyle,
                 linewidth=2.5,
                 alpha=ALPHA_CONFIG["theoretical_alpha"],
-                label=f"{label}:\n{irred_removed_E:.3f} + {A:.1f} · C^({gamma:.3f})",
+                label=f"{label}:\n{equation_label}",
             )
-
-    # Plot target loss line and compute ratio if specified
-    if target_loss_line is not None and show_power_law_fit:
-        target_loss = target_loss_line.get("loss")
-        compare_classes = target_loss_line.get("classes", [])
-        line_style = target_loss_line.get("linestyle", "-")
-        line_width = target_loss_line.get("linewidth", 3)
-        line_color = target_loss_line.get("color", "black")
-        line_alpha = target_loss_line.get("alpha", 1.0)
-        theoretical_law = target_loss_line.get(
-            "theoretical_law"
-        )  # Optional theoretical law parameters
-
-        if len(compare_classes) == 2:
-            # Get power law fits for the specified classes
-            fit_results = analyzer.fit_power_law_by_class(
-                class_names=compare_classes, use_all_points=True
-            )
-
-            # Calculate intersection points: target_loss = a * C^b => C = (target_loss / a)^(1/b)
-            intersections = {}
-            for cls in compare_classes:
-                # Check if this class should use theoretical law instead
-                if theoretical_law is not None and cls == theoretical_law.get("class"):
-                    # Use theoretical scaling law: L = (E - L0) + A * C^gamma
-                    # Solve for C: target_loss = (E - L0) + A * C^gamma
-                    # => C = ((target_loss - (E - L0)) / A)^(1/gamma)
-                    E = theoretical_law.get("E")
-                    A = theoretical_law.get("A")
-                    gamma = theoretical_law.get("gamma")
-                    L0 = analyzer.irreducible_loss
-
-                    excess_loss = target_loss - (E - L0)
-                    if gamma != 0 and A > 0 and excess_loss > 0:
-                        compute_at_target = np.power(excess_loss / A, 1.0 / gamma)
-                        intersections[cls] = compute_at_target
-                elif cls in fit_results and fit_results[cls] is not None:
-                    a, b, _ = fit_results[cls]
-                    if b != 0 and a > 0 and target_loss > 0:
-                        compute_at_target = np.power(target_loss / a, 1.0 / b)
-                        intersections[cls] = compute_at_target
-
-            if len(intersections) == 2:
-                class1, class2 = compare_classes
-                compute1 = intersections.get(class1)
-                compute2 = intersections.get(class2)
-
-                if (
-                    compute1 is not None
-                    and compute2 is not None
-                    and isinstance(compute1, (int, float))
-                    and isinstance(compute2, (int, float))
-                ):
-                    # Ensure compute1 is the smaller value (left) and compute2 is larger (right)
-                    if compute1 > compute2:
-                        compute1, compute2 = compute2, compute1
-                        class1, class2 = class2, class1
-
-                    # Compute ratio
-                    compute_ratio = float(compute2) / float(compute1)
-
-                    # Draw dashed horizontal line across entire plot at target loss
-                    ax.axhline(
-                        y=target_loss,
-                        color="black",
-                        linestyle="--",
-                        linewidth=2.5,
-                        alpha=0.8,
-                        zorder=85,
-                        label=f"Target Loss: {target_loss:.2f}",
-                    )
-
-                    # Draw solid line segment between the two intersection points
-                    ax.plot(
-                        [float(compute1), float(compute2)],
-                        [target_loss, target_loss],
-                        color=line_color,
-                        linestyle="-",
-                        linewidth=5,
-                        alpha=1.0,
-                        zorder=90,
-                    )
-
-                    # Add annotation with compute ratio in the middle of the shaded region
-                    mid_compute = np.sqrt(
-                        float(compute1) * float(compute2)
-                    )  # Geometric mean for log scale
-
-                    # Position annotation slightly above the target loss line
-                    y_position = float(target_loss) * 1.3
-
-                    ax.annotate(
-                        f"{compute_ratio:.1f}x",
-                        xy=(mid_compute, target_loss),
-                        xytext=(mid_compute, y_position),
-                        fontsize=NEURIPS_FONT_CONFIG["multiplier_size"],
-                        color="black",
-                        weight="bold",
-                        ha="center",
-                        va="bottom",
-                        arrowprops=dict(
-                            arrowstyle="->", color="black", lw=2, alpha=0.7
-                        ),
-                        zorder=100,
-                    )
-
-                    print(f"Target loss {target_loss:.2f} achieved at:")
-                    print(f"  {class1}: {compute1:.2e} FLOPs")
-                    print(f"  {class2}: {compute2:.2e} FLOPs")
-                    print(f"  Compute ratio: {compute_ratio:.2f}x")
 
     # Formatting
     ax.set_xlabel("Compute (FLOPs)", fontsize=NEURIPS_FONT_CONFIG["xlabel_size"])
@@ -501,49 +336,38 @@ def plot_panel_to_axis(
             ha="left",
         )
 
-    # Add panel title if provided
-    if panel_title:
-        ax.set_title(
-            panel_title,
-            fontsize=NEURIPS_FONT_CONFIG["title_size"],
-            fontweight=NEURIPS_FONT_CONFIG["title_weight"],
-            pad=10,
-        )
+    # Legend
+    leg = ax.legend(
+        loc="upper right",
+        framealpha=0.9,
+        prop={"weight": "bold", "size": NEURIPS_FONT_CONFIG["legend_size"]},
+    )
 
-    # Legend (only if show_legend is True)
-    if show_legend:
-        leg = ax.legend(
-            loc="upper right",
-            fontsize=NEURIPS_FONT_CONFIG["legend_size"],
-            framealpha=0.9,
-            prop={"weight": "bold"},
-        )
-
-        # Force opaque legend markers/lines
-        # Handle both old and new matplotlib API
-        handles = getattr(leg, "legend_handles", None) or getattr(
-            leg, "legendHandles", None
-        )
-        if handles:
-            for h in handles:
-                if hasattr(h, "set_alpha"):
-                    h.set_alpha(1.0)
-                if hasattr(h, "get_facecolors"):
-                    fc = h.get_facecolors()
-                    if len(fc):
-                        fc[:, -1] = 1.0
-                        h.set_facecolors(fc)
-                if hasattr(h, "get_edgecolors"):
-                    ec = h.get_edgecolors()
-                    if len(ec):
-                        ec[:, -1] = 1.0
-                        h.set_edgecolors(ec)
+    # Force opaque legend markers/lines
+    # Handle both old and new matplotlib API
+    handles = getattr(leg, "legend_handles", None) or getattr(
+        leg, "legendHandles", None
+    )
+    if handles:
+        for h in handles:
+            if hasattr(h, "set_alpha"):
+                h.set_alpha(1.0)
+            if hasattr(h, "get_facecolors"):
+                fc = h.get_facecolors()
+                if len(fc):
+                    fc[:, -1] = 1.0
+                    h.set_facecolors(fc)
+            if hasattr(h, "get_edgecolors"):
+                ec = h.get_edgecolors()
+                if len(ec):
+                    ec[:, -1] = 1.0
+                    h.set_edgecolors(ec)
 
 
 # ============================================================================
 # CREATE TWO-PANEL NEURIPS FIGURE
 # ============================================================================
-
+# %%
 # NeurIPS two-column width is typically ~7 inches
 fig = plt.figure(figsize=(14, 5.5))
 
@@ -564,19 +388,6 @@ plot_panel_to_axis(
     show_power_law_fit=True,
     theoretical_scaling_laws=None,
     panel_label="(a)",
-    panel_title="Transformer vs LSTM Scaling",
-    target_loss_line={
-        "loss": 3.4,
-        "classes": ["transformer", "lstm"],
-        "color": "orange",
-        "linestyle": "-",
-        "linewidth": 4,
-        "alpha": 1.0,
-    },
-    equation_positions={
-        "transformer": (3e14, 2.2),
-        "lstm": (5e16, 5.7),
-    },
 )
 
 # Panel 2: Sin transformer with theoretical comparison
@@ -593,8 +404,8 @@ plot_panel_to_axis(
     theoretical_scaling_laws=[
         {
             "E": 1.9,
-            "A": 85.5,
-            "gamma": -0.093,
+            "A": 88.0,
+            "gamma": -0.094,
             "label": "Modern Transformer",
             "color": "purple",
             "linestyle": "--",
@@ -604,34 +415,15 @@ plot_panel_to_axis(
         },
     ],
     panel_label="(b)",
-    panel_title="2017 vs Modern Transformer Scaling",
-    target_loss_line={
-        "loss": 3.4,
-        "classes": ["sin transformer", "transformer"],
-        "color": "orange",
-        "linestyle": "-",
-        "linewidth": 4,
-        "alpha": 1.0,
-        "theoretical_law": {
-            "class": "transformer",
-            "E": 1.9,
-            "A": 88.0,
-            "gamma": -0.094,
-        },
-    },
-    equation_positions={
-        "sin transformer": (7e16, 5.7),
-    },
 )
 
 # Overall title (optional - comment out if not needed for paper)
-# Now that we have individual panel titles, you may want to comment this out
-# fig.suptitle(
-#     "Scaling Analysis: Architecture Comparison",
-#     fontsize=NEURIPS_FONT_CONFIG["title_size"] + 2,
-#     fontweight=NEURIPS_FONT_CONFIG["title_weight"],
-#     y=0.98,
-# )
+fig.suptitle(
+    "Scaling Analysis: Architecture Comparison",
+    fontsize=NEURIPS_FONT_CONFIG["title_size"] + 2,
+    fontweight=NEURIPS_FONT_CONFIG["title_weight"],
+    y=0.98,
+)
 
 plt.tight_layout()
 

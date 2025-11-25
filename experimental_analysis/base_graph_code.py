@@ -88,7 +88,7 @@ ALPHA_CONFIG = {
     "theoretical_alpha": 0.8,  # Alpha for theoretical scaling law lines
 }
 
-IRREDUCIBLE_LOSS = 1.9
+IRREDUCIBLE_LOSS = 1.8
 
 # =============================================================================
 # CLASS COLOR CONFIGURATION
@@ -951,7 +951,7 @@ class TrainingCurveAnalyzer:
             linestyle=linestyle,
             linewidth=linewidth,
             alpha=alpha,
-            label=f"{label}: L = {E:.3f} - {self.irreducible_loss:.3f} + {A:.1f} · C^({gamma:.3f})",
+            label=f"{label}: L = {E:.3f} - {self.irreducible_loss:.3f} + {A:.2e} * C^({gamma:.3f})",
         )
 
     def plot_training_curves_by_class(
@@ -969,9 +969,6 @@ class TrainingCurveAnalyzer:
         theoretical_scaling_laws: Optional[List[Dict]] = None,
         xlim: Optional[Tuple[float, float]] = None,
         extrapolation_range: Optional[Tuple[float, float]] = None,
-        target_loss_line: Optional[Dict] = None,
-        show_legend: bool = True,
-        equation_positions: Optional[Dict[str, Tuple[float, float]]] = None,
     ) -> None:
         """
         Plot training curves and per-class frontiers and fits.
@@ -994,18 +991,6 @@ class TrainingCurveAnalyzer:
             xlim: Optional tuple of (min_x, max_x) to explicitly set x-axis limits (e.g., (1e14, 1e18))
             extrapolation_range: Optional tuple of (min_compute, max_compute) to explicitly set the range for
                                extrapolation of fit lines (e.g., (1e14, 1e18)). If provided, overrides extrapolation_factor.
-            target_loss_line: Optional dict with keys:
-                            - 'loss': float, the target validation loss level
-                            - 'classes': List[str], the two classes to compare (must have power law fits)
-                            - 'linestyle': str, line style for horizontal line (default: '-')
-                            - 'linewidth': float, line width (default: 3)
-                            - 'color': str, color of line and annotation (default: 'black')
-                            - 'alpha': float, transparency (default: 1.0)
-                            - 'theoretical_law': Optional dict with keys 'class', 'E', 'A', 'gamma' to use theoretical law instead of fit
-            show_legend: Whether to show the legend (default: True)
-            equation_positions: Optional dict mapping class names to (x, y) positions for equation annotations.
-                              Position is in data coordinates. Example: {'lstm': (1e15, 2.0), 'transformer': (1e16, 1.5)}
-                              If None, equations will be positioned automatically.
         """
         # Optionally recompute per-class frontier for this plot only if a range is provided
         original_frontier_by_class = self.frontier_points_by_class.copy()
@@ -1171,60 +1156,15 @@ class TrainingCurveAnalyzer:
 
                 # Use a unique linestyle per class for clarity; color matches class
                 linestyle = "--"
-                class_color = self.get_class_color(cls)
-
-                # Plot the fit line (with or without label depending on show_legend)
-                if show_legend:
-                    ax.plot(
-                        x_fit,
-                        y_fit,
-                        linestyle,
-                        linewidth=4,
-                        alpha=ALPHA_CONFIG["power_law_fit_alpha"],
-                        label=f"{cls} power law: \n {a:.1f} · C^({b:.3f})",
-                        color=class_color,
-                    )
-                else:
-                    ax.plot(
-                        x_fit,
-                        y_fit,
-                        linestyle,
-                        linewidth=4,
-                        alpha=ALPHA_CONFIG["power_law_fit_alpha"],
-                        color=class_color,
-                    )
-
-                    # Add equation annotation next to the fit line
-                    # Determine position for the equation
-                    if equation_positions is not None and cls in equation_positions:
-                        # Use user-specified position
-                        eq_x, eq_y = equation_positions[cls]
-                    else:
-                        # Auto-position: place at middle of fit line
-                        mid_idx = len(x_fit) // 2
-                        eq_x = x_fit[mid_idx]
-                        eq_y = y_fit[mid_idx] * 1.3  # Slightly above the line
-
-                    # Format equation with proper exponents using LaTeX
-                    equation_text = f"${a:.1f} \\cdot C^{{{b:.3f}}}$"
-
-                    ax.text(
-                        eq_x,
-                        eq_y,
-                        equation_text,
-                        fontsize=FONT_CONFIG["equation_size"],
-                        color="black",
-                        weight="bold",
-                        ha="center",
-                        va="bottom",
-                        bbox=dict(
-                            boxstyle="round,pad=0.5",
-                            facecolor="white",
-                            alpha=0.8,
-                            edgecolor=class_color,
-                            linewidth=2,
-                        ),
-                    )
+                ax.plot(
+                    x_fit,
+                    y_fit,
+                    linestyle,
+                    linewidth=4,
+                    alpha=ALPHA_CONFIG["power_law_fit_alpha"],
+                    label=f"{cls} power law: \n {a:.2e} * C^({b:.3f})",
+                    color=self.get_class_color(cls),
+                )
 
         # label=f"{cls} power law: \n y = {a:.2e} * x^({b:.3f}) (R² = {r2:.3f})",
         # Plot per-class sklearn-style fits
@@ -1272,7 +1212,7 @@ class TrainingCurveAnalyzer:
                     linestyle,
                     linewidth=4,
                     alpha=ALPHA_CONFIG["sklearn_fit_alpha"],
-                    label=f"{cls} sklearn: \n {E:.3f} + {A:.1f} · C^({alpha:.3f}) (R² = {r2:.3f})",
+                    label=f"{cls} sklearn: \n {E:.3f} + {A:.2e} * C^({alpha:.3f}) (R² = {r2:.3f})",
                     color=self.get_class_color(cls),
                 )
 
@@ -1330,122 +1270,10 @@ class TrainingCurveAnalyzer:
                         linestyle=linestyle,
                         linewidth=linewidth,
                         alpha=ALPHA_CONFIG["theoretical_alpha"],
-                        label=f"{label}: \n{irred_removed_E:.3f} + {A:.1f} · C^({gamma:.3f})",
+                        label=f"{label}: \n{irred_removed_E:.3f} + {A:.2e} * C^({gamma:.3f})",
                     )
 
             # L = {E:.3f} - {self.irreducible_loss:.3f} + {A:.2e} * C^({gamma:.3f})",
-
-        # Plot target loss line and compute ratio if specified
-        if target_loss_line is not None and show_power_law_fit:
-            target_loss = target_loss_line.get("loss")
-            compare_classes = target_loss_line.get("classes", [])
-            line_style = target_loss_line.get("linestyle", "-")
-            line_width = target_loss_line.get("linewidth", 3)
-            line_color = target_loss_line.get("color", "black")
-            line_alpha = target_loss_line.get("alpha", 1.0)
-            theoretical_law = target_loss_line.get(
-                "theoretical_law"
-            )  # Optional theoretical law parameters
-
-            if len(compare_classes) == 2:
-                # Get power law fits for the specified classes
-                fit_results = self.fit_power_law_by_class(
-                    class_names=compare_classes, use_all_points=use_all_points
-                )
-
-                # Calculate intersection points: target_loss = a * C^b => C = (target_loss / a)^(1/b)
-                intersections = {}
-                for cls in compare_classes:
-                    # Check if this class should use theoretical law instead
-                    if theoretical_law is not None and cls == theoretical_law.get(
-                        "class"
-                    ):
-                        # Use theoretical scaling law: L = (E - L0) + A * C^gamma
-                        # Solve for C: target_loss = (E - L0) + A * C^gamma
-                        # => C = ((target_loss - (E - L0)) / A)^(1/gamma)
-                        E = theoretical_law.get("E")
-                        A = theoretical_law.get("A")
-                        gamma = theoretical_law.get("gamma")
-                        L0 = self.irreducible_loss
-
-                        excess_loss = target_loss - (E - L0)
-                        if gamma != 0 and A > 0 and excess_loss > 0:
-                            compute_at_target = np.power(excess_loss / A, 1.0 / gamma)
-                            intersections[cls] = compute_at_target
-                    elif cls in fit_results and fit_results[cls] is not None:
-                        a, b, _ = fit_results[cls]
-                        if b != 0 and a > 0 and target_loss > 0:
-                            compute_at_target = np.power(target_loss / a, 1.0 / b)
-                            intersections[cls] = compute_at_target
-
-                if len(intersections) == 2:
-                    class1, class2 = compare_classes
-                    compute1 = intersections.get(class1)
-                    compute2 = intersections.get(class2)
-
-                    if (
-                        compute1 is not None
-                        and compute2 is not None
-                        and isinstance(compute1, (int, float))
-                        and isinstance(compute2, (int, float))
-                    ):
-                        # Ensure compute1 is the smaller value (left) and compute2 is larger (right)
-                        if compute1 > compute2:
-                            compute1, compute2 = compute2, compute1
-                            class1, class2 = class2, class1
-
-                        # Compute ratio
-                        compute_ratio = float(compute2) / float(compute1)
-
-                        # Draw dashed horizontal line across entire plot at target loss
-                        ax.axhline(
-                            y=target_loss,
-                            color="black",
-                            linestyle="--",
-                            linewidth=2.5,
-                            alpha=0.8,
-                            zorder=85,
-                            label=f"Target Loss: {target_loss:.2f}",
-                        )
-
-                        # Draw solid line segment between the two intersection points
-                        ax.plot(
-                            [float(compute1), float(compute2)],
-                            [target_loss, target_loss],
-                            color=line_color,
-                            linestyle="-",
-                            linewidth=5,
-                            alpha=1.0,
-                            zorder=90,
-                        )
-
-                        # Add annotation with compute ratio in the middle of the shaded region
-                        mid_compute = np.sqrt(
-                            float(compute1) * float(compute2)
-                        )  # Geometric mean for log scale
-
-                        # Position annotation slightly above the target loss line
-                        y_position = float(target_loss) * 1.3
-
-                        ax.annotate(
-                            f"{compute_ratio:.1f}x",
-                            xy=(mid_compute, target_loss),
-                            xytext=(mid_compute, y_position),
-                            fontsize=FONT_CONFIG["multiplier_size"],
-                            color="black",
-                            weight="bold",
-                            ha="center",
-                            va="bottom",
-                            arrowprops=dict(
-                                arrowstyle="->", color="black", lw=2, alpha=0.7
-                            ),
-                            zorder=100,
-                        )
-
-                        print(f"Target loss {target_loss:.2f} achieved at:")
-                        print(f"  {class1}: {compute1:.2e} FLOPs")
-                        print(f"  {class2}: {compute2:.2e} FLOPs")
-                        print(f"  Compute ratio: {compute_ratio:.2f}x")
 
         ax.set_xlabel("Compute (FLOPs)", fontsize=FONT_CONFIG["xlabel_size"])
         ax.set_ylabel(
@@ -1472,28 +1300,27 @@ class TrainingCurveAnalyzer:
             axis="both", which="minor", labelsize=FONT_CONFIG["minor_tick_size"]
         )
 
-        # Position legend (only if show_legend is True)
-        if show_legend:
-            leg = ax.legend(
-                bbox_to_anchor=(1.05, 1),
-                loc="upper left",
-                fontsize=FONT_CONFIG["legend_size"],
-            )
+        # Position legend
+        leg = ax.legend(
+            bbox_to_anchor=(1.05, 1),
+            loc="upper left",
+            fontsize=FONT_CONFIG["legend_size"],
+        )
 
-            # Force opaque legend markers/lines
-            for h in leg.legendHandles:
-                if hasattr(h, "set_alpha"):
-                    h.set_alpha(1.0)
-                if hasattr(h, "get_facecolors"):
-                    fc = h.get_facecolors()
-                    if len(fc):
-                        fc[:, -1] = 1.0
-                        h.set_facecolors(fc)
-                if hasattr(h, "get_edgecolors"):
-                    ec = h.get_edgecolors()
-                    if len(ec):
-                        ec[:, -1] = 1.0
-                        h.set_edgecolors(ec)
+        # Force opaque legend markers/lines
+        for h in leg.legendHandles:
+            if hasattr(h, "set_alpha"):
+                h.set_alpha(1.0)
+            if hasattr(h, "get_facecolors"):
+                fc = h.get_facecolors()
+                if len(fc):
+                    fc[:, -1] = 1.0
+                    h.set_facecolors(fc)
+            if hasattr(h, "get_edgecolors"):
+                ec = h.get_edgecolors()
+                if len(ec):
+                    ec[:, -1] = 1.0
+                    h.set_edgecolors(ec)
 
         # Adjust layout to accommodate legend
         plt.tight_layout()
@@ -1739,7 +1566,7 @@ class TrainingCurveAnalyzer:
                     "k--",
                     linewidth=4,
                     alpha=ALPHA_CONFIG["power_law_fit_alpha"],
-                    label=f"Power law fit: y = {a:.1f} · x^({b:.3f}) (R² = {r_squared:.3f})",
+                    label=f"Power law fit: y = {a:.2e} * x^({b:.3f}) (R² = {r_squared:.3f})",
                 )
 
         # Plot sklearn-style fit if requested
@@ -1778,7 +1605,7 @@ class TrainingCurveAnalyzer:
                     "r-.",
                     linewidth=4,
                     alpha=ALPHA_CONFIG["sklearn_fit_alpha"],
-                    label=f"Sklearn fit: {E:.3f} + {A:.1f} · C^({alpha:.3f}) (R² = {r_squared:.3f})",
+                    label=f"Sklearn fit: {E:.3f} + {A:.2e} * C^({alpha:.3f}) (R² = {r_squared:.3f})",
                 )
 
         # Plot theoretical scaling laws if provided
@@ -1813,7 +1640,7 @@ class TrainingCurveAnalyzer:
                         linestyle=linestyle,
                         linewidth=linewidth,
                         alpha=ALPHA_CONFIG["theoretical_alpha"],
-                        label=f"{label}: {E:.3f} - {self.irreducible_loss:.3f} + {A:.1f} · C^({gamma:.3f})",
+                        label=f"{label}: {E:.3f} - {self.irreducible_loss:.3f} + {A:.2e} * C^({gamma:.3f})",
                     )
                 else:
                     # Use extrapolation_factor to extend data range
@@ -1848,7 +1675,7 @@ class TrainingCurveAnalyzer:
                             linestyle=linestyle,
                             linewidth=linewidth,
                             alpha=ALPHA_CONFIG["theoretical_alpha"],
-                            label=f"{label}: {E:.3f} - {self.irreducible_loss:.3f} + {A:.1f} · C^({gamma:.3f})",
+                            label=f"{label}: {E:.3f} - {self.irreducible_loss:.3f} + {A:.2e} * C^({gamma:.3f})",
                         )
 
         # Customize plot
@@ -2077,7 +1904,7 @@ if __name__ == "__main__":
             "csv_path": "../experimental_data_folder/new_modern_scaling_study/32_modern_40.csv",
             "marker": "o",
             "include_in_frontier": True,  # Include in frontier analysis
-            "class": "old transformer",
+            "class": "transformer",
             "hidden_dim": 32,
         },
         # {
@@ -2093,7 +1920,7 @@ if __name__ == "__main__":
             "csv_path": "../experimental_data_folder/new_modern_scaling_study/64_modern_40.csv.csv",
             "marker": "o",
             "include_in_frontier": True,  # Include in frontier analysis
-            "class": "old transformer",
+            "class": "transformer",
             "hidden_dim": 64,
         },
         # # 96 128 160
@@ -2102,7 +1929,7 @@ if __name__ == "__main__":
             "csv_path": "../experimental_data_folder/new_modern_scaling_study/96_modern_40.csv",
             "marker": "o",
             "include_in_frontier": True,  # Include in frontier analysis
-            "class": "old transformer",
+            "class": "transformer",
             "hidden_dim": 96,
         },
         {
@@ -2110,7 +1937,7 @@ if __name__ == "__main__":
             "csv_path": "../experimental_data_folder/new_modern_scaling_study/128_modern_40.csv",
             "marker": "o",
             "include_in_frontier": True,  # Include in frontier analysis
-            "class": "old transformer",
+            "class": "transformer",
             "hidden_dim": 128,
         },
         {
@@ -2118,7 +1945,7 @@ if __name__ == "__main__":
             "csv_path": "../experimental_data_folder/new_modern_scaling_study/160_modern_40.csv",
             "marker": "o",
             "include_in_frontier": True,  # Include in frontier analysis
-            "class": "old transformer",
+            "class": "transformer",
             "hidden_dim": 160,
         },
         # 192 and 224
@@ -2127,7 +1954,7 @@ if __name__ == "__main__":
             "csv_path": "../experimental_data_folder/new_modern_scaling_study/192_modern_40.csv",
             "marker": "o",
             "include_in_frontier": True,  # Include in frontier analysis
-            "class": "old transformer",
+            "class": "transformer",
             "hidden_dim": 192,
         },
         {
@@ -2135,7 +1962,7 @@ if __name__ == "__main__":
             "csv_path": "../experimental_data_folder/new_modern_scaling_study/224_modern_40.csv",
             "marker": "o",
             "include_in_frontier": True,  # Include in frontier analysis
-            "class": "old transformer",
+            "class": "transformer",
             "hidden_dim": 224,
         },
         {
@@ -2143,7 +1970,7 @@ if __name__ == "__main__":
             "csv_path": "../experimental_data_folder/new_modern_scaling_study/256_modern_40.csv",
             "marker": "o",
             "include_in_frontier": True,  # Include in frontier analysis
-            "class": "old transformer",
+            "class": "transformer",
             "hidden_dim": 256,
         },
         # sgd scaling further
@@ -2431,69 +2258,69 @@ if __name__ == "__main__":
             "hidden_dim": 256,
         },
         # add no bias experiments
-        # {
-        #     "name": "no bias 32d transformer",
-        #     "csv_path": "../experimental_data_folder/biased_modern/32_modern_40.csv",
-        #     "marker": "o",
-        #     "include_in_frontier": True,  # Include in frontier analysis
-        #     "class": "no_bias",
-        #     "hidden_dim": 32,
-        # },
+        {
+            "name": "no bias 32d transformer",
+            "csv_path": "../experimental_data_folder/biased_modern/32_modern_40.csv",
+            "marker": "o",
+            "include_in_frontier": True,  # Include in frontier analysis
+            "class": "no_bias",
+            "hidden_dim": 32,
+        },
         # 48
-        # {
-        #     "name": "no bias 48d transformer",
-        #     "csv_path": "../experimental_data_folder/biased_modern/48_modern.csv",
-        #     "marker": "o",
-        #     "include_in_frontier": True,  # Include in frontier analysis
-        #     "class": "no_bias",
-        #     "hidden_dim": 48,
-        # },
-        # {
-        #     "name": "no bias 64d transformer",
-        #     "csv_path": "../experimental_data_folder/biased_modern/64_modern_40.csv",
-        #     "marker": "o",
-        #     "include_in_frontier": True,  # Include in frontier analysis
-        #     "class": "no_bias",
-        #     "hidden_dim": 64,
-        # },
-        # {
-        #     "name": "no bias 96d transformer",
-        #     "csv_path": "../experimental_data_folder/biased_modern/96_modern_40.csv",
-        #     "marker": "o",
-        #     "include_in_frontier": True,  # Include in frontier analysis
-        #     "class": "no_bias",
-        #     "hidden_dim": 96,
-        # },
-        # {
-        #     "name": "no bias 128d transformer",
-        #     "csv_path": "../experimental_data_folder/biased_modern/128_modern_40.csv",
-        #     "marker": "o",
-        #     "include_in_frontier": True,  # Include in frontier analysis
-        #     "class": "no_bias",
-        #     "hidden_dim": 128,
-        # },
-        # {
-        #     "name": "no bias 160d transformer",
-        #     "csv_path": "../experimental_data_folder/biased_modern/160_modern_40.csv",
-        #     "marker": "o",
-        #     "include_in_frontier": True,  # Include in frontier analysis
-        #     "class": "no_bias",
-        #     "hidden_dim": 160,
-        # },
-        # {
-        #     "name": "no bias 192d transformer",
-        #     "csv_path": "../experimental_data_folder/biased_modern/192_modern_40.csv",
-        #     "marker": "o",
-        #     "include_in_frontier": True,  # Include in frontier analysis
-        #     "class": "no_bias",
-        #     "hidden_dim": 192,
-        # },
+        {
+            "name": "no bias 48d transformer",
+            "csv_path": "../experimental_data_folder/biased_modern/48_modern.csv",
+            "marker": "o",
+            "include_in_frontier": True,  # Include in frontier analysis
+            "class": "no_bias",
+            "hidden_dim": 48,
+        },
+        {
+            "name": "no bias 64d transformer",
+            "csv_path": "../experimental_data_folder/biased_modern/64_modern_40.csv",
+            "marker": "o",
+            "include_in_frontier": True,  # Include in frontier analysis
+            "class": "no_bias",
+            "hidden_dim": 64,
+        },
+        {
+            "name": "no bias 96d transformer",
+            "csv_path": "../experimental_data_folder/biased_modern/96_modern_40.csv",
+            "marker": "o",
+            "include_in_frontier": True,  # Include in frontier analysis
+            "class": "no_bias",
+            "hidden_dim": 96,
+        },
+        {
+            "name": "no bias 128d transformer",
+            "csv_path": "../experimental_data_folder/biased_modern/128_modern_40.csv",
+            "marker": "o",
+            "include_in_frontier": True,  # Include in frontier analysis
+            "class": "no_bias",
+            "hidden_dim": 128,
+        },
+        {
+            "name": "no bias 160d transformer",
+            "csv_path": "../experimental_data_folder/biased_modern/160_modern_40.csv",
+            "marker": "o",
+            "include_in_frontier": True,  # Include in frontier analysis
+            "class": "no_bias",
+            "hidden_dim": 160,
+        },
+        {
+            "name": "no bias 192d transformer",
+            "csv_path": "../experimental_data_folder/biased_modern/192_modern_40.csv",
+            "marker": "o",
+            "include_in_frontier": True,  # Include in frontier analysis
+            "class": "no_bias",
+            "hidden_dim": 192,
+        },
         {
             "name": "no bias 32d transformer",
             "csv_path": "../experimental_data_folder/x1_biased_modern/32_modern_40.csv",
             "marker": "o",
             "include_in_frontier": True,  # Include in frontier analysis
-            "class": "transformer",
+            "class": "x1_no_bias",
             "hidden_dim": 32,
         },
         # 48
@@ -2502,7 +2329,7 @@ if __name__ == "__main__":
             "csv_path": "../experimental_data_folder/x1_biased_modern/48_modern.csv",
             "marker": "o",
             "include_in_frontier": True,  # Include in frontier analysis
-            "class": "transformer",
+            "class": "x1_no_bias",
             "hidden_dim": 48,
         },
         {
@@ -2510,7 +2337,7 @@ if __name__ == "__main__":
             "csv_path": "../experimental_data_folder/x1_biased_modern/64_modern_40.csv",
             "marker": "o",
             "include_in_frontier": True,  # Include in frontier analysis
-            "class": "transformer",
+            "class": "x1_no_bias",
             "hidden_dim": 64,
         },
         {
@@ -2518,7 +2345,7 @@ if __name__ == "__main__":
             "csv_path": "../experimental_data_folder/x1_biased_modern/96_modern_40.csv",
             "marker": "o",
             "include_in_frontier": True,  # Include in frontier analysis
-            "class": "transformer",
+            "class": "x1_no_bias",
             "hidden_dim": 96,
         },
         {
@@ -2526,7 +2353,7 @@ if __name__ == "__main__":
             "csv_path": "../experimental_data_folder/x1_biased_modern/128_modern_40.csv",
             "marker": "o",
             "include_in_frontier": True,  # Include in frontier analysis
-            "class": "transformer",
+            "class": "x1_no_bias",
             "hidden_dim": 128,
         },
         {
@@ -2534,7 +2361,7 @@ if __name__ == "__main__":
             "csv_path": "../experimental_data_folder/x1_biased_modern/160_modern_40.csv",
             "marker": "o",
             "include_in_frontier": True,  # Include in frontier analysis
-            "class": "transformer",
+            "class": "x1_no_bias",
             "hidden_dim": 160,
         },
         {
@@ -2542,7 +2369,7 @@ if __name__ == "__main__":
             "csv_path": "../experimental_data_folder/x1_biased_modern/192_modern_40.csv",
             "marker": "o",
             "include_in_frontier": True,  # Include in frontier analysis
-            "class": "transformer",
+            "class": "x1_no_bias",
             "hidden_dim": 192,
         },
         {
@@ -2550,7 +2377,7 @@ if __name__ == "__main__":
             "csv_path": "../experimental_data_folder/x1_biased_modern/224_modern_40.csv",
             "marker": "o",
             "include_in_frontier": True,  # Include in frontier analysis
-            "class": "transformer",
+            "class": "x1_no_bias",
             "hidden_dim": 224,
         },
         {
@@ -2558,7 +2385,7 @@ if __name__ == "__main__":
             "csv_path": "../experimental_data_folder/x1_biased_modern/256_modern_40.csv",
             "marker": "o",
             "include_in_frontier": True,  # Include in frontier analysis
-            "class": "transformer",
+            "class": "x1_no_bias",
             "hidden_dim": 256,
         },
     ]

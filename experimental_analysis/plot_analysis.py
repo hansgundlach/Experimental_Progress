@@ -280,7 +280,7 @@ analyzer.plot_training_curves_by_class(
 # %%
 
 # no-bias comparison
-classes_to_plot_2 = ["no_bias", "lstm", "x1_no_bias"]
+classes_to_plot_2 = ["lstm", "x1_no_bias"]
 #  Second plot with different classes
 # classes_to_plot_2 = ["no_bias","sin transformer"]
 
@@ -296,7 +296,6 @@ analyzer.plot_training_curves_by_class(
         # "2017 transformer": (1e15, 1e17 * 5),
         # "2017 Transformer": (1e14, 1e17),
         # "sin transformer": (1e15, 1e17 * 5),
-        "no_bias": (1e16, 1e17 * 5),
         "x1_no_bias": (1e16, 1e17 * 5),
         # "sgd": (10 ** (16), 1e17 * 5),
     },
