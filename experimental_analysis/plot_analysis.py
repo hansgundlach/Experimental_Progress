@@ -209,7 +209,7 @@ analyzer.plot_training_curves_by_class(
     save_path="Figures/transformer_sgd_scaling.png",
     classes_to_plot=classes_to_plot_2,
     flop_range_by_class={
-        "transformer": (1e16, 5 * 1e17),
+        # "transformer": (1e16, 5 * 1e17),
         # "lstm": (1e16, 1e17 * 5),
         # "2017 transformer": (1e15, 1e17 * 5),
         # "2017 Transformer": (1e14, 1e17),
@@ -225,12 +225,13 @@ analyzer.plot_training_curves_by_class(
     ),  # Explicitly set extrapolation range (overrides
     theoretical_scaling_laws=[
         {
-            "E": 1.8,  # Irreducible loss
-            "A": 83.7,  # Scaling coefficient (larger to be visible)
-            "gamma": -0.093,  # Scaling exponent
+            "E": 1.9,  # Irreducible loss
+            "A": 88.0,  # Scaling coefficient (larger to be visible)
+            "gamma": -0.094,  # Scaling exponent
             "label": "Modern Transformer Fit",
             "color": "purple",
             "linestyle": "--",
+            "show_irreducible_loss": False,
         },
     ],
 )
@@ -271,6 +272,7 @@ analyzer.plot_training_curves_by_class(
             "label": "Modern Transformer Fit",
             "color": "purple",
             "linestyle": "--",
+            "show_irreducible_loss": False,
         },
     ],
 )

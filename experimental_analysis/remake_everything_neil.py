@@ -2664,19 +2664,19 @@ if __name__ == "__main__":
         save_path="Figures/transformer_v_lstm_scaling.png",
         classes_to_plot=[
             # "optimal_lr_sgd_transformer",
-            "x1_no_bias",
+            # "x1_no_bias",
             "lstm",
-            # "sin transformer",
+            "sin transformer",
             # "sgd",
             # "vanilla_transformer_rmsprop",
         ],
         flop_range_by_class={
             "x1_no_bias": (1e16, 1e17 * 5),
-            "lstm": (1e16, 1e17 * 5),
+            # "lstm": (1e16, 1e17 * 5),
             # "sin transformer": (1e16, 5 * 1e17),
             # "2017 transformer": (1e15, 1e17 * 5),
             # "2017 Transformer": (1e14, 1e17),
-            # "sgd": (1e14, 1e17),
+            # "sgd": (1e16, 1e17 * 5),
         },
         extrapolation_factor=20.0,  # Extend trend lines 3x beyond data range
         # New parameters for explicit control:
@@ -2701,8 +2701,8 @@ if __name__ == "__main__":
         ],
         # Add target loss line to show compute ratio between classes
         target_loss_line={
-            "loss": 3.40,  # Target validation loss level
-            "classes": ["x1_no_bias", "lstm"],  # Two classes to compare
+            "loss": (5.277 - 1.9),  # Target validation loss level
+            "classes": ["sin transformer", "lstm"],  # Two classes to compare
             "linestyle": "-",
             "linewidth": 3,
             "color": "orange",

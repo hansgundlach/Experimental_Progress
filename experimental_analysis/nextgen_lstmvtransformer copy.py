@@ -951,7 +951,7 @@ class TrainingCurveAnalyzer:
             linestyle=linestyle,
             linewidth=linewidth,
             alpha=alpha,
-            label=f"{label}: L = {E:.3f} - {self.irreducible_loss:.3f} + {A:.1f} · C^({gamma:.3f})",
+            label=f"{label}: L = {E:.3f} - {self.irreducible_loss:.3f} + {A:.2e} * C^({gamma:.3f})",
         )
 
     def plot_training_curves_by_class(
@@ -1181,7 +1181,7 @@ class TrainingCurveAnalyzer:
                         linestyle,
                         linewidth=4,
                         alpha=ALPHA_CONFIG["power_law_fit_alpha"],
-                        label=f"{cls} power law: \n {a:.1f} · C^({b:.3f})",
+                        label=f"{cls} power law: \n {a:.2e} * C^({b:.3f})",
                         color=class_color,
                     )
                 else:
@@ -1206,7 +1206,7 @@ class TrainingCurveAnalyzer:
                         eq_y = y_fit[mid_idx] * 1.3  # Slightly above the line
 
                     # Format equation with proper exponents using LaTeX
-                    equation_text = f"${a:.1f} \\cdot C^{{{b:.3f}}}$"
+                    equation_text = f"${a:.2e} \\times C^{{{b:.3f}}}$"
 
                     ax.text(
                         eq_x,
@@ -1272,7 +1272,7 @@ class TrainingCurveAnalyzer:
                     linestyle,
                     linewidth=4,
                     alpha=ALPHA_CONFIG["sklearn_fit_alpha"],
-                    label=f"{cls} sklearn: \n {E:.3f} + {A:.1f} · C^({alpha:.3f}) (R² = {r2:.3f})",
+                    label=f"{cls} sklearn: \n {E:.3f} + {A:.2e} * C^({alpha:.3f}) (R² = {r2:.3f})",
                     color=self.get_class_color(cls),
                 )
 
@@ -1287,6 +1287,7 @@ class TrainingCurveAnalyzer:
                 linestyle = law_config.get("linestyle", "-")
                 linewidth = law_config.get("linewidth", 3)
                 alpha = law_config.get("alpha", 0.8)
+                show_irreducible_loss = law_config.get("show_irreducible_loss", True)
 
                 # Determine compute range for theoretical curve
                 if use_all_points:
@@ -1323,6 +1324,13 @@ class TrainingCurveAnalyzer:
                     )
                     # actual E with irreducible loss removed
                     irred_removed_E = E - self.irreducible_loss
+
+                    # Format label based on show_irreducible_loss parameter
+                    if show_irreducible_loss:
+                        legend_label = f"{label}: \n{irred_removed_E:.3f} + {A:.2e} * C^({gamma:.3f})"
+                    else:
+                        legend_label = f"{label}: \n{A:.2e} * C^({gamma:.3f})"
+
                     ax.plot(
                         x_theory,
                         y_theory,
@@ -1330,7 +1338,7 @@ class TrainingCurveAnalyzer:
                         linestyle=linestyle,
                         linewidth=linewidth,
                         alpha=ALPHA_CONFIG["theoretical_alpha"],
-                        label=f"{label}: \n{irred_removed_E:.3f} + {A:.1f} · C^({gamma:.3f})",
+                        label=legend_label,
                     )
 
             # L = {E:.3f} - {self.irreducible_loss:.3f} + {A:.2e} * C^({gamma:.3f})",
@@ -1739,7 +1747,7 @@ class TrainingCurveAnalyzer:
                     "k--",
                     linewidth=4,
                     alpha=ALPHA_CONFIG["power_law_fit_alpha"],
-                    label=f"Power law fit: y = {a:.1f} · x^({b:.3f}) (R² = {r_squared:.3f})",
+                    label=f"Power law fit: y = {a:.2e} * x^({b:.3f}) (R² = {r_squared:.3f})",
                 )
 
         # Plot sklearn-style fit if requested
@@ -1778,7 +1786,7 @@ class TrainingCurveAnalyzer:
                     "r-.",
                     linewidth=4,
                     alpha=ALPHA_CONFIG["sklearn_fit_alpha"],
-                    label=f"Sklearn fit: {E:.3f} + {A:.1f} · C^({alpha:.3f}) (R² = {r_squared:.3f})",
+                    label=f"Sklearn fit: {E:.3f} + {A:.2e} * C^({alpha:.3f}) (R² = {r_squared:.3f})",
                 )
 
         # Plot theoretical scaling laws if provided
@@ -1792,6 +1800,7 @@ class TrainingCurveAnalyzer:
                 linestyle = law_config.get("linestyle", "-")
                 linewidth = law_config.get("linewidth", 3)
                 alpha = law_config.get("alpha", 0.8)
+                show_irreducible_loss = law_config.get("show_irreducible_loss", True)
 
                 # Determine compute range for theoretical curve
                 if extrapolation_range is not None:
@@ -1806,6 +1815,13 @@ class TrainingCurveAnalyzer:
                         x_theory, gamma
                     )
 
+                    # Format label based on show_irreducible_loss parameter
+                    irred_removed_E = E - self.irreducible_loss
+                    if show_irreducible_loss:
+                        legend_label = f"{label}: {irred_removed_E:.3f} + {A:.2e} * C^({gamma:.3f})"
+                    else:
+                        legend_label = f"{label}: {A:.2e} * C^({gamma:.3f})"
+
                     plt.plot(
                         x_theory,
                         y_theory,
@@ -1813,7 +1829,7 @@ class TrainingCurveAnalyzer:
                         linestyle=linestyle,
                         linewidth=linewidth,
                         alpha=ALPHA_CONFIG["theoretical_alpha"],
-                        label=f"{label}: {E:.3f} - {self.irreducible_loss:.3f} + {A:.1f} · C^({gamma:.3f})",
+                        label=legend_label,
                     )
                 else:
                     # Use extrapolation_factor to extend data range
@@ -1841,6 +1857,13 @@ class TrainingCurveAnalyzer:
                             x_theory, gamma
                         )
 
+                        # Format label based on show_irreducible_loss parameter
+                        irred_removed_E = E - self.irreducible_loss
+                        if show_irreducible_loss:
+                            legend_label = f"{label}: {irred_removed_E:.3f} + {A:.2e} * C^({gamma:.3f})"
+                        else:
+                            legend_label = f"{label}: {A:.2e} * C^({gamma:.3f})"
+
                         plt.plot(
                             x_theory,
                             y_theory,
@@ -1848,7 +1871,7 @@ class TrainingCurveAnalyzer:
                             linestyle=linestyle,
                             linewidth=linewidth,
                             alpha=ALPHA_CONFIG["theoretical_alpha"],
-                            label=f"{label}: {E:.3f} - {self.irreducible_loss:.3f} + {A:.1f} · C^({gamma:.3f})",
+                            label=legend_label,
                         )
 
         # Customize plot
