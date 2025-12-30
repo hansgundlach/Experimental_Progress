@@ -24,9 +24,9 @@ print(f"Downloading The Pile (~{CHAR_LIMIT//4:,} tokens)...")
 print("Note: The Pile is very large (825GB). First download may take a while.")
 
 # Stream through The Pile until we hit CHAR_LIMIT
+# Using monology/pile-uncopyrighted which is hosted on HuggingFace directly
 for example in load_dataset(
-    "EleutherAI/pile",
-    "all",
+    "monology/pile-uncopyrighted",
     split="train",
     streaming=True,
     download_config=download_config,
