@@ -94,7 +94,7 @@ transformer_scaled_init_lr = learning_rate
 #     # )
 # )
 
-
+folder_historical = "historical_lr_study"
 # normalization experiments
 NORMALIZATION_EXPERIMENTS = (
     gen_experim(
@@ -253,69 +253,65 @@ LR_SCHEDULE_EXPERIMENTS = (
 #     + OPTIMIZER_EXPERIMENTS
 # )
 
-
+historical_folder = "historical_lr_study"
 HISTORICAL_ORDER = (
     # 0) 2017 ORIGINAL TRANSFORMER BASELINE
     gen_experim(
         64,
         label="00_base_2017_post_noam_relu_sinus",
-        folder_name="historical_lr_study",
+        folder_name=historical_folder,
         learning_rate=10 ** (-2.25),  # tune once and freeze across steps
-        activation="relu",  # 2017
+        activation="gelu",  # 2017
         norm_placement="post",  # Post-LN
         lr_schedule="inverse_sqrt",  # Noam
         pos_encoding="sinusoidal",  # 2017 default
-        weight_decay=0.0,  # Adam + L2 effectively off in 2017
-        dropout=0.1,  # typical in 2017
-        optimizer="adam",
-        modern_bias_0=True,  # bias=0 has long been common
+        weight_decay=0.01,  # Adam + L2 effectively off in 2017
+        dropout=0.0,  # typical in 2017
+        optimizer="adam",  # bias=0 has long been common
         ff_ratio=4,
     )
     # 1) 2017 ALTERNATIVE: LEARNED PE
-    # + gen_experim(
-    #     64,
-    #     label="01_learned_pe",
-    #     folder_name="historical_lr_study",
-    #     activation="relu",
-    #     norm_placement="post",
-    #     lr_schedule="inverse_sqrt",
-    #     pos_encoding="learned",  # only change
-    #     weight_decay=0.0,
-    #     dropout=0.1,
-    #     optimizer="adam",
-    #     modern_bias_0=True,
-    #     ff_ratio=4,
-    #     learning_rate=10 ** (-2.5),
-    # )
-    # # 2) 2018 ADOPTION: GELU (keep schedule/PE from previous step)
-    # + gen_experim(
-    #     64,
-    #     label="02_gelu_activation",
-    #     folder_name="historical_lr_study",
-    #     activation="gelu",  # change
-    #     norm_placement="post",
-    #     lr_schedule="inverse_sqrt",
-    #     pos_encoding="learned",
-    #     weight_decay=0.0,
-    #     dropout=0.1,
-    #     optimizer="adam",
-    #     modern_bias_0=True,
-    #     ff_ratio=4,
-    #     learning_rate=10 ** (-2.75),
-    # )
+    + gen_experim(
+        64,
+        label="01_learned_pe",
+        folder_name=historical_folder,
+        activation="gelu",
+        norm_placement="post",
+        lr_schedule="inverse_sqrt",
+        pos_encoding="learned",  # only change
+        weight_decay=0.01,
+        dropout=0.0,
+        optimizer="adam",
+        ff_ratio=4,
+        learning_rate=10 ** (-2.5),
+    )
+    # 2) 2018 ADOPTION: GELU (keep schedule/PE from previous step)
+    + gen_experim(
+        64,
+        label="02_gelu_activation",
+        folder_name=historical_folder,
+        activation="gelu",  # change
+        norm_placement="post",
+        lr_schedule="inverse_sqrt",
+        pos_encoding="learned",
+        weight_decay=0.01,
+        dropout=0.0,
+        optimizer="adam",
+        ff_ratio=4,
+        learning_rate=10 ** (-2.75),
+    )
     # 3) 2018–2019: LINEAR DECAY (with warmup)
     + gen_experim(
         64,
         label="03_linear_decay",
-        folder_name="historical_lr_study",
+        folder_name=historical_folder,
         activation="gelu",
         norm_placement="post",
         lr_schedule="linear_warmup",  # change (warmup + linear → 0)
         pos_encoding="learned",
-        weight_decay=0.0,
-        dropout=0.1,
+        weight_decay=0.01,
+        dropout=0.0,
         optimizer="adam",
-        modern_bias_0=True,
         ff_ratio=4,
         learning_rate=10 ** (-2.5),
     )
@@ -323,15 +319,14 @@ HISTORICAL_ORDER = (
     + gen_experim(
         64,
         label="04_pre_ln",
-        folder_name="historical_lr_study",
+        folder_name=historical_folder,
         activation="gelu",
         norm_placement="pre",  # change
         lr_schedule="linear_warmup",
         pos_encoding="learned",
-        weight_decay=0.0,
-        dropout=0.1,
+        weight_decay=0.01,
+        dropout=0.0,
         optimizer="adam",
-        modern_bias_0=True,
         ff_ratio=4,
         learning_rate=10 ** (-2.5),
     )
@@ -339,102 +334,80 @@ HISTORICAL_ORDER = (
     + gen_experim(
         64,
         label="05_adamw",
-        folder_name="historical_lr_study",
+        folder_name=historical_folder,
         activation="gelu",
         norm_placement="pre",
         lr_schedule="linear_warmup",
         pos_encoding="learned",
         weight_decay=0.01,  # change (now meaningful)
-        dropout=0.1,
+        dropout=0.0,
         optimizer="adamw",  # change
-        modern_bias_0=True,
         ff_ratio=4,
         learning_rate=10 ** (-2.5),
     )
     # 6) 2019–2020: COSINE DECAY (no restarts)
-    # + gen_experim(
-    #     64,
-    #     label="06_cosine_decay",
-    #     folder_name="historical_lr_study",
-    #     activation="gelu",
-    #     norm_placement="pre",
-    #     lr_schedule="cosine_warmup",  # change
-    #     pos_encoding="learned",
-    #     weight_decay=0.01,
-    #     dropout=0.1,
-    #     optimizer="adamw",
-    #     modern_bias_0=True,
-    #     ff_ratio=4,
-    #     learning_rate=10 ** (-2.25),
-    # )
+    + gen_experim(
+        64,
+        label="06_cosine_decay",
+        folder_name=historical_folder,
+        activation="gelu",
+        norm_placement="pre",
+        lr_schedule="cosine_warmup",  # change
+        pos_encoding="learned",
+        weight_decay=0.01,
+        dropout=0.0,
+        optimizer="adamw",
+        ff_ratio=4,
+        learning_rate=10 ** (-2.25),
+    )
     # 7) 2019–2020: RMSNorm
-    # + gen_experim(
-    #     64,
-    #     label="07_rmsnorm",
-    #     folder_name="historical_lr_study",
-    #     activation="gelu",
-    #     norm_placement="pre",
-    #     lr_schedule="cosine_warmup",
-    #     pos_encoding="learned",
-    #     weight_decay=0.01,
-    #     dropout=0.1,
-    #     optimizer="adamw",
-    #     norm_type="rms",  # change
-    #     modern_bias_0=True,
-    #     ff_ratio=4,
-    #     learning_rate=10 ** (-2.25),
-    # )
-    # # 8) 2020: SwiGLU (+ typical reduced FF width)
-    # + gen_experim(
-    #     64,
-    #     label="08_swiglu_ff2p5",
-    #     folder_name="historical_lr_study",
-    #     activation="swiglu",  # change
-    #     norm_placement="pre",
-    #     lr_schedule="cosine_warmup",
-    #     pos_encoding="learned",
-    #     weight_decay=0.01,
-    #     dropout=0.1,
-    #     optimizer="adamw",
-    #     norm_type="rms",
-    #     modern_bias_0=True,
-    #     ff_ratio=2.5,  # change (SwiGLU often uses ~2.5–3.0)
-    #     learning_rate=10 ** (-2),
-    # )
-    # # 9) 2021: RoPE
-    # + gen_experim(
-    #     64,
-    #     label="09_rope",
-    #     folder_name="historical_lr_study",
-    #     activation="swiglu",
-    #     norm_placement="pre",
-    #     lr_schedule="cosine_warmup",
-    #     pos_encoding="rotary",  # change
-    #     weight_decay=0.01,
-    #     dropout=0.1,
-    #     optimizer="adamw",
-    #     norm_type="rms",
-    #     modern_bias_0=True,
-    #     ff_ratio=2.5,
-    #     learning_rate=10 ** (-2),
-    # )
-    # # 10) 2022+: Remove dropout in pretraining
-    # + gen_experim(
-    #     64,
-    #     label="10_no_dropout",
-    #     folder_name="historical_lr_study",
-    #     activation="swiglu",
-    #     norm_placement="pre",
-    #     lr_schedule="cosine_warmup",
-    #     pos_encoding="rotary",
-    #     weight_decay=0.01,
-    #     dropout=0.0,  # change
-    #     optimizer="adamw",
-    #     norm_type="rms",
-    #     modern_bias_0=True,
-    #     ff_ratio=2.5,
-    #     learning_rate=10 ** (-2),
-    # )
+    + gen_experim(
+        64,
+        label="07_rmsnorm",
+        folder_name=historical_folder,
+        activation="gelu",
+        norm_placement="pre",
+        lr_schedule="cosine_warmup",
+        pos_encoding="learned",
+        weight_decay=0.01,
+        dropout=0.0,
+        optimizer="adamw",
+        norm_type="rms",  # change
+        ff_ratio=4,
+        learning_rate=10 ** (-2.25),
+    )
+    # 8) 2020: SwiGLU (+ typical reduced FF width)
+    + gen_experim(
+        64,
+        label="08_swiglu_ff2p5",
+        folder_name=historical_folder,
+        activation="swiglu",  # change
+        norm_placement="pre",
+        lr_schedule="cosine_warmup",
+        pos_encoding="learned",
+        weight_decay=0.01,
+        dropout=0.0,
+        optimizer="adamw",
+        norm_type="rms",
+        ff_ratio=4,  # change (SwiGLU often uses ~2.5–3.0)
+        learning_rate=10 ** (-2),
+    )
+    # 9) 2021: RoPE
+    + gen_experim(
+        64,
+        label="09_rope",
+        folder_name=historical_folder,
+        activation="swiglu",
+        norm_placement="pre",
+        lr_schedule="cosine_warmup",
+        pos_encoding="rotary",  # change
+        weight_decay=0.01,
+        dropout=0.0,
+        optimizer="adamw",
+        norm_type="rms",
+        ff_ratio=4,
+        learning_rate=10 ** (-2),
+    )
 )
 
 
@@ -578,4 +551,12 @@ ALL_EXPERIMENT_LR_TUNE = create_multi_lr_experiments(
     ],
 )
 
-GRAND_VARIATION_EXPERIMENTS = ALL_EXPERIMENTS
+
+# 10*7 = 70 experiments
+HISTORICAL_ORDER_LR_TUNE = create_multi_lr_experiments(
+    HISTORICAL_ORDER,
+    [10**-3, 10**-2.75, 10**-2.5, 10**-2.25, 10**-2, 10**-1.75, 10**-1.5],
+)
+
+
+GRAND_VARIATION_EXPERIMENTS = HISTORICAL_ORDER_LR_TUNE

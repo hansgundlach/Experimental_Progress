@@ -972,6 +972,7 @@ class TrainingCurveAnalyzer:
         target_loss_line: Optional[Dict] = None,
         show_legend: bool = True,
         equation_positions: Optional[Dict[str, Tuple[float, float]]] = None,
+        title: Optional[str] = None,
     ) -> None:
         """
         Plot training curves and per-class frontiers and fits.
@@ -1468,7 +1469,7 @@ class TrainingCurveAnalyzer:
 
         ax.grid(True, alpha=0.3)
         ax.set_title(
-            "Transformer Scaling Analysis",
+            title or "Transformer Scaling Analysis",
             fontsize=FONT_CONFIG["title_size"],
             fontweight=FONT_CONFIG["title_weight"],
         )
@@ -1602,6 +1603,7 @@ class TrainingCurveAnalyzer:
         theoretical_scaling_laws: Optional[List[Dict]] = None,
         xlim: Optional[Tuple[float, float]] = None,
         extrapolation_range: Optional[Tuple[float, float]] = None,
+        title: Optional[str] = None,
     ) -> None:
         """
         Plot training curves for all experiments.
@@ -1888,7 +1890,7 @@ class TrainingCurveAnalyzer:
 
         plt.grid(True, alpha=0.3)
         plt.title(
-            "Training Curves and Scaling Analysis",
+            title or "Training Curves and Scaling Analysis",
             fontsize=FONT_CONFIG["regular_title_size"],
             fontweight="bold",
         )

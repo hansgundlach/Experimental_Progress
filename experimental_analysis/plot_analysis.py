@@ -207,6 +207,7 @@ analyzer.plot_training_curves_by_class(
     show_power_law_fit=True,
     show_sklearn_fit=False,  # Enable sklearn-style fit: L = E + A * C^alpha
     save_path="Figures/transformer_sgd_scaling.png",
+    title="SGD Scaling Experiments",
     classes_to_plot=classes_to_plot_2,
     flop_range_by_class={
         # "transformer": (1e16, 5 * 1e17),

@@ -512,7 +512,7 @@ def plot_panel_to_axis(
     ax.set_xlabel("Compute (FLOPs)", fontsize=NEURIPS_FONT_CONFIG["xlabel_size"])
     if show_ylabel:
         ax.set_ylabel(
-            "Validation Loss - Irreducible (Log Scale)",
+            "Validation Loss - Irreducible ",
             fontsize=NEURIPS_FONT_CONFIG["ylabel_size"],
         )
     ax.set_yscale("log")
@@ -637,7 +637,7 @@ plot_panel_to_axis(
         "lstm": (5e16, 5.7),
     },
     show_ylabel=True,
-    title="Transformer vs LSTM Scaling",
+    title="Modern Transformer vs LSTM Scaling",
 )
 
 # Panel 2: Sin transformer with theoretical comparison
@@ -705,7 +705,7 @@ plot_panel_to_axis(
         "sin transformer": (7e16, 5.7),
     },
     show_ylabel=False,  # Don't repeat ylabel
-    title="2017 Transformer vs Modern Scaling",
+    title="Retro vs Modern Transformer Scaling",
 )
 
 # Remove y-tick labels from the second subplot since they share axis
