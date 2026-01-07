@@ -912,8 +912,8 @@ def get_base_config():
         "sgd_nesterov": False,  # SGD Nesterov momentum
         "use_amp": False,
         # Dataset split configuration
-        "train_split": 0.9,  # Fraction of dataset to use for training (default: 90%)
-        "val_split": 0.1,  # Fraction of dataset to use for validation (default: 10%)
+        "train_split": 0.9,  # Fraction of dataset to use for training (default: 90%) if used if fixed validation is specified this is used instead 
+        "val_split": 0.1,  # Fraction of dataset to use for validation (default: 10%) if used if fixed validation is specified this is used instead 
         "fixed_val_tokens": int(
             500e3
         ),  # Fixed number of tokens for validation set (None = use percentage split)

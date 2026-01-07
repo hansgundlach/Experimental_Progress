@@ -603,93 +603,146 @@ BIASED_LR_SCALING_STUDY = (
 # Model scales: 64d, 96d, 128d, 256d
 
 # 1. Train on WikiText, validate on WikiText (in-distribution baseline)
-WIKITEXT_TRAIN_WIKITEXT_VAL = (
+WIKITEXT_TRAIN = (
     gen_experim(
         64,
         label="64d_wikitext_train",
         folder_name="cross_dataset_wikitext_val",
         data_path="Datasets/wikitext103_train.txt",
-        val_data_path="Datasets/wikitext103_validation.txt",
+        val_data_path="Datasets/ptb_valide.npy",
         token_to_param_ratio=20,
         learning_rate=10 ** (-2.5),  # Standard learning rate for 64d
+        fixed_val_tokens=int(80e3),
     )
     + gen_experim(
         96,
         label="96d_wikitext_train",
         folder_name="cross_dataset_wikitext_val",
         data_path="Datasets/wikitext103_train.txt",
-        val_data_path="Datasets/wikitext103_validation.txt",
+        val_data_path="Datasets/ptb_valide.npy",
         token_to_param_ratio=20,
         learning_rate=10 ** (-2.75),  # Scaled for 96d
+        fixed_val_tokens=int(80e3),
     )
     + gen_experim(
         128,
         label="128d_wikitext_train",
         folder_name="cross_dataset_wikitext_val",
         data_path="Datasets/wikitext103_train.txt",
-        val_data_path="Datasets/wikitext103_validation.txt",
+        val_data_path="Datasets/ptb_valide.npy",
         token_to_param_ratio=20,
         learning_rate=10 ** (-3),  # Scaled for 128d
+        fixed_val_tokens=int(80e3),
     )
     + gen_experim(
-        256,
+        196,
         label="256d_wikitext_train",
         folder_name="cross_dataset_wikitext_val",
         data_path="Datasets/wikitext103_train.txt",
-        val_data_path="Datasets/wikitext103_validation.txt",
+        val_data_path="Datasets/ptb_valide.npy",
         token_to_param_ratio=20,
         learning_rate=10 ** (-3.5),  # Scaled for 256d
+        fixed_val_tokens=int(80e3),
     )
 )
 
 # 2. Train on OpenWebText, validate on WikiText (cross-dataset)
-OPENWEBTEXT_TRAIN_WIKITEXT_VAL = (
+OPENWEBTEXT_TRAIN = (
     gen_experim(
         64,
         label="64d_openwebtext_train",
         folder_name="cross_dataset_wikitext_val",
         data_path="Datasets/openwebtext_subset.txt",
-        val_data_path="Datasets/wikitext103_validation.txt",
+        val_data_path="Datasets/ptb_valide.npy",
         token_to_param_ratio=20,
         learning_rate=10 ** (-2.5),
+        fixed_val_tokens=int(80e3),
     )
     + gen_experim(
         96,
         label="96d_openwebtext_train",
         folder_name="cross_dataset_wikitext_val",
         data_path="Datasets/openwebtext_subset.txt",
-        val_data_path="Datasets/wikitext103_validation.txt",
+        val_data_path="Datasets/ptb_valide.npy",
         token_to_param_ratio=20,
         learning_rate=10 ** (-2.75),
+        fixed_val_tokens=int(80e3),
     )
     + gen_experim(
         128,
         label="128d_openwebtext_train",
         folder_name="cross_dataset_wikitext_val",
         data_path="Datasets/openwebtext_subset.txt",
-        val_data_path="Datasets/wikitext103_validation.txt",
+        val_data_path="Datasets/ptb_valide.npy",
         token_to_param_ratio=20,
         learning_rate=10 ** (-3),
+        fixed_val_tokens=int(80e3),
     )
     + gen_experim(
-        256,
-        label="256d_openwebtext_train",
+        196,
+        label="196d_openwebtext_train",
         folder_name="cross_dataset_wikitext_val",
         data_path="Datasets/openwebtext_subset.txt",
-        val_data_path="Datasets/wikitext103_validation.txt",
+        val_data_path="Datasets/ptb_valide.npy",
         token_to_param_ratio=20,
         learning_rate=10 ** (-3.5),
+        fixed_val_tokens=int(80e3),
     )
 )
 
 # 3. Train on C4, validate on WikiText (cross-dataset)
-C4_TRAIN_WIKITEXT_VAL = (
+C4_TRAIN_TRAIN = (
     gen_experim(
         64,
         label="64d_c4_train",
         folder_name="cross_dataset_wikitext_val",
         data_path="Datasets/c4_subset_large.txt",
-        val_data_path="Datasets/wikitext103_validation.txt",
+        val_data_path="Datasets/ptb_valide.npy",
+        token_to_param_ratio=20,
+        learning_rate=10 ** (-2.5),
+        fixed_val_tokens=int(80e3),
+    )
+    + gen_experim(
+        96,
+        label="96d_c4_train",
+        folder_name="cross_dataset_wikitext_val",
+        data_path="Datasets/c4_subset_large.txt",
+        val_data_path="Datasets/ptb_valide.npy",
+        token_to_param_ratio=20,
+        learning_rate=10 ** (-2.75),
+        fixed_val_tokens=int(80e3),
+    )
+    + gen_experim(
+        128,
+        label="128d_c4_train",
+        folder_name="cross_dataset_wikitext_val",
+        data_path="Datasets/c4_subset_large.txt",
+        val_data_path="Datasets/ptb_valide.npy",
+        token_to_param_ratio=20,
+        learning_rate=10 ** (-3),
+        fixed_val_tokens=int(80e3),
+    )
+    + gen_experim(
+        196,
+        label="196d_c4_train",
+        folder_name="cross_dataset_wikitext_val",
+        data_path="Datasets/c4_subset_large.txt",
+        val_data_path="Datasets/ptb_valide.npy",
+        token_to_param_ratio=20,
+        learning_rate=10 ** (-3.5),
+        fixed_val_tokens=int(80e3),
+    )
+)
+
+
+# The Pile
+THE_PILE_PTB_VAL = (
+    gen_experim(
+        64,
+        label="64d_c4_train",
+        folder_name="cross_dataset_wikitext_val",
+        data_path="Datasets/pile_subset.npy",
+        val_data_path="Datasets/ptb_valide.npy",
         token_to_param_ratio=20,
         learning_rate=10 ** (-2.5),
     )
@@ -697,8 +750,8 @@ C4_TRAIN_WIKITEXT_VAL = (
         96,
         label="96d_c4_train",
         folder_name="cross_dataset_wikitext_val",
-        data_path="Datasets/c4_subset_large.txt",
-        val_data_path="Datasets/wikitext103_validation.txt",
+        data_path="Datasets/pile_subset.npy",
+        val_data_path="Datasets/ptb_valide.npy",
         token_to_param_ratio=20,
         learning_rate=10 ** (-2.75),
     )
@@ -706,27 +759,29 @@ C4_TRAIN_WIKITEXT_VAL = (
         128,
         label="128d_c4_train",
         folder_name="cross_dataset_wikitext_val",
-        data_path="Datasets/c4_subset_large.txt",
-        val_data_path="Datasets/wikitext103_validation.txt",
+        data_path="Datasets/pile_subset.npy",
+        val_data_path="Datasets/ptb_valide.npy",
         token_to_param_ratio=20,
         learning_rate=10 ** (-3),
     )
     + gen_experim(
-        256,
-        label="256d_c4_train",
+        196,
+        label="196d_c4_train",
         folder_name="cross_dataset_wikitext_val",
-        data_path="Datasets/c4_subset_large.txt",
-        val_data_path="Datasets/wikitext103_validation.txt",
+        data_path="Datasets/pile_subset.npy",
+        val_data_path="Datasets/ptb_valide.npy",
         token_to_param_ratio=20,
         learning_rate=10 ** (-3.5),
     )
 )
 
+
 # Combine all cross-dataset experiments
 CROSS_DATASET_EXPERIMENTS = (
-    WIKITEXT_TRAIN_WIKITEXT_VAL + OPENWEBTEXT_TRAIN_WIKITEXT_VAL + C4_TRAIN_WIKITEXT_VAL
+    WIKITEXT_TRAIN
+    # WIKITEXT_TRAIN + OPENWEBTEXT_TRAIN + C4_TRAIN_TRAIN + THE_PILE_PTB_VAL
 )
-
+# 4*12=48
 # ============================================================================
 
 # 64
@@ -761,8 +816,8 @@ BIASED_LR_SCALING_STUDY_LR_TUNE = create_multi_lr_experiments(
         10**-3.5,
     ],
 )
-# ========================    
-# FF=4 Justification for Swiglu 
+# ========================
+# FF=4 Justification for Swiglu
 # FF4_JUSTIFICATION = gen_experim(
 #         64,
 #         label="64_modern_40",
@@ -783,18 +838,6 @@ BIASED_LR_SCALING_STUDY_LR_TUNE = create_multi_lr_experiments(
 #         modern_bias_0=False,
 #         ff_ratio=4,
 #     )
-
-
-
-
-
-
-
-
-
-
-
-
 
 
 # =======================================================
@@ -818,4 +861,4 @@ BIASED_LR_SCALING_STUDY_LR_TUNE = create_multi_lr_experiments(
 # )
 
 
-GRAND_EXPERIMENT = HISTORICAL_EXPERIMENTS + SGD_SCALING
+GRAND_EXPERIMENT = CROSS_DATASET_EXPERIMENTS_LR_TUNE
