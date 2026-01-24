@@ -15,7 +15,7 @@ architectures: LSTM, Transformer
 
 - pytorch
 - weights and biases
-- MIT supercloud V100s (these are offline)
+- V100s (these are offline)
 
 # Current Optionality
 
@@ -58,6 +58,7 @@ python analyze_best_lr.py --verbose
 ```
 
 The script:
+
 - Scans CSV files from learning rate sweep experiments
 - Extracts model dimensions (32d, 64d, 128d, etc.) and learning rates from filenames
 - Identifies the best learning rate for each dimension based on final validation loss

@@ -607,9 +607,9 @@ WIKITEXT_TRAIN = (
     gen_experim(
         64,
         label="64d_wikitext_train",
-        folder_name="cross_dataset_wikitext_val",
+        folder_name="dataset_evaluation",
         data_path="Datasets/wikitext103_train.txt",
-        val_data_path="Datasets/ptb_valide.npy",
+        val_data_path="Datasets/ptb_valid.npy",
         token_to_param_ratio=20,
         learning_rate=10 ** (-2.5),  # Standard learning rate for 64d
         fixed_val_tokens=int(80e3),
@@ -617,9 +617,9 @@ WIKITEXT_TRAIN = (
     + gen_experim(
         96,
         label="96d_wikitext_train",
-        folder_name="cross_dataset_wikitext_val",
+        folder_name="dataset_evaluation",
         data_path="Datasets/wikitext103_train.txt",
-        val_data_path="Datasets/ptb_valide.npy",
+        val_data_path="Datasets/ptb_valid.npy",
         token_to_param_ratio=20,
         learning_rate=10 ** (-2.75),  # Scaled for 96d
         fixed_val_tokens=int(80e3),
@@ -627,23 +627,23 @@ WIKITEXT_TRAIN = (
     + gen_experim(
         128,
         label="128d_wikitext_train",
-        folder_name="cross_dataset_wikitext_val",
+        folder_name="dataset_evaluation",
         data_path="Datasets/wikitext103_train.txt",
-        val_data_path="Datasets/ptb_valide.npy",
+        val_data_path="Datasets/ptb_valid.npy",
         token_to_param_ratio=20,
         learning_rate=10 ** (-3),  # Scaled for 128d
         fixed_val_tokens=int(80e3),
     )
-    + gen_experim(
-        196,
-        label="256d_wikitext_train",
-        folder_name="cross_dataset_wikitext_val",
-        data_path="Datasets/wikitext103_train.txt",
-        val_data_path="Datasets/ptb_valide.npy",
-        token_to_param_ratio=20,
-        learning_rate=10 ** (-3.5),  # Scaled for 256d
-        fixed_val_tokens=int(80e3),
-    )
+    # + gen_experim(
+    #     196,
+    #     label="256d_wikitext_train",
+    #     folder_name="dataset_evaluation",
+    #     data_path="Datasets/wikitext103_train.txt",
+    #     val_data_path="Datasets/ptb_valide.npy",
+    #     token_to_param_ratio=20,
+    #     learning_rate=10 ** (-3.5),  # Scaled for 256d
+    #     fixed_val_tokens=int(80e3),
+    # )
 )
 
 # 2. Train on OpenWebText, validate on WikiText (cross-dataset)
@@ -651,9 +651,9 @@ OPENWEBTEXT_TRAIN = (
     gen_experim(
         64,
         label="64d_openwebtext_train",
-        folder_name="cross_dataset_wikitext_val",
+        folder_name="dataset_evaluation",
         data_path="Datasets/openwebtext_subset.txt",
-        val_data_path="Datasets/ptb_valide.npy",
+        val_data_path="Datasets/ptb_valid.npy",
         token_to_param_ratio=20,
         learning_rate=10 ** (-2.5),
         fixed_val_tokens=int(80e3),
@@ -661,9 +661,9 @@ OPENWEBTEXT_TRAIN = (
     + gen_experim(
         96,
         label="96d_openwebtext_train",
-        folder_name="cross_dataset_wikitext_val",
+        folder_name="dataset_evaluation",
         data_path="Datasets/openwebtext_subset.txt",
-        val_data_path="Datasets/ptb_valide.npy",
+        val_data_path="Datasets/ptb_valid.npy",
         token_to_param_ratio=20,
         learning_rate=10 ** (-2.75),
         fixed_val_tokens=int(80e3),
@@ -671,9 +671,9 @@ OPENWEBTEXT_TRAIN = (
     + gen_experim(
         128,
         label="128d_openwebtext_train",
-        folder_name="cross_dataset_wikitext_val",
+        folder_name="dataset_evaluation",
         data_path="Datasets/openwebtext_subset.txt",
-        val_data_path="Datasets/ptb_valide.npy",
+        val_data_path="Datasets/ptb_valid.npy",
         token_to_param_ratio=20,
         learning_rate=10 ** (-3),
         fixed_val_tokens=int(80e3),
@@ -681,9 +681,9 @@ OPENWEBTEXT_TRAIN = (
     + gen_experim(
         196,
         label="196d_openwebtext_train",
-        folder_name="cross_dataset_wikitext_val",
+        folder_name="dataset_evaluation",
         data_path="Datasets/openwebtext_subset.txt",
-        val_data_path="Datasets/ptb_valide.npy",
+        val_data_path="Datasets/ptb_valid.npy",
         token_to_param_ratio=20,
         learning_rate=10 ** (-3.5),
         fixed_val_tokens=int(80e3),
@@ -695,9 +695,9 @@ C4_TRAIN_TRAIN = (
     gen_experim(
         64,
         label="64d_c4_train",
-        folder_name="cross_dataset_wikitext_val",
+        folder_name="dataset_evaluation",
         data_path="Datasets/c4_subset_large.txt",
-        val_data_path="Datasets/ptb_valide.npy",
+        val_data_path="Datasets/ptb_valid.npy",
         token_to_param_ratio=20,
         learning_rate=10 ** (-2.5),
         fixed_val_tokens=int(80e3),
@@ -705,9 +705,9 @@ C4_TRAIN_TRAIN = (
     + gen_experim(
         96,
         label="96d_c4_train",
-        folder_name="cross_dataset_wikitext_val",
+        folder_name="dataset_evaluation",
         data_path="Datasets/c4_subset_large.txt",
-        val_data_path="Datasets/ptb_valide.npy",
+        val_data_path="Datasets/ptb_valid.npy",
         token_to_param_ratio=20,
         learning_rate=10 ** (-2.75),
         fixed_val_tokens=int(80e3),
@@ -715,9 +715,9 @@ C4_TRAIN_TRAIN = (
     + gen_experim(
         128,
         label="128d_c4_train",
-        folder_name="cross_dataset_wikitext_val",
+        folder_name="dataset_evaluation",
         data_path="Datasets/c4_subset_large.txt",
-        val_data_path="Datasets/ptb_valide.npy",
+        val_data_path="Datasets/ptb_valid.npy",
         token_to_param_ratio=20,
         learning_rate=10 ** (-3),
         fixed_val_tokens=int(80e3),
@@ -725,9 +725,9 @@ C4_TRAIN_TRAIN = (
     + gen_experim(
         196,
         label="196d_c4_train",
-        folder_name="cross_dataset_wikitext_val",
+        folder_name="dataset_evaluation",
         data_path="Datasets/c4_subset_large.txt",
-        val_data_path="Datasets/ptb_valide.npy",
+        val_data_path="Datasets/ptb_valid.npy",
         token_to_param_ratio=20,
         learning_rate=10 ** (-3.5),
         fixed_val_tokens=int(80e3),
@@ -739,37 +739,37 @@ C4_TRAIN_TRAIN = (
 THE_PILE_PTB_VAL = (
     gen_experim(
         64,
-        label="64d_c4_train",
-        folder_name="cross_dataset_wikitext_val",
+        label="64d_pile_train",
+        folder_name="dataset_evaluation",
         data_path="Datasets/pile_subset.npy",
-        val_data_path="Datasets/ptb_valide.npy",
+        val_data_path="Datasets/ptb_valid.npy",
         token_to_param_ratio=20,
         learning_rate=10 ** (-2.5),
     )
     + gen_experim(
         96,
-        label="96d_c4_train",
-        folder_name="cross_dataset_wikitext_val",
+        label="96d_pile_train",
+        folder_name="dataset_evaluation",
         data_path="Datasets/pile_subset.npy",
-        val_data_path="Datasets/ptb_valide.npy",
+        val_data_path="Datasets/ptb_valid.npy",
         token_to_param_ratio=20,
         learning_rate=10 ** (-2.75),
     )
     + gen_experim(
         128,
-        label="128d_c4_train",
-        folder_name="cross_dataset_wikitext_val",
+        label="128d_pile_train",
+        folder_name="dataset_evaluation",
         data_path="Datasets/pile_subset.npy",
-        val_data_path="Datasets/ptb_valide.npy",
+        val_data_path="Datasets/ptb_valid.npy",
         token_to_param_ratio=20,
         learning_rate=10 ** (-3),
     )
     + gen_experim(
         196,
-        label="196d_c4_train",
-        folder_name="cross_dataset_wikitext_val",
+        label="196d_pile_train",
+        folder_name="dataset_evaluation",
         data_path="Datasets/pile_subset.npy",
-        val_data_path="Datasets/ptb_valide.npy",
+        val_data_path="Datasets/ptb_valid.npy",
         token_to_param_ratio=20,
         learning_rate=10 ** (-3.5),
     )
@@ -778,10 +778,11 @@ THE_PILE_PTB_VAL = (
 
 # Combine all cross-dataset experiments
 CROSS_DATASET_EXPERIMENTS = (
-    WIKITEXT_TRAIN
-    # WIKITEXT_TRAIN + OPENWEBTEXT_TRAIN + C4_TRAIN_TRAIN + THE_PILE_PTB_VAL
+    WIKITEXT_TRAIN + OPENWEBTEXT_TRAIN + C4_TRAIN_TRAIN + THE_PILE_PTB_VAL
 )
 # 4*12=48
+# 15*12=180
+
 # ============================================================================
 
 # 64

@@ -40,23 +40,23 @@ def extract_dimension_and_lr(folder_name: str) -> Tuple[Optional[int], Optional[
     # Parse different learning rate formats
     try:
         # Handle NEW clear scientific notation: 10e-1, 10e-2, 3.2e-3, etc.
-        if "e" in lr_str and (
-            lr_str.startswith("10e")
-            or lr_str.startswith("32e")
-            or re.match(r"\d+\.?\d*e[+-]\d+", lr_str)
-        ):
-            # Special handling for 10eN and 32eN format where N is the negative exponent
-            if lr_str.startswith("10e") and not ("+" in lr_str or "-" in lr_str):
-                # Format like "10e1" means 10^(-1) = 0.1, "10e2" means 10^(-2) = 0.01, etc.
-                exponent = int(lr_str[3:])  # Get the number after "10e"
-                lr = 10 ** (-exponent)
-            elif lr_str.startswith("32e") and not ("+" in lr_str or "-" in lr_str):
-                # Format like "32e2" means 32 * 10^(-3) = 0.0032, "32e3" means 32 * 10^(-4) = 0.00032
-                exponent = int(lr_str[3:])  # Get the number after "32e"
-                lr = 32 * (10 ** (-exponent - 1))  # Shift by -1 for 32e format
+        if "e" in lr_str:
+            # Check for custom format: XYeN means X.Y * 10^(-N) (e.g., 18e2 = 1.8e-2 = 0.018)
+            # This format uses 2 digits before 'e' without +/- signs
+            custom_format_match = re.match(r"^(\d{2})e(\d+)$", lr_str)
+            if custom_format_match:
+                # Format like "18e2" means 1.8 * 10^(-2) = 0.018
+                # Format like "32e3" means 3.2 * 10^(-3) = 0.0032
+                # Format like "56e4" means 5.6 * 10^(-4) = 0.00056
+                mantissa = int(custom_format_match.group(1))
+                exponent = int(custom_format_match.group(2))
+                lr = (mantissa / 10.0) * (10 ** (-exponent))
+            # Standard scientific notation with explicit +/- signs
+            elif "+" in lr_str or "-" in lr_str:
+                lr = float(lr_str)
             else:
-                # Standard scientific notation for other cases
-                lr = float(lr_str.replace("e", "e"))
+                # Fallback: try standard scientific notation
+                lr = float(lr_str)
         # Handle OLD confusing formats for backwards compatibility
         elif "em" in lr_str:
             lr_str = lr_str.replace("em", "e-")
