@@ -2010,6 +2010,30 @@ if __name__ == "__main__":
             "class": "lstm",
             "hidden_dim": 256,
         },
+
+        #graph for more layers 
+       
+
+        
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
         # # lstm sgd
         # {
         #     "name": "48d melis sgd",

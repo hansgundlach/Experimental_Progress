@@ -1980,6 +1980,43 @@ if __name__ == "__main__":
             "class": "lstm",
             "hidden_dim": 256,
         },
+        #now add beyodn 256
+        {
+            "name": "320d corrected melis scaling experiments",
+            "csv_path": "../experimental_data_folder/x1_lstm_layer1/320d_layer2.csv",
+            "marker": "o",
+            "include_in_in_frontier": False,  # Include in frontier analysis
+            "class": "lstm",
+            "hidden_dim": 320,
+        },
+        {
+            "name": "384d corrected melis scaling experiments",
+            "csv_path": "../experimental_data_folder/x1_lstm_layer1/384d_layer2.csv",
+            "marker": "o",
+            "include_in_in_frontier": False,  # Include in frontier analysis
+            "class": "lstm",
+            "hidden_dim": 384,
+        },
+        {
+            "name": "448d corrected melis scaling experiments",
+            "csv_path": "../experimental_data_folder/x1_lstm_layer1/448d_layer2.csv",
+            "marker": "o",
+            "include_in_in_frontier": False,  # Include in frontier analysis
+            "class": "lstm",
+            "hidden_dim": 448,
+        },
+        {
+            "name": "512d corrected melis scaling experiments",
+            "csv_path": "../experimental_data_folder/x1_lstm_layer1/512d_layer2.csv",
+            "marker": "o",
+            "include_in_in_frontier": False,  # Include in frontier analysis
+            "class": "lstm",
+            "hidden_dim": 512,
+        },
+
+
+
+
         # # lstm sgd
         # {
         #     "name": "48d melis sgd",
