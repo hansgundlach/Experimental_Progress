@@ -9,28 +9,14 @@ Creates a publication-quality figure with two side-by-side plots:
 Optimized for NeurIPS two-column format.
 """
 
-import importlib.util
-from pathlib import Path
 import matplotlib.pyplot as plt
 import matplotlib.gridspec as gridspec
 import numpy as np
 
-# Import TrainingCurveAnalyzer from the file with space in name
-module_path = Path(__file__).parent / "nextgen_lstmvtransformer copy.py"
-spec = importlib.util.spec_from_file_location(
-    "nextgen_lstmvtransformer_copy", module_path
-)
-if spec is None or spec.loader is None:
-    raise ImportError(f"Could not load module from {module_path}")
-nextgen_module = importlib.util.module_from_spec(spec)
-spec.loader.exec_module(nextgen_module)
+from graphing_utils import TrainingCurveAnalyzer, FONT_CONFIG, ALPHA_CONFIG
+from experiments_config import experiments_config
 
-# Import the class and constants we need
-TrainingCurveAnalyzer = getattr(nextgen_module, "TrainingCurveAnalyzer")
-# IRREDUCIBLE_LOSS = getattr(nextgen_module, "IRREDUCIBLE_LOSS")
 IRREDUCIBLE_LOSS = 1.9
-FONT_CONFIG = getattr(nextgen_module, "FONT_CONFIG")
-ALPHA_CONFIG = getattr(nextgen_module, "ALPHA_CONFIG")
 
 # NeurIPS-optimized font configuration
 NEURIPS_FONT_CONFIG = {
@@ -64,48 +50,7 @@ analyzer = TrainingCurveAnalyzer(
     class_legend_mapping=class_legend_mapping,
 )
 
-# Load experiments_config from the same file we loaded the TrainingCurveAnalyzer from
-experiments_config_module_path = module_path  # Use the same path we already defined
-
-with open(experiments_config_module_path, "r") as f:
-    lines = f.readlines()
-    start_idx = None
-    for i, line in enumerate(lines):
-        if "experiments_config = [" in line:
-            start_idx = i
-            break
-
-    if start_idx is not None:
-        bracket_count = 0
-        end_idx = start_idx
-        for i in range(start_idx, len(lines)):
-            bracket_count += lines[i].count("[")
-            bracket_count -= lines[i].count("]")
-            if bracket_count == 0 and i > start_idx:
-                end_idx = i
-                break
-
-        config_lines = lines[start_idx : end_idx + 1]
-        min_indent = float("inf")
-        for line in config_lines:
-            stripped = line.lstrip()
-            if stripped:
-                indent = len(line) - len(stripped)
-                min_indent = min(min_indent, indent)
-
-        if min_indent != float("inf"):
-            config_lines = [
-                line[min_indent:] if line.strip() else line for line in config_lines
-            ]
-
-        config_code = "".join(config_lines)
-        namespace = {"__builtins__": __builtins__}
-        exec(config_code, namespace)
-        experiments_config = namespace.get("experiments_config")
-    else:
-        raise ValueError(
-            f"Could not find 'experiments_config = [' in {experiments_config_module_path}"
-        )
+# experiments_config is imported from plain_single_panel
 
 # Fix any typos in the config
 if experiments_config:
