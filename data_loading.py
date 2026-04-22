@@ -343,11 +343,12 @@ def get_dataset(config):
     random.seed(seed)
 
     # Initialize GPT2 tokenizer from local files first (needed for token-based loading)
+    _tokenizer_path = str(Path(__file__).parent / "gpt2_tokenizer")
     try:
-        tokenizer = GPT2Tokenizer.from_pretrained("./gpt2_tokenizer")
+        tokenizer = GPT2Tokenizer.from_pretrained(_tokenizer_path)
     except:
         raise FileNotFoundError(
-            "GPT2 tokenizer files not found in ./gpt2_tokenizer. "
+            f"GPT2 tokenizer files not found in {_tokenizer_path}. "
             "Please download the tokenizer files first."
         )
 
@@ -639,11 +640,12 @@ def get_streaming_dataset(config):
     random.seed(seed)
 
     # Initialize tokenizer
+    _tokenizer_path = str(Path(__file__).parent / "gpt2_tokenizer")
     try:
-        tokenizer = GPT2Tokenizer.from_pretrained("./gpt2_tokenizer")
+        tokenizer = GPT2Tokenizer.from_pretrained(_tokenizer_path)
     except:
         raise FileNotFoundError(
-            "GPT2 tokenizer files not found in ./gpt2_tokenizer. "
+            f"GPT2 tokenizer files not found in {_tokenizer_path}. "
             "Please download the tokenizer files first."
         )
 
@@ -773,14 +775,14 @@ def load_and_tokenize_text(config):
         val_data_path = config.get("val_data_path", None)
         max_tokens_training = config.get("max_tokens_training", None)
         fixed_val_tokens = config.get("fixed_val_tokens", None)
-        tokenizer_path = config.get("tokenizer_path", "./gpt2_tokenizer")
+        tokenizer_path = config.get("tokenizer_path", str(Path(__file__).parent / "gpt2_tokenizer"))
     else:
         seed = getattr(config, "seed", 123)
         data_path = getattr(config, "data_path", None)
         val_data_path = getattr(config, "val_data_path", None)
         max_tokens_training = getattr(config, "max_tokens_training", None)
         fixed_val_tokens = getattr(config, "fixed_val_tokens", None)
-        tokenizer_path = getattr(config, "tokenizer_path", "./gpt2_tokenizer")
+        tokenizer_path = getattr(config, "tokenizer_path", str(Path(__file__).parent / "gpt2_tokenizer"))
 
     # Validate required parameters
     if not max_tokens_training:
