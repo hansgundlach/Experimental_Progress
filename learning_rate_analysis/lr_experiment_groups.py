@@ -78,17 +78,17 @@ LR_EXPERIMENT_GROUPS = {
         "token_budget_fraction": 0.05,
         "csv_log_interval": 100,
     },
-    "lstm_layer1_large": {
-        "description": "LSTM with AdamW optimizer and cosine LR schedule",
-        "architecture": "lstm",
-        "hidden_dims": [32, 64, 128, 256, 384, 512],
-        "learning_rates": [10**-2.75, 10**-2.5, 10**-2.25, 10**-2.0, 10**-1.75, 10**-1.5, 10**-1.25, 10**-1],
-        "model_overrides": {
-            "num_layers": 1,
-        },
-        "token_budget_fraction": 0.05,
-        "csv_log_interval": 100,
-    },
+    # "lstm_layer1_large": {
+    #     "description": "LSTM with AdamW optimizer and cosine LR schedule",
+    #     "architecture": "lstm",
+    #     "hidden_dims": [32, 64, 128, 256, 384, 512],
+    #     "learning_rates": [10**-2.75, 10**-2.5, 10**-2.25, 10**-2.0, 10**-1.75, 10**-1.5, 10**-1.25, 10**-1],
+    #     "model_overrides": {
+    #         "num_layers": 1,
+    #     },
+    #     "token_budget_fraction": 0.05,
+    #     "csv_log_interval": 100,
+    # },
 
 }
 
