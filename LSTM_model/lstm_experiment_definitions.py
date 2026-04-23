@@ -12,84 +12,83 @@ from lstm_experiment_utils import (
 
 # =================================================== FUNDAMENTAL EXPERIMENTS ===================================================
 LSTM_SCALING_STUDY_TRADITIONAL = (
-    # gen_lstm_experim(
-    #     32,
-    #     label="32d",
-    #     folder_name="x1_lstm_layer1",
-    #     learning_rate=5.6234e-2,
-    #     token_to_param_ratio=40,
-    # )
-    # + gen_lstm_experim(
-    #     48,
-    #     label="48d",
-    #     folder_name="x1_lstm_layer1",
-    #     learning_rate=4.0157e-2,
-    #     token_to_param_ratio=40,
-    # )
-    # + gen_lstm_experim(
-    #     64,
-    #     label="64d",
-    #     folder_name="x1_lstm_layer1",
-    #     learning_rate=3.1623e-2,
-    #     token_to_param_ratio=40,
-    # )
-    # # + gen_lstm_experim(
-    # #     80,
-    # #     label="80d",
-    # #     folder_name="lstm_layer1",
-    # #     learning_rate=2.627e-2,
-    # #     token_to_param_ratio=40,
-    # # )
-    # # + gen_lstm_experim(
-    # #     104,
-    # #     label="104d",
-    # #     folder_name="lstm_layer1",
-    # #     learning_rate=2.1130e-2,
-    # #     token_to_param_ratio=40,
-    # # )
-    # + gen_lstm_experim(
-    #     128,
-    #     label="128d",
-    #     folder_name="x1_lstm_layer1",
-    #     learning_rate=1.7783e-2,
-    #     token_to_param_ratio=40,
-    # )
-    # + gen_lstm_experim(
-    #     160,
-    #     label="160d",
-    #     folder_name="x1_lstm_layer1",
-    #     learning_rate=1.4775e-2,
-    #     token_to_param_ratio=40,
-    # )
-    # + gen_lstm_experim(
-    #     192,
-    #     label="192d",
-    #     folder_name="x1_lstm_layer1",
-    #     learning_rate=1.269e-2,
-    #     token_to_param_ratio=40,
-    # )
-    # + gen_lstm_experim(
-    #     224,
-    #     label="224d",
-    #     folder_name="x1_lstm_layer1",
-    #     learning_rate=1.1173e-2,
-    #     token_to_param_ratio=40,
-    # )
-    # + gen_lstm_experim(
-    #     256,
-    #     label="256d",
-    #     folder_name="x1_lstm_layer1",
-    #     learning_rate=1.0e-2,
-    #     token_to_param_ratio=40,
-    # )
-    # new experiments
     gen_lstm_experim(
+        32,
+        label="32d",
+        folder_name="x1_lstm_layer1",
+        learning_rate=5.6234e-2,
+        token_to_param_ratio=40,
+    )
+    + gen_lstm_experim(
+        48,
+        label="48d",
+        folder_name="x1_lstm_layer1",
+        learning_rate=4.0157e-2,
+        token_to_param_ratio=40,
+    )
+    + gen_lstm_experim(
+        64,
+        label="64d",
+        folder_name="x1_lstm_layer1",
+        learning_rate=3.1623e-2,
+        token_to_param_ratio=40,
+    )
+    # + gen_lstm_experim(
+    #     80,
+    #     label="80d",
+    #     folder_name="lstm_layer1",
+    #     learning_rate=2.627e-2,
+    #     token_to_param_ratio=40,
+    # )
+    # + gen_lstm_experim(
+    #     104,
+    #     label="104d",
+    #     folder_name="lstm_layer1",
+    #     learning_rate=2.1130e-2,
+    #     token_to_param_ratio=40,
+    # )
+    + gen_lstm_experim(
+        128,
+        label="128d",
+        folder_name="x1_lstm_layer1",
+        learning_rate=1.7783e-2,
+        token_to_param_ratio=40,
+    )
+    + gen_lstm_experim(
+        160,
+        label="160d",
+        folder_name="x1_lstm_layer1",
+        learning_rate=1.4775e-2,
+        token_to_param_ratio=40,
+    )
+    + gen_lstm_experim(
+        192,
+        label="192d",
+        folder_name="x1_lstm_layer1",
+        learning_rate=1.269e-2,
+        token_to_param_ratio=40,
+    )
+    + gen_lstm_experim(
+        224,
+        label="224d",
+        folder_name="x1_lstm_layer1",
+        learning_rate=1.1173e-2,
+        token_to_param_ratio=40,
+    )
+    + gen_lstm_experim(
+        256,
+        label="256d",
+        folder_name="x1_lstm_layer1",
+        learning_rate=1.0e-2,
+        token_to_param_ratio=40,
+    )
+    + gen_lstm_experim(
         320,
         label="320d",
         folder_name="x1_lstm_layer1",
         learning_rate=8.3084e-3,
         token_to_param_ratio=40,
-        num_layers=2,
+        num_layers=1,
     )
     + gen_lstm_experim(
         384,
@@ -97,7 +96,7 @@ LSTM_SCALING_STUDY_TRADITIONAL = (
         folder_name="x1_lstm_layer1",
         learning_rate=7.141e-3,
         token_to_param_ratio=40,
-        num_layers=2,
+        num_layers=1,
     )
     + gen_lstm_experim(
         448,
@@ -105,7 +104,7 @@ LSTM_SCALING_STUDY_TRADITIONAL = (
         folder_name="x1_lstm_layer1",
         learning_rate=6.2829e-3,
         token_to_param_ratio=40,
-        num_layers=2,
+        num_layers=1,
     )
     + gen_lstm_experim(
         512,
@@ -113,44 +112,109 @@ LSTM_SCALING_STUDY_TRADITIONAL = (
         folder_name="x1_lstm_layer1",
         learning_rate=5.62e-3,
         token_to_param_ratio=40,
-        num_layers=2,
+        num_layers=1,
     )
 )
 
 
 LSTM_LR_STUDY = (
+    # gen_lstm_experim(
+    #     32,
+    #     label="32_lr_study",
+    #     folder_name="x1_lstm_lr",
+    #     learning_rate=10 ** -(1.5),
+    # )
+    # + gen_lstm_experim(
+    #     64,
+    #     label="64_lr_study",
+    #     folder_name="x1_lstm_lr",
+    #     learning_rate=10 ** -(1.5),
+    # )
+    # + gen_lstm_experim(
+    #     128,
+    #     label="128_lr_study",
+    #     folder_name="x1_lstm_lr",
+    #     learning_rate=10 ** -(1.5),
+    # )
+    # # 160
+    # + gen_lstm_experim(
+    #     160,
+    #     label="160_lr_study",
+    #     folder_name="x1_lstm_lr",
+    #     learning_rate=10 ** -(1.5),
+    # )
+    # + gen_lstm_experim(
+    #     256,
+    #     label="256_lr_study",
+    #     folder_name="x1_lstm_lr",
+    #     learning_rate=10 ** -(1.5),
+    # )
     gen_lstm_experim(
-        32,
-        label="32_lr_study",
-        folder_name="x1_lstm_lr",
+        320,
+        label="320_lr_study",
+        folder_name="x1_lstm_layer1",
         learning_rate=10 ** -(1.5),
     )
     + gen_lstm_experim(
-        64,
-        label="64_lr_study",
-        folder_name="x1_lstm_lr",
+        384,
+        label="384_lr_study",
+        folder_name="x1_lstm_layer1",
         learning_rate=10 ** -(1.5),
     )
     + gen_lstm_experim(
-        128,
-        label="128_lr_study",
-        folder_name="x1_lstm_lr",
-        learning_rate=10 ** -(1.5),
-    )
-    # 160
-    + gen_lstm_experim(
-        160,
-        label="160_lr_study",
-        folder_name="x1_lstm_lr",
+        448,
+        label="448_lr_study",
+        folder_name="x1_lstm_layer1",
         learning_rate=10 ** -(1.5),
     )
     + gen_lstm_experim(
-        256,
-        label="256_lr_study",
-        folder_name="x1_lstm_lr",
+        512,
+        label="512_lr_study",
+        folder_name="x1_lstm_layer1",
         learning_rate=10 ** -(1.5),
     )
 )
+
+
+#LSTM 2 layer lr study 
+LSTM_2_LAYER_LR_STUDY = (
+    gen_lstm_experim(
+        256,
+        label="256_lr_study",
+        folder_name="x2_lstm_lr",
+        learning_rate=10 ** -(1.5),
+        num_layers=2,
+    )
+    + gen_lstm_experim(
+        384,
+        label="384_lr_study",
+        folder_name="x2_lstm_lr",
+        learning_rate=10 ** -(1.5),
+        num_layers=2,
+    )
+    + gen_lstm_experim(
+        448,
+        label="448_lr_study",
+        folder_name="x2_lstm_lr",
+        learning_rate=10 ** -(1.5),
+        num_layers=2,
+    )
+    + gen_lstm_experim(
+        512,
+        label="512_lr_study",
+        folder_name="x2_lstm_lr",
+        learning_rate=10 ** -(1.5),
+        num_layers=2,
+    )
+)
+
+# create multi lr experiments for 2 layer lr study
+LSTM_2_LAYER_LR_STUDY = create_multi_lr_experiments(
+    LSTM_2_LAYER_LR_STUDY,
+    [10**-3, 10**-2.75, 10**-2.5, 10**-2.25, 10**-2.0, 10**-1.75, 10**-1.5, 10**-1.25, 10**-1],
+)
+
+
 
 
 # total experiments 5*7=35
@@ -184,5 +248,7 @@ NO_DROPOUT_COMPARISON_LR = create_multi_lr_experiments(
 # =================================================== LR SWEEPS ===================================================
 
 # GRAND_EXPERIMENT = NO_DROPOUT_COMPARISON_LR
-GRAND_EXPERIMENT = LSTM_SCALING_STUDY_TRADITIONAL
+GRAND_EXPERIMENT = LSTM_LR_STUDY
 # 48 experimetns
+
+

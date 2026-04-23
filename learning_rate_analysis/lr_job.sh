@@ -1,7 +1,7 @@
 #!/bin/bash
 #SBATCH --job-name=lr_sweep
-#SBATCH --output=slurm-lr-%A_task-%a.out
-#SBATCH --error=slurm-lr-%A_task-%a.err
+#SBATCH --output=learning_rate_analysis/logs/slurm-lr-%A_task-%a.out
+#SBATCH --error=learning_rate_analysis/logs/slurm-lr-%A_task-%a.err
 #SBATCH --partition=xeon-g6-volta
 #SBATCH --nodes=1
 #SBATCH --gres=gpu:volta:1
@@ -12,12 +12,9 @@
 
 GROUP_NAME="${1:?Error: GROUP_NAME not provided}"
 
-# Create logs directory
-LOG_DIR="logs/lr_sweep_$(date +%d-%H)"
+# Create logs directory (SLURM writes output files directly here)
+LOG_DIR="learning_rate_analysis/logs"
 mkdir -p "$LOG_DIR"
-
-# Move SLURM output files to log directory on exit
-trap 'mv slurm-lr-${SLURM_ARRAY_JOB_ID}_task-${SLURM_ARRAY_TASK_ID}.* "$LOG_DIR/" 2>/dev/null' EXIT
 
 echo "LR Sweep job ${SLURM_ARRAY_JOB_ID}, Task ${SLURM_ARRAY_TASK_ID} started at $(date)"
 echo "Group: ${GROUP_NAME}"
@@ -25,6 +22,7 @@ echo "Working directory: $PWD"
 
 # Setup environment
 module purge
+source /state/partition1/llgrid/pkg/anaconda/anaconda3-2023a-pytorch/etc/profile.d/conda.sh
 conda activate llm_training
 
 nvidia-smi || echo "nvidia-smi not found"
@@ -47,6 +45,6 @@ python run_lr_sweep.py \
     --group "${GROUP_NAME}" \
     --job_id "${SLURM_ARRAY_TASK_ID}" \
     --total_jobs "${TOTAL_JOBS}" \
-    2>&1 | tee "../$LOG_DIR/lr_sweep_${GROUP_NAME}_task_${SLURM_ARRAY_TASK_ID}.log"
+    2>&1 | tee "logs/lr_sweep_${GROUP_NAME}_task_${SLURM_ARRAY_TASK_ID}.log"
 
 echo "Task ${SLURM_ARRAY_TASK_ID} ended at $(date)"

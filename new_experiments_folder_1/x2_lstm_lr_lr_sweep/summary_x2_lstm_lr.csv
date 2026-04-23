@@ -1,0 +1,5 @@
+experiment,best_learning_rate,best_validation_loss,num_lr_tested
+256_lr_study,N/A,N/A,0
+384_lr_study,N/A,N/A,0
+448_lr_study,N/A,N/A,0
+512_lr_study,0.03162277660168379,5.9523,3

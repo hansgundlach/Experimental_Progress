@@ -26,58 +26,70 @@ SMALL_DIMS = [32, 64, 128]
 # Experiment group definitions
 # ============================================================================
 LR_EXPERIMENT_GROUPS = {
-    "modern_transformer": {
-        "description": "Modern transformer (SwiGLU, rotary, AdamW, cosine LR)",
-        "hidden_dims": STANDARD_DIMS,
-        "learning_rates": STANDARD_LR_SWEEP,
-        "model_overrides": {
-            "activation": "swiglu",
-            "pos_encoding": "rotary",
-            "optimizer": "adamw",
-            "norm_type": "rms",
-        },
-        # Fraction of full Chinchilla token budget used for each LR trial
-        "token_budget_fraction": 0.05,
-        "csv_log_interval": 100,
-    },
-    "sgd_transformer": {
-        "description": "Transformer with SGD + heavy-ball momentum",
-        "hidden_dims": STANDARD_DIMS,
-        "learning_rates": SGD_LR_SWEEP,
-        "model_overrides": {
-            "activation": "swiglu",
-            "pos_encoding": "rotary",
-            "optimizer": "sgd",
-            "sgd_momentum": 0.98,
-            "weight_decay": 0.0,
-        },
-        "token_budget_fraction": 0.05,
-        "csv_log_interval": 100,
-    },
-    "historical_transformer": {
-        "description": "2017-era transformer (sinusoidal pos, GELU, no RMSNorm)",
-        "hidden_dims": STANDARD_DIMS,
-        "learning_rates": STANDARD_LR_SWEEP,
-        "model_overrides": {
-            "activation": "gelu",
-            "pos_encoding": "sinusoidal",
-            "optimizer": "adamw",
-            "norm_type": "layer",
-        },
-        "token_budget_fraction": 0.05,
-        "csv_log_interval": 100,
-    },
-    # ---------------------------------------------------------------
-    # Add your own groups below. Example:
-    # ---------------------------------------------------------------
-    # "my_new_group": {
-    #     "description": "Description here",
-    #     "hidden_dims": [32, 64, 128, 256],
-    #     "learning_rates": [1e-3, 3e-3, 1e-2, 3e-2, 1e-1],
-    #     "model_overrides": { ... },
+    # "modern_transformer": {
+    #     "description": "Modern transformer (SwiGLU, rotary, AdamW, cosine LR)",
+    #     "hidden_dims": STANDARD_DIMS,
+    #     "learning_rates": STANDARD_LR_SWEEP,
+    #     "model_overrides": {
+    #         "activation": "swiglu",
+    #         "pos_encoding": "rotary",
+    #         "optimizer": "adamw",
+    #         "norm_type": "rms",
+    #     },
+    #     # Fraction of full Chinchilla token budget used for each LR trial
     #     "token_budget_fraction": 0.05,
     #     "csv_log_interval": 100,
     # },
+    # "sgd_transformer": {
+    #     "description": "Transformer with SGD + heavy-ball momentum",
+    #     "hidden_dims": STANDARD_DIMS,
+    #     "learning_rates": SGD_LR_SWEEP,
+    #     "model_overrides": {
+    #         "activation": "swiglu",
+    #         "pos_encoding": "rotary",
+    #         "optimizer": "sgd",
+    #         "sgd_momentum": 0.98,
+    #         "weight_decay": 0.0,
+    #     },
+    #     "token_budget_fraction": 0.05,
+    #     "csv_log_interval": 100,
+    # },
+    # "historical_transformer": {
+    #     "description": "2017-era transformer (sinusoidal pos, GELU, no RMSNorm)",
+    #     "hidden_dims": STANDARD_DIMS,
+    #     "learning_rates": STANDARD_LR_SWEEP,
+    #     "model_overrides": {
+    #         "activation": "gelu",
+    #         "pos_encoding": "sinusoidal",
+    #         "optimizer": "adamw",
+    #         "norm_type": "layer",
+    #     },
+    #     "token_budget_fraction": 0.05,
+    #     "csv_log_interval": 100,
+    # },
+    "lstm_layer2_large": {
+        "description": "LSTM with AdamW optimizer and cosine LR schedule",
+        "architecture": "lstm",
+        "hidden_dims": [32, 64, 128, 256, 384, 512],
+        "learning_rates": [10**-2.75, 10**-2.5, 10**-2.25, 10**-2.0, 10**-1.75, 10**-1.5, 10**-1.25, 10**-1],
+        "model_overrides": {
+            "num_layers": 2,
+        },
+        "token_budget_fraction": 0.05,
+        "csv_log_interval": 100,
+    },
+    "lstm_layer1_large": {
+        "description": "LSTM with AdamW optimizer and cosine LR schedule",
+        "architecture": "lstm",
+        "hidden_dims": [32, 64, 128, 256, 384, 512],
+        "learning_rates": [10**-2.75, 10**-2.5, 10**-2.25, 10**-2.0, 10**-1.75, 10**-1.5, 10**-1.25, 10**-1],
+        "model_overrides": {
+            "num_layers": 1,
+        },
+        "token_budget_fraction": 0.05,
+        "csv_log_interval": 100,
+    },
+
 }
 
 

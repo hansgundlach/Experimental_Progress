@@ -1,6 +1,6 @@
 """
 Analyze LR sweep results: find best LR per dimension, fit scaling law, plot, and
-output a table of fitted optimal LRs for hidden_dims 16-512 (step 16).
+output a table of fitted optimal LRs for hidden_dims 32-512 (step 16).
 
 Usage:
     python analyze_lr.py --group modern_transformer
@@ -16,7 +16,6 @@ from pathlib import Path
 
 import numpy as np
 import pandas as pd
-from scipy.optimize import curve_fit
 import matplotlib
 matplotlib.use("Agg")
 import matplotlib.pyplot as plt
@@ -40,10 +39,24 @@ def parse_lr_csv_name(filename):
         return dim, None
     lr_str = lr_match.group(1)
 
+    # Current convention: a bare number (no 'e') is the log10(lr) exponent.
+    #   e.g. "-2"    -> 10^-2    = 0.01
+    #        "-1.25" -> 10^-1.25 = 0.0562
+    if "e" not in lr_str:
+        try:
+            return dim, 10.0 ** float(lr_str)
+        except ValueError:
+            return dim, None
+
+    # Legacy: old writer emitted "10e{N}" meaning 10^N (e.g. "10e-2" for 0.01),
+    # but float("10e-2") is standard sci notation = 0.1. Correct it.
+    legacy_match = re.fullmatch(r"10e([+-]?\d+)", lr_str)
+    if legacy_match:
+        return dim, 10.0 ** int(legacy_match.group(1))
+
+    # Otherwise treat as standard scientific notation (e.g. "3e-2", "1.8e-2").
     try:
-        # Handle formats like "10e+0", "10e-1", "3e-02", "1.8e-02"
-        lr = float(lr_str.replace("e", "e"))
-        return dim, lr
+        return dim, float(lr_str)
     except ValueError:
         return dim, None
 
@@ -147,12 +160,22 @@ def make_plot(group_name, best_per_dim, fit_params, extrapolated, plots_dir):
 
     fig, ax = plt.subplots(figsize=(10, 6))
 
-    # Plot all tested LRs (faded)
+    # Plot all tested LRs, colored by per-dim normalized loss
+    # (dark = best at that dim, light = worst at that dim)
+    cmap = plt.get_cmap("viridis")
     for dim, (best_lr, best_loss, all_results) in sorted(best_per_dim.items()):
-        lrs_tested = [r[0] for r in all_results]
-        losses = [r[1] for r in all_results]
+        lrs_tested = np.array([r[0] for r in all_results])
+        losses = np.array([r[1] for r in all_results])
+        if losses.max() > losses.min():
+            norm = (losses - losses.min()) / (losses.max() - losses.min())
+        else:
+            norm = np.zeros_like(losses)
+        colors = cmap(norm)
+        sizes = 80 - 50 * norm  # best: 80, worst: 30
         ax.scatter([dim] * len(lrs_tested), lrs_tested,
-                   c="gray", alpha=0.3, s=20, zorder=1)
+                   c=colors, alpha=0.8, s=sizes, zorder=1,
+                   edgecolors="none",
+                   label="Tested LRs (color = per-dim loss, dark=best)" if dim == min(best_per_dim) else None)
 
     # Plot best LR per dim (bold)
     dims_measured = sorted(best_per_dim.keys())
@@ -163,17 +186,10 @@ def make_plot(group_name, best_per_dim, fit_params, extrapolated, plots_dir):
     # Plot fit line
     if fit_params is not None:
         a, b, r2 = fit_params
-        x_fit = np.logspace(np.log10(16), np.log10(512), 200)
+        x_fit = np.logspace(np.log10(32), np.log10(512), 200)
         y_fit = 10 ** (a + b * np.log10(x_fit))
         ax.plot(x_fit, y_fit, "r--", linewidth=2, alpha=0.8,
                 label=f"Fit: lr = {10**a:.2f} * d^({b:.2f})  R²={r2:.3f}")
-
-    # Plot extrapolated points
-    if extrapolated:
-        ext_dims = sorted(extrapolated.keys())
-        ext_lrs = [extrapolated[d] for d in ext_dims]
-        ax.scatter(ext_dims, ext_lrs, c="red", s=30, marker="x", zorder=2,
-                   alpha=0.5, label="Extrapolated LRs")
 
     ax.set_xscale("log")
     ax.set_yscale("log")
@@ -184,7 +200,7 @@ def make_plot(group_name, best_per_dim, fit_params, extrapolated, plots_dir):
     ax.grid(True, alpha=0.3, which="both")
 
     # Set x-ticks at standard dims
-    ax.set_xticks([16, 32, 48, 64, 96, 128, 192, 256, 384, 512])
+    ax.set_xticks([32, 48, 64, 96, 128, 192, 256, 384, 512])
     ax.get_xaxis().set_major_formatter(plt.ScalarFormatter())
 
     plt.tight_layout()
@@ -238,6 +254,20 @@ def print_results(group_name, best_per_dim, fit_params, extrapolated):
     print(f"{'='*70}\n")
 
 
+def write_optimal_lrs_csv(group_name, extrapolated, fit_params, plots_dir):
+    """Write a CSV with the full interpolated/extrapolated LR table."""
+    os.makedirs(plots_dir, exist_ok=True)
+    csv_path = os.path.join(plots_dir, "optimal_lrs.csv")
+    a, b, r2 = fit_params
+    with open(csv_path, "w") as f:
+        f.write(f"# {group_name}: lr = {10**a:.6f} * hidden_dim^({b:.4f}), R^2={r2:.4f}\n")
+        f.write("hidden_dim,learning_rate,log10_lr\n")
+        for dim in sorted(extrapolated.keys()):
+            lr = extrapolated[dim]
+            f.write(f"{dim},{lr:.8f},{np.log10(lr):.4f}\n")
+    print(f"  Table saved: {csv_path}")
+
+
 def analyze_group(group_name):
     """Run the full analysis pipeline for one group."""
     base_dir = os.path.dirname(__file__)
@@ -256,14 +286,18 @@ def analyze_group(group_name):
     # Step 2: Fit power law
     fit_params = fit_lr_scaling(best_per_dim)
 
-    # Step 3: Extrapolate to all target dims (16 to 512, step 16)
-    target_dims = list(range(16, 513, 16))
+    # Step 3: Extrapolate/interpolate to all target dims (32 to 512, step 16)
+    target_dims = list(range(32, 513, 16))
     extrapolated = extrapolate_lrs(fit_params[0], fit_params[1], target_dims) if fit_params else {}
 
-    # Step 4: Plot
+    # Step 4: Plot (without the extrapolated table overlaid)
     make_plot(group_name, best_per_dim, fit_params, extrapolated, plots_dir)
 
-    # Step 5: Print tables
+    # Step 5: Write the full LR table to CSV (separate from the plot)
+    if fit_params is not None:
+        write_optimal_lrs_csv(group_name, extrapolated, fit_params, plots_dir)
+
+    # Step 6: Print tables to stdout
     print_results(group_name, best_per_dim, fit_params, extrapolated)
 
 

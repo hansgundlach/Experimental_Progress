@@ -1,0 +1,174 @@
+/home/gridsan/hgundlach/.local/lib/python3.10/site-packages/transformers/utils/generic.py:441: FutureWarning: `torch.utils._pytree._register_pytree_node` is deprecated. Please use `torch.utils._pytree.register_pytree_node` instead.
+  _torch_pytree._register_pytree_node(
+wandb: Tracking run with wandb version 0.21.0
+wandb: W&B syncing is set to `offline` in this directory. Run `wandb online` or set WANDB_MODE=online to enable cloud syncing.
+/home/gridsan/hgundlach/.conda/envs/llm_training/lib/python3.10/site-packages/torch/utils/data/dataloader.py:617: UserWarning: This DataLoader will create 4 worker processes in total. Our suggested max number of worker in current system is 2, which is smaller than what this DataLoader is going to create. Please be aware that excessive worker creation might get DataLoader running slow or even freeze, lower the worker number to avoid potential slowness/freeze if necessary.
+  warnings.warn(
+/home/gridsan/hgundlach/.conda/envs/llm_training/lib/python3.10/site-packages/torch/utils/data/dataloader.py:617: UserWarning: This DataLoader will create 4 worker processes in total. Our suggested max number of worker in current system is 2, which is smaller than what this DataLoader is going to create. Please be aware that excessive worker creation might get DataLoader running slow or even freeze, lower the worker number to avoid potential slowness/freeze if necessary.
+  warnings.warn(
+Starting LSTM experiments...
+Arguments parsed: job_id=4, total_jobs=36
+Building experiments from 4 experiment groups...
+Job Array Mode: Running slice 4 of 36 total jobs.
+This node will run 1 experiments (indices 4 to 4).
+
+Starting LSTM training for: 256_lr_study_lr_10e-2 at 23:33:37
+Logging training progress to ../new_experiments_folder_1/x1_lstm_lr_lr_sweep/256_lr_study_lr_10e2.csv
+Using device: cuda
+Loading and preprocessing data...
+Loading text from: ../Datasets/c4_subset_6billion_char.npy
+🚀 LSTM: Using memory-mapped file: ../Datasets/c4_subset_6billion_char.npy
+   (This uses ~0MB RAM regardless of dataset size!)
+   Total tokens in file: 1,333,521,043
+   Using 16,625,000 tokens from memory-mapped file
+Dataset split with fixed token counts:
+  Training: 16,125,000 tokens (from start)
+  Validation: 500,000 tokens (from END, like old 90/10)
+  Test: 0 tokens (middle section)
+Using stateful (Melis/Merity style) datasets
+LSTMStatefulDataset: 64 streams, 251953 tokens per stream, 1968 batches
+LSTMStatefulDataset: 64 streams, 7812 tokens per stream, 61 batches
+⚠️  Test set too small (0 tokens, need 8192), using validation set for test
+DataLoader optimization settings:
+  num_workers: 4
+  pin_memory: True
+  persistent_workers: True
+  prefetch_factor: 4
+Data split: Train=16125000 tokens, Val=500000 tokens, Test=0 tokens
+Batches per epoch: Train=1968, Val=61, Test=61
+Using single-GPU training
+Mixed Precision: Disabled
+Gradient Accumulation: 1 steps (Effective batch size: 64)
+Truncated BPTT: Enabled (length=32, stride=32, reset_hidden=False)
+Using 196 warm-up step(s) (10.0% of total steps)
+Model parameters: 13,968,721
+Training on 1968 batches per epoch
+/home/gridsan/hgundlach/.conda/envs/llm_training/lib/python3.10/site-packages/torch/optim/lr_scheduler.py:240: UserWarning: The epoch parameter in `scheduler.step()` was not necessary and is being deprecated where possible. Please use `scheduler.step()` to step the scheduler. During the deprecation, if epoch is different from None, the closed form is used instead of the new chainable form, where available. Please open an issue if you are unable to replicate your use case: https://github.com/pytorch/pytorch/issues/new/choose.
+  warnings.warn(EPOCH_DEPRECATION_WARNING, UserWarning)
+  [PROFILER] Profiling one batch to determine FLOPs and timing per batch...
+  [PROFILER] Found 4 FLOP events, FLOPs per batch: 6.32e+11
+  [PROFILER] Time per batch (without AMP): 1.0878 seconds
+  [PROFILER] FLOPs per second: 5.81e+11
+  Randomly resetting hidden state at batch 61
+Epoch 1/1, Batch 100/1968, Loss: 7.8758  [1/1]
+Epoch 1/1, Batch 200/1968, Loss: 7.1264  [1/1]
+Epoch 1/1, Batch 300/1968, Loss: 6.7527  [1/1]
+  Randomly resetting hidden state at batch 304
+  Randomly resetting hidden state at batch 310
+Epoch 1/1, Batch 400/1968, Loss: 6.3658  [1/1]
+  Randomly resetting hidden state at batch 474
+Epoch 1/1, Batch 500/1968, Loss: 6.4026  [1/1]
+  Randomly resetting hidden state at batch 545
+  Randomly resetting hidden state at batch 555
+  Randomly resetting hidden state at batch 564
+Epoch 1/1, Batch 600/1968, Loss: 6.0842  [1/1]
+  Randomly resetting hidden state at batch 630
+  Randomly resetting hidden state at batch 635
+  Randomly resetting hidden state at batch 656
+Epoch 1/1, Batch 700/1968, Loss: 6.0726  [1/1]
+  Randomly resetting hidden state at batch 786
+Epoch 1/1, Batch 800/1968, Loss: 6.0481  [1/1]
+Epoch 1/1, Batch 900/1968, Loss: 5.9292  [1/1]
+  Randomly resetting hidden state at batch 952
+Epoch 1/1, Batch 1000/1968, Loss: 5.9343  [1/1]
+Epoch 1/1, Batch 1100/1968, Loss: 5.7535  [1/1]
+  Randomly resetting hidden state at batch 1154
+  Randomly resetting hidden state at batch 1158
+Epoch 1/1, Batch 1200/1968, Loss: 5.7192  [1/1]
+  Randomly resetting hidden state at batch 1204
+Epoch 1/1, Batch 1300/1968, Loss: 5.8335  [1/1]
+Epoch 1/1, Batch 1400/1968, Loss: 5.6166  [1/1]
+  Randomly resetting hidden state at batch 1421
+  Randomly resetting hidden state at batch 1448
+  Randomly resetting hidden state at batch 1469
+Epoch 1/1, Batch 1500/1968, Loss: 5.5693  [1/1]
+  Randomly resetting hidden state at batch 1507
+  Randomly resetting hidden state at batch 1562
+  Randomly resetting hidden state at batch 1596
+Epoch 1/1, Batch 1600/1968, Loss: 5.6615  [1/1]
+Epoch 1/1, Batch 1700/1968, Loss: 5.6345  [1/1]
+Epoch 1/1, Batch 1800/1968, Loss: 5.7186  [1/1]
+Epoch 1/1, Batch 1900/1968, Loss: 5.6884  [1/1]
+  Randomly resetting hidden state at batch 1953
+
+Epoch 1/1 Summary:
+  Training Loss: 51.2389 (Perplexity: 17896843968112479961088.00)
+  Validation Loss (Streaming): 5.7669 (Perplexity: 319.53)
+  Epoch Time: 204.64s
+  Effective Batch Size: 64 (Physical: 64 × 1)
+  Profiled compute time: 1.0878s
+  Profiled FLOPs per second: 5.81e+11
+  Total FLOPs: 1.24e+15
+  FLOPs per second: 6.08e+12
+------------------------------------------------------------
+
+Evaluating on test set...
+wandb:                                                                                
+wandb: 
+wandb: Run history:
+wandb:                   effective_batch_size ▁
+wandb:                                  epoch ▁
+wandb:                             epoch_time ▁
+wandb:                      final_total_flops ▁
+wandb:          final_total_flops_theoretical ▁
+wandb: final_total_flops_theoretical_standard ▁
+wandb:                          learning_rate ▁
+wandb:                  profiled_compute_time ▁
+wandb:              profiled_flops_per_second ▁
+wandb:                              test_loss ▁
+wandb:                        test_perplexity ▁
+wandb:                            total_flops ▁
+wandb:                   total_flops_profiler ▁▂▃▄▄▅▆▇█
+wandb:                             train_loss ▁
+wandb:                       train_perplexity ▁
+wandb:                               val_loss ▁
+wandb:                     val_loss_per_token █▅▄▃▂▂▁▁▁
+wandb:                         val_perplexity ▁
+wandb:                        validation_loss █▅▄▃▂▂▁▁▁
+wandb: 
+wandb: Run summary:
+wandb:                   effective_batch_size 64
+wandb:                                  epoch 1
+wandb:                             epoch_time 204.6424
+wandb:                      final_total_flops 1243915603304192
+wandb:          final_total_flops_theoretical 673075412729856
+wandb: final_total_flops_theoretical_standard 106687575097344
+wandb:                          learning_rate 0.001
+wandb:                        mixed_precision False
+wandb:                  profiled_compute_time 1.08783
+wandb:              profiled_flops_per_second 581332295310.4956
+wandb:                              test_loss 5.76686
+wandb:                        test_perplexity 319.53174
+wandb:                            total_flops 1243915603304192
+wandb:                   total_flops_profiler 1137673701242624
+wandb:                             train_loss 51.23891
+wandb:                       train_perplexity 1.789684396811248e+22
+wandb:                               val_loss 5.76686
+wandb:                     val_loss_per_token 5.79347
+wandb:                         val_perplexity 319.53174
+wandb:                        validation_loss 5.79347
+wandb: 
+wandb: You can sync this run to the cloud by running:
+wandb: wandb sync /home/gridsan/hgundlach/Experimental_Progress/LSTM_model/wandb/offline-run-20260421_233337-9286v2ku
+wandb: Find logs at: ./wandb/offline-run-20260421_233337-9286v2ku/logs
+Test Loss: 5.7669 (Perplexity: 319.53)
+
+==== FLOPs Analysis ====
+Profiler FLOPs per batch: 6.32e+11
+Total profiler FLOPs: 1.24e+15
+Manual FLOPs per batch: 3.42e+11
+Total optimizer steps: 1968
+Total batches: 1968
+Gradient accumulation steps: 1
+Effective batch size: 64
+Total tokens processed: 1.61e+07
+Non-embedding parameters: 1,102,929
+Theoretical FLOPs (manual): 6.73e+14
+Theoretical FLOPs (standard): 1.07e+14
+========================
+
+LSTM training completed for: 256_lr_study_lr_10e-2
+Training time: 218.9s (3.6min)
+Completed LSTM experiment: 256_lr_study_lr_10e-2
+
+Node 4 has completed all its assigned experiments.

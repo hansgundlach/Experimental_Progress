@@ -1,6 +1,7 @@
 # experiment_utils.py
 import copy
 import math
+import os
 
 
 def create_multi_seed_experiments(base_experiments, seeds):
@@ -856,7 +857,7 @@ def get_base_config():
         - Complete-P and muP scaling parameters
     """
     return {
-        "data_path": "Datasets/c4_subset_6billion_char.npy",  # Actual dataset file path
+        "data_path": os.path.join(os.path.dirname(os.path.abspath(__file__)), "Datasets", "c4_subset_6billion_char.npy"),  # Actual dataset file path
         "val_data_path": None,  # Optional: separate validation dataset (e.g., WikiText for cross-dataset eval)
         "max_tokens_training": int(
             5 * 1e7 / 4

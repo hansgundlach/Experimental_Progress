@@ -1,6 +1,6 @@
 # Model Organism of Algorithmic Progress
 
-How much influence have new AI algorithms had on improveements in training efficiency?
+How much influence have AI algorithms had on training efficiency?
 
 # Here We Examine a Few Important Improvements
 

@@ -13,9 +13,15 @@ bash learning_rate_analysis/submit_lr.sh --list
 # Run a sweep
 bash learning_rate_analysis/submit_lr.sh modern_transformer
 
-# Limit to 4 concurrent GPUs (default is 8)
+# Run every group defined in lr_experiment_groups.py
+bash learning_rate_analysis/submit_lr.sh --all
+
+# Limit to 4 concurrent GPUs per group (default is 8)
 bash learning_rate_analysis/submit_lr.sh modern_transformer -c 4
+bash learning_rate_analysis/submit_lr.sh --all -c 4
 ```
+
+With `--all`, each group gets its own sweep array job plus a dependent analysis job. The `-c` cap applies per group, so total GPU usage across groups is governed by SLURM's normal scheduling.
 
 Use `bash`, not `sbatch` — the script calls `sbatch` internally.
 

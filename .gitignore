@@ -15,5 +15,12 @@ original_old_stuff/
 maybe/
 safe_stuff/
 stuff_to_ignore/
+not_synced/
 TODO.txt
 *.pyc
+*.err
+*.out
+
+# Log directories
+LSTM_model/logs/
+learning_rate_analysis/logs/

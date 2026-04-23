@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 """
 Test script to print gen_experim output
+script to test that hyperparameter configuration generation is working. 
 """
 
 # Import the function
