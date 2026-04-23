@@ -20,7 +20,12 @@ TODO.txt
 *.pyc
 *.err
 *.out
+*.log
 
 # Log directories
 LSTM_model/logs/
 learning_rate_analysis/logs/
+
+# Profiler traces (large, per-run torch profiler output)
+profiler_logs/
+*.pt.trace.json
