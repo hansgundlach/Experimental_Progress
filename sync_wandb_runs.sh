@@ -1,127 +1,115 @@
 #!/bin/bash
 
-# Script to sync the N most recent offline wandb runs for Transformer experiments
-# Adapted for Transformer language modeling project
+# Sync offline wandb runs for this project.
+#
+# Runs are written as `./wandb/offline-run-*` relative to the script's
+# current working directory. In this repo, offline runs end up in THREE
+# possible places:
+#   - ./wandb                        (transformer runs launched via experiments.py)
+#   - LSTM_model/wandb               (LSTM runs launched via lstm_experiments.py)
+#   - learning_rate_analysis/wandb   (LR sweep runs from run_lr_sweep.py)
+#
+# Usage:
+#   ./sync_wandb_runs.sh                # sync 5 most recent runs across ALL dirs
+#   ./sync_wandb_runs.sh 20             # sync 20 most recent runs across ALL dirs
+#   ./sync_wandb_runs.sh 20 lstm        # sync 20 most recent runs from LSTM_model/wandb only
+#   ./sync_wandb_runs.sh 20 root        # sync 20 most recent from ./wandb only
+#   ./sync_wandb_runs.sh 20 lr          # sync 20 most recent from learning_rate_analysis/wandb only
+#   ./sync_wandb_runs.sh all            # sync EVERY offline run across all dirs
+#
+# After syncing, runs appear at https://wandb.ai/<your-entity>/<project>
+# where <project> is the experiment folder name (e.g. "x2_lstm_layer2").
 
-# Default to 5 runs if no parameter provided
 N_RUNS=${1:-5}
+WHICH=${2:-all}
 
-# Validate input
-if ! [[ "$N_RUNS" =~ ^[0-9]+$ ]] || [ "$N_RUNS" -lt 1 ]; then
-    echo "❌ Error: Please provide a positive number of runs to sync"
-    echo "Usage: $0 [number_of_runs]"
-    echo "Example: $0 10    # Sync the 10 most recent runs"
-    echo "Example: $0        # Sync the 5 most recent runs (default)"
-    exit 1
-fi
+# Resolve repo root (directory containing this script)
+REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
-echo "🔄 Finding and syncing the $N_RUNS most recent offline Transformer wandb runs..."
-echo
+# Pick which wandb directories to scan
+case "$WHICH" in
+    root)  DIRS=("$REPO_ROOT/wandb") ;;
+    lstm)  DIRS=("$REPO_ROOT/LSTM_model/wandb") ;;
+    lr)    DIRS=("$REPO_ROOT/learning_rate_analysis/wandb") ;;
+    all)   DIRS=("$REPO_ROOT/wandb" "$REPO_ROOT/LSTM_model/wandb" "$REPO_ROOT/learning_rate_analysis/wandb") ;;
+    *)
+        echo "Unknown selector: $WHICH. Use root|lstm|lr|all." >&2
+        exit 1
+        ;;
+esac
 
-# Check if wandb directory exists
-if [ ! -d "wandb" ]; then
-    echo "❌ Error: wandb directory not found in current directory"
-    echo "Current directory: $(pwd)"
-    echo "Contents:"
-    ls -la | head -10
-    exit 1
-fi
-
-# Change to wandb directory
-cd wandb
-
-# Find all offline-run directories, sort by modification time (newest first) and take the first N
-recent_runs=$(find . -maxdepth 1 -type d -name "offline-run-*" -printf '%T@ %p\n' | sort -rn | head -$N_RUNS | cut -d' ' -f2-)
-
-# Check if any runs were found
-if [ -z "$recent_runs" ]; then
-    echo "❌ No offline wandb runs found in wandb/ directory"
-    echo "Looking for directories with pattern: offline-run-*"
-    echo
-    echo "📁 Available directories:"
-    ls -la | grep "^d" | head -10
-    exit 1
-fi
-
-echo "📋 Found the following recent offline Transformer runs:"
-echo "$recent_runs" | sed 's|^\.\/||' | nl -w2 -s'. '
-echo
-
-# Show project mapping info
-echo "📊 Transformer Project Mapping Information:"
-echo "   - Each run will be synced to the 'transformer_experiments_MMDD_HHMM' project format"
-echo "   - Project names are timestamp-based (e.g., 'transformer_experiments_0815_1430')"
-echo "   - Run names include experiment labels and model configurations"
-echo "   - Transformer scaling experiments from experiments.py → timestamped projects"
-echo "   - Run names typically include model size (e.g., '64d_4h', '128d_8h', '256d_16h')"
-echo
-
-# Sync each run
-count=0
-success_count=0
-for run_dir in $recent_runs; do
-    count=$((count + 1))
-    run_name=$(basename "$run_dir")
-    echo "🚀 [$count/$N_RUNS] Syncing: $run_name"
-    
-    # Try to extract experiment info from the run
-    if [ -f "$run_dir/files/config.yaml" ]; then
-        # Look for project name
-        project_name=$(grep "project:" "$run_dir/files/config.yaml" | head -1 | sed 's/.*project:[[:space:]]*//' | tr -d '"' | tr -d "'")
-        if [ ! -z "$project_name" ]; then
-            echo "   📍 Will sync to project: $project_name"
+# Gather candidate offline runs across all selected dirs, newest first.
+#
+# We sort by the mtime of the inner `run-*.wandb` file rather than the run
+# directory's own mtime. While a run is actively training, wandb appends to
+# `run-*.wandb` every few seconds, but the directory's mtime does not update
+# (subdirs are created once at init and not touched again). Meanwhile,
+# unrelated tools (rsync, backups, permission changes) can bump the mtime
+# on OLD run dirs, making them appear "newer" than live runs and pushing
+# them to the top of the sort. Using the `.wandb` file mtime avoids that.
+tmp=$(mktemp)
+for d in "${DIRS[@]}"; do
+    [ -d "$d" ] || continue
+    # Prefer the run-*.wandb mtime; fall back to the dir mtime if somehow absent.
+    for run_dir in "$d"/offline-run-*; do
+        [ -d "$run_dir" ] || continue
+        wandb_file=$(find "$run_dir" -maxdepth 1 -name "run-*.wandb" -print -quit)
+        if [ -n "$wandb_file" ]; then
+            ts=$(stat -c '%Y' "$wandb_file")
+        else
+            ts=$(stat -c '%Y' "$run_dir")
         fi
-        
-        # Look for experiment details
-        hidden_dim=$(grep "hidden_dim:" "$run_dir/files/config.yaml" | head -1 | sed 's/.*hidden_dim:[[:space:]]*//' | tr -d '"')
-        num_heads=$(grep "num_heads:" "$run_dir/files/config.yaml" | head -1 | sed 's/.*num_heads:[[:space:]]*//' | tr -d '"')
-        num_layers=$(grep "num_layers:" "$run_dir/files/config.yaml" | head -1 | sed 's/.*num_layers:[[:space:]]*//' | tr -d '"')
-        learning_rate=$(grep "learning_rate:" "$run_dir/files/config.yaml" | head -1 | sed 's/.*learning_rate:[[:space:]]*//' | tr -d '"')
-        pos_encoding=$(grep "pos_encoding:" "$run_dir/files/config.yaml" | head -1 | sed 's/.*pos_encoding:[[:space:]]*//' | tr -d '"')
-        
-        if [ ! -z "$hidden_dim" ]; then
-            echo "   🧠 Transformer config: ${hidden_dim}d hidden, ${num_heads}h heads, ${num_layers}L layers, lr=${learning_rate}, pos=${pos_encoding}"
-        fi
-    elif [ -f "$run_dir/files/wandb-metadata.json" ]; then
-        # Fallback: check metadata file
-        project_name=$(grep '"project"' "$run_dir/files/wandb-metadata.json" | sed 's/.*"project":[[:space:]]*"//' | sed 's/".*//')
-        if [ ! -z "$project_name" ]; then
-            echo "   📍 Will sync to project: $project_name"
-        fi
-    else
-        echo "   ⚠️ No config found, using default project"
-    fi
-    
-    # Check the run's age
-    if [ -d "$run_dir" ]; then
-        age_days=$(( ($(date +%s) - $(stat -c %Y "$run_dir")) / 86400 ))
-        echo "   📅 Run age: $age_days days old"
-    fi
-    
-    if wandb sync "$run_name"; then
-        echo "   ✅ Successfully synced: $run_name"
-        success_count=$((success_count + 1))
-    else
-        echo "   ❌ Failed to sync: $run_name"
-    fi
-    echo
+        printf '%s %s\n' "$ts" "$run_dir" >> "$tmp"
+    done
 done
 
-echo "🎉 Finished syncing $N_RUNS offline Transformer wandb runs!"
-echo "   ✅ Successfully synced: $success_count/$count runs"
+if [ ! -s "$tmp" ]; then
+    echo "No offline runs found in:"
+    printf '   %s\n' "${DIRS[@]}"
+    rm -f "$tmp"
+    exit 1
+fi
+
+if [ "$N_RUNS" = "all" ]; then
+    recent_runs=$(sort -rn "$tmp" | cut -d' ' -f2-)
+else
+    if ! [[ "$N_RUNS" =~ ^[0-9]+$ ]] || [ "$N_RUNS" -lt 1 ]; then
+        echo "First arg must be a positive integer or 'all'. Got: $N_RUNS" >&2
+        rm -f "$tmp"
+        exit 1
+    fi
+    recent_runs=$(sort -rn "$tmp" | head -"$N_RUNS" | cut -d' ' -f2-)
+fi
+rm -f "$tmp"
+
+total=$(echo "$recent_runs" | wc -l)
+echo "Syncing $total run(s) from: ${DIRS[*]}"
 echo
 
-echo "💡 Tips for Transformer experiments:"
-echo "   - All runs appear in timestamped projects like 'transformer_experiments_0815_1430'"
-echo "   - Look for experiments with labels like '64d_4h', '128d_8h', '256d_16h' (hidden_dim_heads)"
-echo "   - Different positional encodings (rotary vs sinusoidal) are tracked separately"
-echo "   - Check for activation function variations (gelu, swiglu, etc.)"
-echo "   - Recent experiments include attention scaling studies and Complete-P configurations"
-echo
+count=0
+success=0
+while IFS= read -r run_dir; do
+    [ -z "$run_dir" ] && continue
+    count=$((count + 1))
+    run_name=$(basename "$run_dir")
+    parent=$(dirname "$run_dir")
 
-echo "📝 Usage: $0 [number_of_runs]"
-echo "   Example: $0 10    # Sync the 10 most recent runs"
-echo "   Example: $0        # Sync the 5 most recent runs (default)"
-echo
+    # Try to surface the project name from config.yaml for visibility
+    project=""
+    if [ -f "$run_dir/files/config.yaml" ]; then
+        project=$(grep -m1 "project:" "$run_dir/files/config.yaml" | sed 's/.*project:[[:space:]]*//' | tr -d '"'"'")
+    fi
 
-echo "🔗 View your synced runs at: https://wandb.ai/[your-username]/transformer_experiments_[timestamp]"
+    echo "[$count/$total] $run_name  (in $parent)"
+    [ -n "$project" ] && echo "    project: $project"
+
+    # wandb sync accepts a path; run from the parent so relative paths resolve cleanly
+    if (cd "$parent" && wandb sync "$run_name"); then
+        success=$((success + 1))
+    else
+        echo "    sync failed"
+    fi
+    echo
+done <<< "$recent_runs"
+
+echo "Done: $success/$count synced."

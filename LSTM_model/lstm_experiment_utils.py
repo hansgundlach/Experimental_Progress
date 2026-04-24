@@ -1,7 +1,6 @@
 # lstm_experiment_utils.py
 import copy
 import math
-import torch
 import sys
 from pathlib import Path
 
@@ -319,6 +318,8 @@ def get_lstm_base_config():
     Returns:
         Dictionary containing base configuration parameters
     """
+    import torch  # lazy: avoids ~60s torch import during auto-count
+
     return {
         "data_path": "../Datasets/c4_subset_6billion_char.npy",
         "val_data_path": None,  # Optional: separate validation dataset (e.g., WikiText for cross-dataset eval)
@@ -341,15 +342,37 @@ def get_lstm_base_config():
         "step_size": 10,
         "gamma": 0.1,
         "num_epochs": 1,
+        # train_split: used ONLY when fixed_val_tokens is falsy. In that branch,
+        # val_split = 1 - train_split and the dataset is split by ratio.
+        # When fixed_val_tokens is truthy AND max_tokens_training is set (the
+        # normal LSTM case), train_split is effectively unused -- train gets
+        # exactly max_tokens_training and val gets exactly fixed_val_tokens.
+        # It is only consulted as a fallback if max_tokens_training is unset.
         "train_split": 0.8,
+        # NOTE: val_split and test_split are OVERRIDDEN when fixed_val_tokens is truthy.
+        # In data_loading.py, if fixed_val_tokens > 0 the loader takes exactly
+        # max_tokens_training chars for train and exactly fixed_val_tokens chars for val
+        # from contiguous, non-overlapping slices; val_split is set to None and ignored.
+        # test_split is NEVER used by the LSTM data pipeline (no test set is produced in
+        # either branch) -- it is a placeholder only.
         "val_split": 0.1,
         "test_split": 0.1,
+        # fixed_val_tokens: when set (truthy), this is the authoritative validation size
+        # and overrides val_split above. Set to None or 0 to fall back to percentage-based
+        # splits driven by train_split.
         "fixed_val_tokens": 5
         * 1e5,  # Fixed number of tokens for validation set (optional)
         "char_to_token_ratio": 5,  # Character-to-token ratio for dataset loading (e.g., 4.0 = load 4 chars per expected token)
         "device": "cuda" if torch.cuda.is_available() else "cpu",
         "wandb_project": "lstm-language-modeling",
         "wandb_offline": True,
+        # print_every vs csv_log_interval:
+        #   print_every      -- stdout cadence only. Cheap; just prints one status line
+        #                       per N batches. Does NOT trigger eval or CSV/wandb writes.
+        #   csv_log_interval -- the substantive one. Every N optimizer steps it runs a
+        #                       FULL validation pass, writes a CSV row, and logs detailed
+        #                       metrics to wandb. This is what drives your data richness
+        #                       AND most of the logging overhead, so prefer tuning this.
         "print_every": 100,
         "use_gradient_clipping": True,
         "gradient_clip_val": 1.0,

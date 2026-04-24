@@ -1471,8 +1471,7 @@ def train_model(
                     "optimizer_step": optimizer_step_counter,
                 }
 
-                if not config.get("wandb_offline", False):
-                    wandb.log(step_log_dict, step=optimizer_step_counter)
+                wandb.log(step_log_dict, step=optimizer_step_counter)
 
             # Log to CSV if enabled
             if csv_writer and (batch_idx + 1) % csv_log_interval == 0:

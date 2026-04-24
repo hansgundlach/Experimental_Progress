@@ -87,7 +87,7 @@ if [[ -z "$ARRAY_SIZE" ]]; then
     fi
 
     if [[ -z "$ARRAY_SIZE" ]]; then
-        echo "Auto-counting LSTM experiments in GRAND_EXPERIMENT (first run or defs changed — may take ~1 min on cold FS)..."
+        echo "Auto-counting LSTM experiments in GRAND_EXPERIMENT..."
         ARRAY_SIZE=$(cd LSTM_model && python -c "
 from lstm_experiment_definitions import GRAND_EXPERIMENT
 print('__COUNT__', sum(len(e['subexperiments']) for e in GRAND_EXPERIMENT))
