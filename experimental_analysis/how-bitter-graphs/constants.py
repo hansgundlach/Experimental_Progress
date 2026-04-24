@@ -1,0 +1,65 @@
+import numpy as np
+
+LEARNED_TO_ROTARY_MULTIPLIER = 1.26
+POST_TO_PRE_NORM_MULTIPLIER = 1.87 
+SQRT_COSINE_SCHEDULER_MULTIPLIER = 1.04 
+PRE_TO_RMS_MULTIPLIER = 1.09 
+SINUSOIDAL_TO_ROTARY = 1.44
+SINUSOIDAL_TO_LEARNED_MULTIPLIER = SINUSOIDAL_TO_ROTARY/LEARNED_TO_ROTARY_MULTIPLIER 
+GELU_TO_SWIGLU_MULTIPLIER = 1.17
+MIXTURE_OF_EXPERTS_MULTIPLIER = 2.0
+
+INTERACTION_TOTAL = 1.33
+
+SENSITIVITY_DEVIATION = None #0.25
+
+A_L, alpha_L = 3.63e1, -0.065 # LSTM scaling constants
+A_T17, alpha_T17 = 8.17e1, -0.091 # Retro Transformer scaling constants
+A_TM, alpha_TM = 8.80e1, -0.094 # Modern Transformer scaling constants
+
+
+if SENSITIVITY_DEVIATION:
+    alpha_L_ = ((alpha_TM - alpha_L) * (-SENSITIVITY_DEVIATION) + (alpha_L))
+    print(f"Updating alpha_L from {alpha_L} to {alpha_L_} for sensitivity deviation of {SENSITIVITY_DEVIATION}.")
+    alpha_L = alpha_L_
+
+def chinchilla_rebalancing_multiplier(C):
+    return (1.85e-20) * C * (28737.9 * C**(-0.2482) + 20.337 * C**(-0.0756))**6.512
+
+
+TRANSFORMER_INNOVATIONS = [LEARNED_TO_ROTARY_MULTIPLIER, 
+                            POST_TO_PRE_NORM_MULTIPLIER,
+                            SQRT_COSINE_SCHEDULER_MULTIPLIER, 
+                            PRE_TO_RMS_MULTIPLIER, 
+                            SINUSOIDAL_TO_LEARNED_MULTIPLIER,
+                            GELU_TO_SWIGLU_MULTIPLIER
+                    ]
+MULTIPLICATIVE_TRANSFORMER_PRODUCT = np.prod(TRANSFORMER_INNOVATIONS)
+
+
+
+INTERACTION_NORMALIZATION = True
+if INTERACTION_NORMALIZATION:
+    (LEARNED_TO_ROTARY_MULTIPLIER, 
+        POST_TO_PRE_NORM_MULTIPLIER,
+        SQRT_COSINE_SCHEDULER_MULTIPLIER, 
+        PRE_TO_RMS_MULTIPLIER, 
+        SINUSOIDAL_TO_LEARNED_MULTIPLIER,
+        GELU_TO_SWIGLU_MULTIPLIER
+    ) = [el ** (np.log(INTERACTION_TOTAL)/np.log(MULTIPLICATIVE_TRANSFORMER_PRODUCT)) 
+        for el in (LEARNED_TO_ROTARY_MULTIPLIER, 
+                    POST_TO_PRE_NORM_MULTIPLIER,
+                    SQRT_COSINE_SCHEDULER_MULTIPLIER, 
+                    PRE_TO_RMS_MULTIPLIER, 
+                    SINUSOIDAL_TO_LEARNED_MULTIPLIER,
+                    GELU_TO_SWIGLU_MULTIPLIER) 
+    ]
+
+    assert(np.isclose(INTERACTION_TOTAL, np.prod([LEARNED_TO_ROTARY_MULTIPLIER, 
+                    POST_TO_PRE_NORM_MULTIPLIER,
+                    SQRT_COSINE_SCHEDULER_MULTIPLIER, 
+                    PRE_TO_RMS_MULTIPLIER, 
+                    SINUSOIDAL_TO_LEARNED_MULTIPLIER,
+                    GELU_TO_SWIGLU_MULTIPLIER])))
+
+
