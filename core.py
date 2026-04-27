@@ -1437,22 +1437,32 @@ def train(gpu_id=None, csv_log_path=None):
                     config.seq_length
                 )  # Use same length as training sequences
 
+                diverged = False
                 for _ in range(100):
                     if input_ids.size(1) > max_gen_length:
                         input_ids = input_ids[:, -max_gen_length:]
 
                     output = model(input_ids)
-                    next_token_logits = output[0, -1, :]
-                    next_token = torch.multinomial(
-                        torch.softmax(next_token_logits / 0.7, dim=0), 1
-                    )
+                    next_token_logits = output[0, -1, :].float()
+                    if not torch.isfinite(next_token_logits).all():
+                        diverged = True
+                        break
+                    probs = torch.softmax(next_token_logits / 0.7, dim=0)
+                    if not torch.isfinite(probs).all() or (probs < 0).any() or probs.sum() <= 0:
+                        diverged = True
+                        break
+                    next_token = torch.multinomial(probs, 1)
                     generated_text = primary_tokenizer.decode(
                         input_ids[0].tolist()
                     )  # Decode the full sequence
                     input_ids = torch.cat([input_ids, next_token.unsqueeze(0)], dim=1)
 
+                if diverged:
+                    generated_text = "[skipped: non-finite logits, model has diverged]"
+                    print(f"\nGenerated text (epoch {epoch}): {generated_text}\n")
+                else:
+                    print(f"\nGenerated text (epoch {epoch}):\n{generated_text}\n")
                 wandb.log({"generated_text": generated_text})
-                print(f"\nGenerated text (epoch {epoch}):\n{generated_text}\n")
 
         # Update print statement to include validation loss
         print(

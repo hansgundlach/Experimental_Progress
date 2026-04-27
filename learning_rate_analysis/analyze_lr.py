@@ -23,7 +23,7 @@ import matplotlib.pyplot as plt
 # Add parent dir for imports if needed
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 
-from lr_experiment_groups import LR_EXPERIMENT_GROUPS
+from lr_experiment_groups import LR_EXPERIMENT_GROUPS, expand_subgroups, is_combined_group
 
 
 def parse_lr_csv_name(filename):
@@ -76,45 +76,54 @@ def get_final_val_loss(csv_path):
         return None
 
 
-def find_best_lr_per_dim(results_dir):
+def collect_records(results_dirs):
     """
-    Scan all CSVs in results_dir and return {dim: (best_lr, best_loss, all_results)}.
-    all_results is a list of (lr, loss) for that dim.
+    Scan one or more results dirs and return a flat list of (dim, lr, loss) records.
     """
-    if not os.path.isdir(results_dir):
-        print(f"Results directory not found: {results_dir}")
-        return {}
+    if isinstance(results_dirs, (str, os.PathLike)):
+        results_dirs = [results_dirs]
 
-    csv_files = sorted(Path(results_dir).glob("*.csv"))
-    if not csv_files:
-        print(f"No CSV files found in {results_dir}")
-        return {}
-
-    # Collect all (dim, lr, loss) triples
     records = []
-    for csv_path in csv_files:
-        dim, lr = parse_lr_csv_name(csv_path.name)
-        if dim is None or lr is None:
+    for results_dir in results_dirs:
+        if not os.path.isdir(results_dir):
+            print(f"Results directory not found: {results_dir}")
             continue
-        loss = get_final_val_loss(str(csv_path))
-        if loss is None or np.isnan(loss):
+        csv_files = sorted(Path(results_dir).glob("*.csv"))
+        if not csv_files:
+            print(f"No CSV files found in {results_dir}")
             continue
-        records.append((dim, lr, loss))
+        for csv_path in csv_files:
+            dim, lr = parse_lr_csv_name(csv_path.name)
+            if dim is None or lr is None:
+                continue
+            loss = get_final_val_loss(str(csv_path))
+            if loss is None or np.isnan(loss):
+                continue
+            records.append((dim, lr, loss))
+    return records
 
+
+def find_best_lr_per_dim(results_dirs):
+    """
+    Scan one or more results dirs and return {dim: (best_lr, best_loss, all_results)}.
+    all_results is a list of (lr, loss) for that dim.
+
+    `results_dirs` may be a single path (concrete group) or a list of paths
+    (combined group — records from all dirs are pooled by dim).
+    """
+    records = collect_records(results_dirs)
     if not records:
-        print(f"No valid results found in {results_dir}")
         return {}
 
-    # Group by dimension
+    # Group by dimension (records from different subgroups merge by dim if they overlap).
     from collections import defaultdict
     by_dim = defaultdict(list)
     for dim, lr, loss in records:
         by_dim[dim].append((lr, loss))
 
-    # Find best LR per dimension
     best = {}
     for dim, results in sorted(by_dim.items()):
-        results.sort(key=lambda x: x[1])  # sort by loss
+        results.sort(key=lambda x: x[1])
         best_lr, best_loss = results[0]
         best[dim] = (best_lr, best_loss, results)
 
@@ -640,16 +649,25 @@ def print_parabolic_results(group_name, parabolic_per_dim, parabolic_fit, window
 
 
 def analyze_group(group_name, include_parabolic=True, parabolic_window=None):
-    """Run the full analysis pipeline for one group."""
+    """Run the full analysis pipeline for one group (concrete or combined)."""
     base_dir = os.path.dirname(__file__)
-    results_dir = os.path.join(base_dir, "results", group_name)
     plots_dir = os.path.join(base_dir, "plots", group_name)
 
-    print(f"\nAnalyzing group: {group_name}")
-    print(f"  Results dir: {results_dir}")
+    # Resolve to one or more concrete results dirs.
+    if group_name in LR_EXPERIMENT_GROUPS and is_combined_group(group_name):
+        sub_names = expand_subgroups(group_name)
+        results_dirs = [os.path.join(base_dir, "results", s) for s in sub_names]
+        print(f"\nAnalyzing combined group: {group_name}")
+        print(f"  Subgroups: {sub_names}")
+        for d in results_dirs:
+            print(f"    Results dir: {d}")
+    else:
+        results_dirs = [os.path.join(base_dir, "results", group_name)]
+        print(f"\nAnalyzing group: {group_name}")
+        print(f"  Results dir: {results_dirs[0]}")
 
-    # Step 1: Find best LR per dimension
-    best_per_dim = find_best_lr_per_dim(results_dir)
+    # Step 1: Find best LR per dimension (pools across results dirs for combined groups)
+    best_per_dim = find_best_lr_per_dim(results_dirs)
     if not best_per_dim:
         print(f"  No results found for group '{group_name}'. Skipping.")
         return

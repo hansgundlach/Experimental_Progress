@@ -105,7 +105,7 @@ def main():
     print("Testing gen_experim function output for multiple model sizes...")
 
     # Test different hidden dimensions
-    hidden_dims = [32, 48, 64, 96, 128, 160, 256]
+    hidden_dims = [32, 48, 64, 96, 128, 160, 256, 320]
 
     for i, hidden_dim in enumerate(hidden_dims):
         analyze_experiment(hidden_dim, f" ({i+1}/4)")
