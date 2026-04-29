@@ -25,6 +25,285 @@ sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 
 from lr_experiment_groups import LR_EXPERIMENT_GROUPS, expand_subgroups, is_combined_group
 
+# Param-count helpers (Kaplan et al. 2020 non-embedding-N convention).
+from experiment_utils import calculate_non_embedding_params
+try:
+    from LSTM_model.lstm_experiment_utils import calculate_lstm_params
+except Exception:
+    calculate_lstm_params = None
+
+
+def _resolve_concrete_group(group_name):
+    """Return the concrete group config used to derive arch/overrides.
+
+    For a `combine`d group, returns the first subgroup's config (all subgroups
+    in our defs share the same architecture/overrides, only LR/dim grids
+    differ). Returns None if the name is not in LR_EXPERIMENT_GROUPS.
+    """
+    g = LR_EXPERIMENT_GROUPS.get(group_name)
+    if g is None:
+        return None
+    if "combine" in g:
+        for sub in g["combine"]:
+            sg = LR_EXPERIMENT_GROUPS.get(sub)
+            if sg and "combine" not in sg:
+                return sg
+        return None
+    return g
+
+
+def params_for_dim(hidden_dim, group_config):
+    """Compute non-embedding parameter count N for a given hidden_dim.
+
+    Mirrors `experiment_utils.gen_experim` for the transformer case
+    (num_layers = max(1, round(hidden_dim / 16)), num_heads chosen by
+    target head dim) and uses `calculate_lstm_params` for LSTMs. Returns
+    None if architecture-specific helpers can't be applied.
+    """
+    if group_config is None:
+        return None
+    arch = group_config.get("architecture", "transformer")
+    overrides = group_config.get("model_overrides", {}) or {}
+    if arch == "lstm":
+        if calculate_lstm_params is None:
+            return None
+        num_layers = overrides.get("num_layers", 2)
+        tie = overrides.get("tie_embeddings", True)
+        result = calculate_lstm_params(
+            hidden_size=hidden_dim, num_layers=num_layers, tie_embeddings=tie,
+        )
+        # Subtract embedding portion to match Kaplan-style non-embedding N.
+        if isinstance(result, dict):
+            total = result.get("trainable_params", result.get("total_params"))
+        else:
+            total = int(result)
+        vocab = 50257
+        return int(total - vocab * hidden_dim) if total is not None else None
+    # Transformer: replicate gen_experim's depth/heads rule.
+    base_hidden_dim, base_num_layers = 32, 2
+    layer_scale_ratio = base_num_layers / base_hidden_dim
+    num_layers = max(1, int(round(hidden_dim * layer_scale_ratio)))
+    return int(calculate_non_embedding_params(
+        hidden_dim=hidden_dim,
+        num_layers=num_layers,
+        activation=overrides.get("activation", "swiglu"),
+        vocab_size=50257,
+        seq_length=overrides.get("seq_length", 128),
+        pos_encoding=overrides.get("pos_encoding", "rotary"),
+        tie_embeddings=overrides.get("tie_embeddings", True),
+        ff_ratio=overrides.get("ff_ratio", 4),
+    ))
+
+
+def fit_lr_scaling_vs_N(parabolic_fit, group_config):
+    """Fit log10(eta*) = alpha * log10(N) + beta using the per-dim estimator
+    chosen in fit_lr_scaling_parabolic (vertex when valid, argmin fallback
+    otherwise). N is non-embedding parameter count (Kaplan et al. 2020).
+
+    Within a single architecture this is the literature-standard axis
+    (Chinchilla, Kaplan, Bjorck 2025, Hägele 2024). Returns None if N can't
+    be computed (e.g. unknown group config) or fewer than 2 dims yield N.
+    """
+    if parabolic_fit is None:
+        return None
+    per_dim_est = parabolic_fit.get("per_dim_estimator", {})
+    if not per_dim_est:
+        return None
+    pairs = []
+    for d, (_estimator, eta_used, _reason) in per_dim_est.items():
+        N = params_for_dim(int(d), group_config)
+        if N is not None and N > 0 and np.isfinite(eta_used) and eta_used > 0:
+            pairs.append((int(d), int(N), float(eta_used)))
+    if len(pairs) < 2:
+        return None
+    pairs.sort()
+    Ns = np.array([p[1] for p in pairs], dtype=float)
+    lrs = np.array([p[2] for p in pairs], dtype=float)
+    log_N = np.log10(Ns)
+    log_lr = np.log10(lrs)
+    slope, intercept = np.polyfit(log_N, log_lr, 1)
+    pred = slope * log_N + intercept
+    ss_res = float(np.sum((log_lr - pred) ** 2))
+    ss_tot = float(np.sum((log_lr - np.mean(log_lr)) ** 2))
+    r2 = 1 - (ss_res / ss_tot) if ss_tot > 0 else 0.0
+    return {
+        "alpha_N": float(slope),
+        "beta_N": float(intercept),
+        "r2_N": float(r2),
+        "dims": [p[0] for p in pairs],
+        "Ns": [p[1] for p in pairs],
+        "etas_used": [p[2] for p in pairs],
+    }
+
+
+def make_parabolic_scaling_vs_N_plot(group_name, parabolic_fit, fit_N, group_config, plots_dir):
+    """log10(eta*) vs log10(N), color-coded by per-dim estimator. Mirrors the
+    d-axis plot but on the literature-standard parameter-count axis (Kaplan
+    2020 / Bjorck 2025)."""
+    if fit_N is None or parabolic_fit is None:
+        return
+    os.makedirs(plots_dir, exist_ok=True)
+    fig, ax = plt.subplots(figsize=(10, 6))
+
+    per_dim_est = parabolic_fit.get("per_dim_estimator", {})
+    plotted_vertex = plotted_argmin = False
+    for d in sorted(per_dim_est.keys()):
+        est_name, eta_used, _ = per_dim_est[d]
+        N = params_for_dim(int(d), group_config)
+        if N is None or N <= 0 or not np.isfinite(eta_used) or eta_used <= 0:
+            continue
+        if est_name == "vertex":
+            ax.scatter(N, eta_used, c="tab:blue", s=120,
+                       edgecolors="black", linewidth=1.2, zorder=3,
+                       label="η* (parabolic vertex)" if not plotted_vertex else None)
+            plotted_vertex = True
+        else:
+            ax.scatter(N, eta_used, c="tab:orange", marker="s", s=120,
+                       edgecolors="black", linewidth=1.2, zorder=3,
+                       label="η* (argmin fallback)" if not plotted_argmin else None)
+            plotted_argmin = True
+        ax.annotate(f"d={d}", (N, eta_used), textcoords="offset points",
+                    xytext=(7, 5), fontsize=9, color="dimgray")
+
+    a = fit_N["alpha_N"]; b = fit_N["beta_N"]; r2 = fit_N["r2_N"]
+    Ns_arr = np.array(fit_N["Ns"], dtype=float)
+    x_fit = np.logspace(np.log10(Ns_arr.min()), np.log10(Ns_arr.max()), 200)
+    y_fit = 10 ** (a * np.log10(x_fit) + b)
+    ax.plot(x_fit, y_fit, "r--", linewidth=2, alpha=0.85,
+            label=f"η* = {10**b:.3e} · N^({a:.3f})  R²={r2:.3f}")
+
+    ax.set_xscale("log")
+    ax.set_yscale("log")
+    ax.set_xlabel("Non-embedding parameters N", fontsize=14)
+    ax.set_ylabel("η*  (parabolic vertex / argmin fallback)", fontsize=14)
+    ax.set_title(f"LR scaling vs N: {group_name}", fontsize=15, fontweight="bold")
+    ax.legend(fontsize=11, loc="best")
+    ax.grid(True, alpha=0.3, which="both")
+    plt.tight_layout()
+    png_path = os.path.join(plots_dir, f"{group_name}_parabolic_scaling_vs_N.png")
+    pdf_path = os.path.join(plots_dir, f"{group_name}_parabolic_scaling_vs_N.pdf")
+    plt.savefig(png_path, dpi=200, bbox_inches="tight")
+    plt.savefig(pdf_path, bbox_inches="tight")
+    plt.close()
+    print(f"  Plot saved: {png_path}")
+    print(f"  Plot saved: {pdf_path}")
+
+
+def make_d_vs_N_comparison_plot(group_name, parabolic_fit, fit_N, group_config, plots_dir):
+    """Side-by-side: log10(eta*) vs log10(d) and vs log10(N) with both fits.
+    Lets you eyeball which axis is straighter."""
+    if fit_N is None or parabolic_fit is None:
+        return
+    os.makedirs(plots_dir, exist_ok=True)
+    per_dim_est = parabolic_fit.get("per_dim_estimator", {})
+    fig, (ax_d, ax_N) = plt.subplots(1, 2, figsize=(14, 5))
+
+    rows = []
+    for d in sorted(per_dim_est.keys()):
+        est_name, eta_used, _ = per_dim_est[d]
+        N = params_for_dim(int(d), group_config)
+        if N is None or N <= 0 or not np.isfinite(eta_used) or eta_used <= 0:
+            continue
+        rows.append((int(d), int(N), float(eta_used), est_name))
+    if not rows:
+        plt.close(fig); return
+    ds = np.array([r[0] for r in rows], dtype=float)
+    Ns = np.array([r[1] for r in rows], dtype=float)
+    etas = np.array([r[2] for r in rows], dtype=float)
+    colors = ["tab:blue" if r[3] == "vertex" else "tab:orange" for r in rows]
+    markers = ["o" if r[3] == "vertex" else "s" for r in rows]
+
+    for ax, xs, label in [(ax_d, ds, "Hidden dimension d"),
+                          (ax_N, Ns, "Non-embedding parameters N")]:
+        for x, y, c, m in zip(xs, etas, colors, markers):
+            ax.scatter(x, y, c=c, marker=m, s=120, edgecolors="black",
+                       linewidth=1.2, zorder=3)
+        ax.set_xscale("log"); ax.set_yscale("log")
+        ax.set_xlabel(label, fontsize=13)
+        ax.set_ylabel("η*", fontsize=13)
+        ax.grid(True, alpha=0.3, which="both")
+
+    a_d = parabolic_fit["alpha"]; b_d = parabolic_fit["beta"]; r2_d = parabolic_fit["r2"]
+    x_d = np.logspace(np.log10(ds.min()), np.log10(ds.max()), 200)
+    ax_d.plot(x_d, 10 ** (a_d * np.log10(x_d) + b_d), "r--", linewidth=2,
+              label=f"η* = {10**b_d:.3e}·d^({a_d:.3f})  R²={r2_d:.3f}")
+    ax_d.set_title(f"vs d (slope {a_d:.3f}, R²={r2_d:.3f})", fontsize=12)
+    ax_d.legend(fontsize=10)
+
+    a_N = fit_N["alpha_N"]; b_N = fit_N["beta_N"]; r2_N = fit_N["r2_N"]
+    x_N = np.logspace(np.log10(Ns.min()), np.log10(Ns.max()), 200)
+    ax_N.plot(x_N, 10 ** (a_N * np.log10(x_N) + b_N), "r--", linewidth=2,
+              label=f"η* = {10**b_N:.3e}·N^({a_N:.3f})  R²={r2_N:.3f}")
+    ax_N.set_title(f"vs N (slope {a_N:.3f}, R²={r2_N:.3f})", fontsize=12)
+    ax_N.legend(fontsize=10)
+
+    fig.suptitle(f"{group_name}: d-axis vs N-axis fit", fontsize=14, fontweight="bold")
+    plt.tight_layout()
+    png_path = os.path.join(plots_dir, f"{group_name}_d_vs_N_comparison.png")
+    pdf_path = os.path.join(plots_dir, f"{group_name}_d_vs_N_comparison.pdf")
+    plt.savefig(png_path, dpi=200, bbox_inches="tight")
+    plt.savefig(pdf_path, bbox_inches="tight")
+    plt.close()
+    print(f"  Plot saved: {png_path}")
+    print(f"  Plot saved: {pdf_path}")
+
+
+def write_parabolic_vs_N_csv(group_name, fit_N, group_config, target_dims, plots_dir):
+    """Emit hidden_dim-indexed extrapolation table using the N-axis fit."""
+    if fit_N is None:
+        print("  [N-axis] Could not compute N for this group; skipping.")
+        return
+    os.makedirs(plots_dir, exist_ok=True)
+    a, b, r2 = fit_N["alpha_N"], fit_N["beta_N"], fit_N["r2_N"]
+    table_path = os.path.join(plots_dir, "optimal_lrs_parabolic_vs_N.csv")
+    with open(table_path, "w") as f:
+        f.write(
+            f"# {group_name}: parabolic+argmin scaling law vs non-embedding N\n"
+            f"# Fit: log10(eta*) = {a:.4f} * log10(N) + {b:.4f},  R^2 = {r2:.4f}\n"
+            f"# Equivalently: eta* = {10**b:.6e} * N^({a:.4f})\n"
+            f"# N is computed per hidden_dim via experiment_utils.calculate_non_embedding_params\n"
+            f"# (Kaplan et al. 2020 definition; matches Bjorck 2025 / Chinchilla protocol).\n"
+            "hidden_dim,N_non_embedding,learning_rate,log10_lr\n"
+        )
+        for d in target_dims:
+            N = params_for_dim(int(d), group_config)
+            if N is None or N <= 0:
+                continue
+            lr = 10 ** (a * np.log10(N) + b)
+            f.write(f"{d},{N},{lr:.8f},{np.log10(lr):.4f}\n")
+    print(f"  Table saved: {table_path}")
+
+
+def print_parabolic_vs_N_results(group_name, fit_N, group_config, target_dims):
+    if fit_N is None:
+        print(f"\n  ---- N-AXIS FIT : {group_name} ----")
+        print("  Skipped: could not compute N for this group config.")
+        return
+    a, b, r2 = fit_N["alpha_N"], fit_N["beta_N"], fit_N["r2_N"]
+    print(f"\n  ---- N-AXIS FIT : {group_name} ----")
+    print(f"  Fit (using vertex+argmin per-dim estimators):")
+    print(f"    log10(eta*) = {a:.4f} * log10(N) + {b:.4f}    R²={r2:.4f}")
+    print(f"    eta* = {10**b:.6e} * N^({a:.4f})")
+    print(f"    N is non-embedding params (Kaplan 2020 def); hidden_dim->N via gen_experim rule.")
+    print(f"\n  Per-dim used in fit:")
+    print(f"    {'dim':<6} {'N':<14} {'eta_used':<14}")
+    for d, N, eta in zip(fit_N["dims"], fit_N["Ns"], fit_N["etas_used"]):
+        print(f"    {d:<6} {N:<14,d} {eta:<.4e}")
+    print(f"\n  Predicted η* by hidden_dim (drop-in for experiment_definitions.py):")
+    print(f"    {'dim':<6} {'N':<14} {'eta_pred':<14} {'log10':<8}")
+    pred_dict = {}
+    for d in target_dims:
+        N = params_for_dim(int(d), group_config)
+        if N is None or N <= 0:
+            continue
+        lr = 10 ** (a * np.log10(N) + b)
+        pred_dict[int(d)] = lr
+        print(f"    {d:<6} {N:<14,d} {lr:<.4e}      {np.log10(lr):.2f}")
+    if pred_dict:
+        items = ", ".join(f"{k}: {v:.6f}" for k, v in pred_dict.items())
+        print(f"\n  # {group_name}: vs-N scaling, eta* = {10**b:.4e} * N^({a:.4f}), R²={r2:.3f}")
+        print(f"  OPTIMAL_LRS_VS_N = {{{items}}}")
+
 
 def parse_lr_csv_name(filename):
     """Extract (hidden_dim, learning_rate) from a CSV filename like '64d_lr_3e-02.csv'."""
@@ -299,7 +578,7 @@ def write_optimal_lrs_csv(group_name, extrapolated, fit_params, plots_dir):
 # argmin (pass --parabolic-window N, N>=3).
 # ---------------------------------------------------------------------------
 
-def fit_quadratic_in_log_lr(lrs, losses, window=None):
+def fit_quadratic_in_log_lr(lrs, losses, window=None, delta_cut=1.0):
     """
     Fit L = a*x^2 + b*x + c where x = ln(lr).
 
@@ -307,6 +586,20 @@ def fit_quadratic_in_log_lr(lrs, losses, window=None):
     standard-practice all-points fit in Bjorck et al. 2025 and Google's
     VaultGemma report. If window is an integer >= 3, fit a contiguous window
     of that many points centered on the argmin (truncated at edges).
+
+    A "basin delta-cut" is applied before fitting: points with
+    val_loss > L_min + delta_cut (default 1.0 nat) are dropped. These
+    correspond to runs that crossed the divergence cliff and converged to
+    the uniform-output baseline ~log(vocab) -- a non-NaN plateau that the
+    plain finite-mask filter misses. Without this, post-LN / inverse-sqrt
+    transformers (Vaswani et al. 2017; Xiong et al. 2020 -- "On Layer
+    Normalization in the Transformer Architecture", ICML 2020) produce
+    a step-function-shaped loss curve (smooth descent -> cliff -> flat
+    plateau) that is not parabolic and yields a biased vertex. The cut
+    isolates the basin so a quadratic is the right local model, in the
+    spirit of Hägele et al. 2024 ("Scaling Laws and Compute-Optimal
+    Training Beyond Fixed Training Durations", NeurIPS 2024) who restrict
+    the fit to L <= L_min + delta. Pass delta_cut=None to disable.
 
     Returns a dict with fit params, vertex eta_star, R^2, residuals, window
     used, and diagnostic flags. Returns None if fewer than 3 finite points.
@@ -325,6 +618,20 @@ def fit_quadratic_in_log_lr(lrs, losses, window=None):
 
     if len(lrs) < 3:
         return None
+
+    # Basin delta-cut: drop divergence-plateau points (loss saturated near
+    # log(vocab)). See Xiong et al. 2020 for the post-LN cliff phenomenon
+    # and Hägele et al. 2024 for the L <= L_min + delta basin restriction.
+    n_dropped_plateau = 0
+    if delta_cut is not None and len(lrs) >= 3:
+        L_min = float(np.min(losses))
+        keep = losses <= L_min + float(delta_cut)
+        n_dropped_plateau = int((~keep).sum())
+        if int(keep.sum()) >= 3:
+            lrs = lrs[keep]
+            losses = losses[keep]
+        else:
+            n_dropped_plateau = 0  # not enough basin points; keep all
 
     # Optional basin window around the argmin.
     if window is not None and window >= 3 and len(lrs) > window:
@@ -369,6 +676,8 @@ def fit_quadratic_in_log_lr(lrs, losses, window=None):
             )
     if n_dropped:
         warnings_.append(f"dropped {n_dropped} non-finite point(s)")
+    if n_dropped_plateau:
+        warnings_.append(f"dropped {n_dropped_plateau} divergence-plateau point(s)")
 
     return {
         "eta_star": eta_star,
@@ -384,6 +693,7 @@ def fit_quadratic_in_log_lr(lrs, losses, window=None):
         "best_grid_lr": float(lrs[int(np.argmin(losses))]),
         "unstable": unstable,
         "n_dropped": n_dropped,
+        "n_dropped_plateau": n_dropped_plateau,
         "warnings": warnings_,
     }
 
@@ -400,33 +710,91 @@ def fit_parabolic_per_dim(best_per_dim, window=None):
     return out
 
 
-def _vertex_in_swept_range(fit):
+def _vertex_in_swept_range(fit, edge_margin_decades=0.1):
+    """
+    True iff the vertex sits at least `edge_margin_decades` decades inside
+    both swept-LR boundaries. The margin guards against the failure mode
+    where the loss curve is still descending at the swept upper (or lower)
+    edge: a quadratic happily fits the descending side and reports R^2 near
+    1.0, but the vertex pegs to the boundary and the inferred optimum is
+    actually outside the evidence. Same protocol used in Bjorck et al. 2025
+    ("Scaling Optimal Learning Rate Across Token Horizons", ICLR 2025), who
+    iteratively refine the LR grid until the vertex sits in the interior.
+    Set edge_margin_decades=0 to recover strict in-range behavior.
+    """
+    if not (np.isfinite(fit["eta_star"]) and fit["all_lrs"]):
+        return False
+    lr_lo = float(fit["all_lrs"][0])
+    lr_hi = float(fit["all_lrs"][-1])
+    log_eta = np.log10(fit["eta_star"])
     return bool(
-        np.isfinite(fit["eta_star"])
-        and fit["all_lrs"][0] <= fit["eta_star"] <= fit["all_lrs"][-1]
+        log_eta - np.log10(lr_lo) >= edge_margin_decades
+        and np.log10(lr_hi) - log_eta >= edge_margin_decades
     )
 
 
-def fit_lr_scaling_parabolic(parabolic_per_dim):
+def _parabolic_vertex_valid(fit, r2_min=0.9):
     """
-    Fit log10(eta*) = alpha * log10(d) + beta using vertex-estimated eta*.
-    Dims are excluded from the scaling fit if the parabola was unstable (a<=0),
-    the vertex is non-finite, or the vertex lies outside the swept LR range
-    (in which case the quadratic has extrapolated past the evidence and the
-    "optimum" is not supported by the sweep -- the same logic that motivates
-    the per-dim warning).
+    Validity gates for using the parabolic vertex as the per-dim eta* estimate:
+      (1) parabola convex (a > 0), vertex finite        [unstable test]
+      (2) vertex sits >= 0.1 decades inside swept range  [boundary test, Bjorck 2025]
+      (3) parabola R^2 >= r2_min on the fit window       [shape test]
+    A failure on any gate means the loss curve is not well-approximated by a
+    quadratic in this region (cliff, plateau, or sweep didn't bracket the
+    optimum), so we should fall back to the grid argmin for this dim.
     """
-    usable = {
-        d: f["eta_star"]
-        for d, f in parabolic_per_dim.items()
-        if (not f["unstable"])
-        and np.isfinite(f["eta_star"])
-        and _vertex_in_swept_range(f)
-    }
-    if len(usable) < 2:
+    if fit["unstable"] or not np.isfinite(fit["eta_star"]):
+        return False
+    if not _vertex_in_swept_range(fit):
+        return False
+    if not np.isfinite(fit["r2"]) or fit["r2"] < r2_min:
+        return False
+    return True
+
+
+def fit_lr_scaling_parabolic(parabolic_per_dim, r2_min=0.9):
+    """
+    Fit log10(eta*) = alpha * log10(d) + beta across dims.
+
+    Per-dim estimator selection (cross-arch fairness protocol):
+      - Use the parabolic vertex eta* when validity gates pass
+        (Bjorck et al. 2025; VaultGemma 2025 -- vertex of L_val(ln lr)).
+      - Otherwise fall back to the grid argmin best_grid_lr for that dim.
+        This is what Hoffmann et al. 2022 (Chinchilla) and Kaplan et al. 2020
+        report; it stays robust on architectures whose loss curve is not
+        locally quadratic (e.g. post-LN transformers with a divergence cliff,
+        Vaswani 2017 / Xiong 2020).
+
+    Reporting both estimators side-by-side is recommended by Porian et al.
+    2024 ("Resolving Discrepancies in Compute-Optimal Scaling of Language
+    Models"), who attribute much of the Chinchilla-vs-Kaplan slope
+    discrepancy to differing LR-tune protocols.
+
+    Returns the fit plus a per-dim record of which estimator was used.
+    """
+    per_dim_estimator = {}   # d -> ("vertex" | "argmin", eta_used, reason)
+    for d, f in parabolic_per_dim.items():
+        if _parabolic_vertex_valid(f, r2_min=r2_min):
+            per_dim_estimator[d] = ("vertex", float(f["eta_star"]), "")
+        else:
+            reasons = []
+            if f["unstable"]:
+                reasons.append("a<=0")
+            if not np.isfinite(f["eta_star"]):
+                reasons.append("nan_vertex")
+            if np.isfinite(f["eta_star"]) and not _vertex_in_swept_range(f):
+                reasons.append("vertex_at_boundary")
+            if np.isfinite(f["r2"]) and f["r2"] < r2_min:
+                reasons.append(f"r2<{r2_min}")
+            per_dim_estimator[d] = (
+                "argmin", float(f["best_grid_lr"]), ",".join(reasons) or "fallback"
+            )
+
+    if len(per_dim_estimator) < 2:
         return None
-    dims = np.array(sorted(usable.keys()), dtype=float)
-    lrs = np.array([usable[int(d)] for d in dims])
+    dims_sorted = sorted(per_dim_estimator.keys())
+    dims = np.array(dims_sorted, dtype=float)
+    lrs = np.array([per_dim_estimator[int(d)][1] for d in dims])
     log_dims = np.log10(dims)
     log_lrs = np.log10(lrs)
     slope, intercept = np.polyfit(log_dims, log_lrs, 1)
@@ -434,12 +802,19 @@ def fit_lr_scaling_parabolic(parabolic_per_dim):
     ss_res = float(np.sum((log_lrs - pred) ** 2))
     ss_tot = float(np.sum((log_lrs - np.mean(log_lrs)) ** 2))
     r2 = 1 - (ss_res / ss_tot) if ss_tot > 0 else 0.0
+
+    vertex_dims = sorted(d for d, v in per_dim_estimator.items() if v[0] == "vertex")
+    argmin_dims = sorted(d for d, v in per_dim_estimator.items() if v[0] == "argmin")
     return {
         "alpha": float(slope),
         "beta": float(intercept),
         "r2": float(r2),
-        "usable_dims": sorted(usable.keys()),
-        "excluded_dims": sorted(d for d in parabolic_per_dim if d not in usable),
+        "usable_dims": dims_sorted,
+        "excluded_dims": [],
+        "per_dim_estimator": per_dim_estimator,
+        "vertex_dims": vertex_dims,
+        "argmin_fallback_dims": argmin_dims,
+        "r2_min": float(r2_min),
     }
 
 
@@ -508,33 +883,34 @@ def make_parabolic_per_dim_plot(group_name, parabolic_per_dim, plots_dir):
 
 
 def make_parabolic_scaling_plot(group_name, parabolic_per_dim, parabolic_fit, plots_dir):
-    """log10(eta*) vs log10(d), using parabolic-vertex LRs as the data."""
+    """log10(eta*) vs log10(d), color-coded by per-dim estimator."""
     if parabolic_fit is None:
         return
     os.makedirs(plots_dir, exist_ok=True)
     fig, ax = plt.subplots(figsize=(10, 6))
 
-    usable = set(parabolic_fit["usable_dims"])
-    for d, f in sorted(parabolic_per_dim.items()):
-        if not np.isfinite(f["eta_star"]):
+    per_dim_est = parabolic_fit.get("per_dim_estimator", {})
+    plotted_vertex = plotted_argmin = False
+    for d in sorted(parabolic_per_dim.keys()):
+        if d not in per_dim_est:
             continue
-        is_usable = d in usable
-        ax.scatter(
-            d, f["eta_star"],
-            c="tab:blue" if is_usable else "lightgray",
-            s=120,
-            edgecolors="black" if is_usable else "none",
-            linewidth=1.2, zorder=3,
-            label=("η* (vertex, used in fit)" if is_usable and d == min(usable) else None)
-                  if is_usable else
-                  ("η* (vertex, excluded: unstable or out-of-range)"
-                   if (not is_usable) and d == min(parabolic_per_dim.keys() - usable, default=None) else None),
-        )
+        est_name, eta_used, _ = per_dim_est[d]
+        if est_name == "vertex":
+            ax.scatter(d, eta_used, c="tab:blue", s=120,
+                       edgecolors="black", linewidth=1.2, zorder=3,
+                       label="η* (parabolic vertex)" if not plotted_vertex else None)
+            plotted_vertex = True
+        else:
+            ax.scatter(d, eta_used, c="tab:orange", marker="s", s=120,
+                       edgecolors="black", linewidth=1.2, zorder=3,
+                       label="η* (argmin fallback)" if not plotted_argmin else None)
+            plotted_argmin = True
 
     alpha = parabolic_fit["alpha"]
     beta = parabolic_fit["beta"]
     r2 = parabolic_fit["r2"]
-    lo_d, hi_d = min(usable), max(usable)
+    lo_d = min(parabolic_fit["usable_dims"])
+    hi_d = max(parabolic_fit["usable_dims"])
     x_fit = np.logspace(np.log10(lo_d), np.log10(hi_d), 200)
     y_fit = 10 ** (alpha * np.log10(x_fit) + beta)
     ax.plot(x_fit, y_fit, "r--", linewidth=2, alpha=0.85,
@@ -567,11 +943,13 @@ def write_parabolic_csvs(group_name, parabolic_per_dim, parabolic_fit, target_di
       - optimal_lrs_parabolic.csv: extrapolation table (dims 32..512 step 16)
     """
     os.makedirs(plots_dir, exist_ok=True)
+    per_dim_est = parabolic_fit.get("per_dim_estimator", {}) if parabolic_fit else {}
     diag_path = os.path.join(plots_dir, "parabolic_per_dim.csv")
     with open(diag_path, "w") as f:
         f.write(
-            "hidden_dim,eta_star_parabolic,best_grid_lr,r_squared,a,b,c,"
-            "window_used,unstable,vertex_in_swept_range,n_dropped,warnings\n"
+            "hidden_dim,estimator,eta_used,reason,eta_star_parabolic,best_grid_lr,"
+            "r_squared,a,b,c,window_used,unstable,vertex_in_swept_range,"
+            "n_dropped,n_dropped_plateau,warnings\n"
         )
         for d in sorted(parabolic_per_dim.keys()):
             fit = parabolic_per_dim[d]
@@ -580,11 +958,13 @@ def write_parabolic_csvs(group_name, parabolic_per_dim, parabolic_fit, target_di
                 and fit["all_lrs"][0] <= fit["eta_star"] <= fit["all_lrs"][-1]
             )
             warn_str = "; ".join(fit["warnings"]).replace(",", ";").replace("\n", " ")
+            est_name, eta_used, reason = per_dim_est.get(d, ("n/a", float("nan"), ""))
             f.write(
-                f"{d},{fit['eta_star']:.8g},{fit['best_grid_lr']:.8g},"
+                f"{d},{est_name},{eta_used:.8g},\"{reason}\","
+                f"{fit['eta_star']:.8g},{fit['best_grid_lr']:.8g},"
                 f"{fit['r2']:.6f},{fit['a']:.6g},{fit['b']:.6g},{fit['c']:.6g},"
                 f"{fit['window_used']},{fit['unstable']},{in_range},"
-                f"{fit['n_dropped']},\"{warn_str}\"\n"
+                f"{fit['n_dropped']},{fit.get('n_dropped_plateau', 0)},\"{warn_str}\"\n"
             )
     print(f"  Table saved: {diag_path}")
 
@@ -612,14 +992,17 @@ def write_parabolic_csvs(group_name, parabolic_per_dim, parabolic_fit, target_di
 
 
 def print_parabolic_results(group_name, parabolic_per_dim, parabolic_fit, window_arg):
-    print(f"\n  ---- PARABOLIC-VERTEX METHOD : {group_name} ----")
+    print(f"\n  ---- PARABOLIC-VERTEX (with argmin fallback) : {group_name} ----")
     if window_arg is None:
-        print(f"  Window: all finite points per scale (standard; matches Bjorck 2025, VaultGemma).")
+        print(f"  Window: all finite points per scale (Bjorck 2025, VaultGemma).")
     else:
         print(f"  Window: best {window_arg} contiguous points around per-scale argmin.")
+    print(f"  Per-dim estimator: vertex if validity gates pass, else grid-argmin")
+    print(f"    (Chinchilla-style fallback; cross-arch fairness, Porian et al. 2024).")
     print(f"  Fit: L_val = a*x^2 + b*x + c in x=ln(lr); eta* = exp(-b/(2a)).")
-    print(f"\n  {'Dim':<6} {'η* (vertex)':<14} {'best grid η':<14} {'R²':<8} {'n':<4} {'flag'}")
-    print(f"  {'-'*68}")
+    print(f"\n  {'Dim':<6} {'estimator':<10} {'eta_used':<13} {'vertex':<13} {'argmin':<13} {'R²':<7} {'n':<4} {'flag'}")
+    print(f"  {'-'*92}")
+    per_dim_est = parabolic_fit["per_dim_estimator"] if parabolic_fit else {}
     for d in sorted(parabolic_per_dim.keys()):
         fit = parabolic_per_dim[d]
         flag_bits = []
@@ -629,11 +1012,21 @@ def print_parabolic_results(group_name, parabolic_per_dim, parabolic_fit, window
             flag_bits.append("EXTRAPOLATED")
         if fit["n_dropped"]:
             flag_bits.append(f"{fit['n_dropped']}dropped")
+        if fit.get("n_dropped_plateau"):
+            flag_bits.append(f"{fit['n_dropped_plateau']}plateau")
         flag = ",".join(flag_bits) or "ok"
-        eta_str = f"{fit['eta_star']:.4e}" if np.isfinite(fit["eta_star"]) else "NaN"
+        vertex_str = f"{fit['eta_star']:.3e}" if np.isfinite(fit["eta_star"]) else "NaN"
+        argmin_str = f"{fit['best_grid_lr']:.3e}"
+        if d in per_dim_est:
+            est_name, eta_used, reason = per_dim_est[d]
+            est_label = est_name if not reason else f"{est_name}({reason})"
+            eta_str = f"{eta_used:.3e}"
+        else:
+            est_label = "n/a"
+            eta_str = "n/a"
         print(
-            f"  {d:<6} {eta_str:<14} {fit['best_grid_lr']:<14.4e} "
-            f"{fit['r2']:<8.3f} {fit['window_used']:<4} {flag}"
+            f"  {d:<6} {est_label:<10} {eta_str:<13} {vertex_str:<13} {argmin_str:<13} "
+            f"{fit['r2']:<7.3f} {fit['window_used']:<4} {flag}"
         )
 
     if parabolic_fit is None:
@@ -642,10 +1035,12 @@ def print_parabolic_results(group_name, parabolic_per_dim, parabolic_fit, window
     alpha = parabolic_fit["alpha"]
     beta = parabolic_fit["beta"]
     r2 = parabolic_fit["r2"]
-    print(f"\n  Parabolic scaling law: log10(η*) = {alpha:.4f} · log10(d) + {beta:.4f}")
+    print(f"\n  Cross-arch scaling law: log10(η*) = {alpha:.4f} · log10(d) + {beta:.4f}")
     print(f"  Equivalently: η* = {10**beta:.6f} · d^({alpha:.4f}),  R²={r2:.4f}")
-    if parabolic_fit["excluded_dims"]:
-        print(f"  Excluded from scaling fit (unstable/NaN vertex): {parabolic_fit['excluded_dims']}")
+    n_v = len(parabolic_fit["vertex_dims"])
+    n_a = len(parabolic_fit["argmin_fallback_dims"])
+    print(f"  Estimator mix: vertex on {n_v} dim(s) {parabolic_fit['vertex_dims']}, "
+          f"argmin fallback on {n_a} dim(s) {parabolic_fit['argmin_fallback_dims']}")
 
 
 def analyze_group(group_name, include_parabolic=True, parabolic_window=None):
@@ -703,6 +1098,14 @@ def analyze_group(group_name, include_parabolic=True, parabolic_window=None):
             make_parabolic_scaling_plot(group_name, parabolic_per_dim, parabolic_fit, plots_dir)
         write_parabolic_csvs(group_name, parabolic_per_dim, parabolic_fit, target_dims, plots_dir)
         print_parabolic_results(group_name, parabolic_per_dim, parabolic_fit, parabolic_window)
+
+        # N-axis fit (Kaplan/Chinchilla/Bjorck convention) keyed back to hidden_dim.
+        group_config = _resolve_concrete_group(group_name)
+        fit_N = fit_lr_scaling_vs_N(parabolic_fit, group_config)
+        make_parabolic_scaling_vs_N_plot(group_name, parabolic_fit, fit_N, group_config, plots_dir)
+        make_d_vs_N_comparison_plot(group_name, parabolic_fit, fit_N, group_config, plots_dir)
+        write_parabolic_vs_N_csv(group_name, fit_N, group_config, target_dims, plots_dir)
+        print_parabolic_vs_N_results(group_name, fit_N, group_config, target_dims)
 
 
 def main():

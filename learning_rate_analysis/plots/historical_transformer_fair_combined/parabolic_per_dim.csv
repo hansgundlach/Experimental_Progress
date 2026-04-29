@@ -1,0 +1,8 @@
+hidden_dim,estimator,eta_used,reason,eta_star_parabolic,best_grid_lr,r_squared,a,b,c,window_used,unstable,vertex_in_swept_range,n_dropped,n_dropped_plateau,warnings
+32,argmin,0.0056234133,"r2<0.9",0.0027953825,0.0056234133,0.860169,0.364333,4.2844,18.8325,6,False,True,0,3,"dropped 3 divergence-plateau point(s)"
+48,argmin,0.0017782794,"vertex_at_boundary",0.0026989545,0.0017782794,0.963516,0.268508,3.17639,15.5435,4,False,True,0,5,"dropped 5 divergence-plateau point(s)"
+64,vertex,0.0013231128,"",0.0013231128,0.0017782794,0.927120,0.720497,9.55057,37.7959,4,False,True,0,5,"dropped 5 divergence-plateau point(s)"
+96,argmin,0.001,"a<=0,nan_vertex,r2<0.9",nan,0.001,0.733638,-0.159132,-1.34565,4.97737,9,True,False,0,0,"parabola not convex (a<=0); no interior minimum"
+128,argmin,0.001,"vertex_at_boundary",4.7315126e+60,0.001,0.997996,0.00188612,-0.527016,2.07242,4,False,False,0,8,"vertex eta*=4.732e+60 outside swept range [1.778e-04; 1.000e-03]; dropped 8 divergence-plateau point(s)"
+192,argmin,0.001,"vertex_at_boundary",4.8526125,0.001,0.999654,0.0309323,-0.0977163,3.3005,4,False,False,0,8,"vertex eta*=4.853e+00 outside swept range [1.778e-04; 1.000e-03]; dropped 8 divergence-plateau point(s)"
+256,argmin,0.0012589254,"vertex_at_boundary",0.0024719119,0.0012589254,0.998160,0.134798,1.61832,9.84452,6,False,False,0,6,"vertex eta*=2.472e-03 outside swept range [1.778e-04; 1.413e-03]; dropped 6 divergence-plateau point(s)"
