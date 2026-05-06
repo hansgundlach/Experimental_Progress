@@ -1,0 +1,3 @@
+class,label,coefficient,scaling_exponent,r_squared,frontier_points,law
+x1_historical,Historical Transformer,52.579234048575636,-0.07827671337853745,0.9922190006799386,356,5.257923e+01 * C^(-0.078277)
+x1_rms_historical,Historical Transformer + RMSNorm,58.60416836524622,-0.081067188002406,0.9932401912476102,353,5.860417e+01 * C^(-0.081067)

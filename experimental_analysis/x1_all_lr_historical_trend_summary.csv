@@ -1,0 +1,3 @@
+class,label,coefficient,scaling_exponent,r_squared,frontier_points,law
+x1_all_lr_historical_trend,Historical Transformer (trend LR),99.42545395212841,-0.09624417588532419,0.9345187259495635,377,9.942545e+01 * C^(-0.096244)
+x1_historical,Historical Transformer (per-dim LR),64.09341061456068,-0.08346064587549984,0.8998507771314017,464,6.409341e+01 * C^(-0.083461)

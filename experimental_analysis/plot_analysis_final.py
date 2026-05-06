@@ -564,13 +564,15 @@ target_lines = [
     },
 ]
 
+
+STOP, END = 1e15, 1e18
 plot_panel_to_axis(
     analyzer=analyzer,
     ax=ax1,
     classes_to_plot=["transformer", "lstm"],
     flop_range_by_class={
-        "transformer": (1e16, 5 * 1e17),
-        "lstm": (1e16, 1e17 * 5),
+            "transformer": (STOP, END),
+            "lstm": (STOP, END),
     },
     extrapolation_range=(10 ** (14.0), 1e18),
     show_power_law_fit=True,
@@ -627,7 +629,7 @@ plot_panel_to_axis(
     ax=ax2,
     classes_to_plot=["sin transformer"],
     flop_range_by_class={
-        "sin transformer": (1e16, 1e17 * 5),
+        "sin transformer": (STOP, END),
     },
     extrapolation_range=(10 ** (14.0), 1e18),
     show_power_law_fit=True,
