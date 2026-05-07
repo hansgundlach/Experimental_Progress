@@ -222,63 +222,70 @@ from lstm_experiment_utils import (
 #     )
 # )
 
-# lstm_layer1_large: parabolic-vertex fit -- eta* = 0.230628 * hidden_dim^(-0.5462), R^2=0.9959
-# (standard per Bjorck et al. ICLR 2025 / VaultGemma: quadratic in ln(lr), vertex = eta*)
+# lstm_fair_layer1_iter9: parabolic+argmin vs non-embedding N
+# eta* = 1.145964e+02 * N^(-0.7068), R^2=0.9803
 LSTM_SCALING_LAYER1 = (
     gen_lstm_experim(
         32,
         label="32d",
         folder_name="x1_lstm_layer1",
-        learning_rate=0.03473944,
+        learning_rate=0.04888174,
         token_to_param_ratio=40,
     )
     + gen_lstm_experim(
         48,
         label="48d",
         folder_name="x1_lstm_layer1",
-        learning_rate=0.02783842,
+        learning_rate=0.04359178,
         token_to_param_ratio=40,
     )
     + gen_lstm_experim(
         64,
         label="64d",
         folder_name="x1_lstm_layer1",
-        learning_rate=0.02379058,
+        learning_rate=0.03811782,
         token_to_param_ratio=40,
     )
     + gen_lstm_experim(
         80,
         label="80d",
         folder_name="lstm_layer1",
-        learning_rate=0.02106077,
+        learning_rate=0.03307955,
         token_to_param_ratio=40,
     )
     + gen_lstm_experim(
         96,
         label="96d",
         folder_name="lstm_layer1",
-        learning_rate=0.01906455,
+        learning_rate=0.02870915,
+        token_to_param_ratio=40,
+    )
+    + gen_lstm_experim(
+        112,
+        label="112d",
+        folder_name="lstm_layer1",
+        learning_rate=0.02502319,
         token_to_param_ratio=40,
     )
     + gen_lstm_experim(
         128,
         label="128d",
         folder_name="x1_lstm_layer1",
-        learning_rate=0.01629248,
+        learning_rate=0.02194855,
         token_to_param_ratio=40,
     )
     + gen_lstm_experim(
         160,
         label="160d",
         folder_name="x1_lstm_layer1",
-        learning_rate=0.01442302,
+        learning_rate=0.01724922,
         token_to_param_ratio=40,
     )
     + gen_lstm_experim(
         192,
         label="192d",
         folder_name="x1_lstm_layer1",
-        learning_rate=0.01305596,
+        learning_rate=0.01393098,
         token_to_param_ratio=40,
         csv_log_interval=100,
     )
@@ -286,7 +293,7 @@ LSTM_SCALING_LAYER1 = (
         224,
         label="224d",
         folder_name="x1_lstm_layer1",
-        learning_rate=0.01200172,
+        learning_rate=0.01152145,
         token_to_param_ratio=40,
         csv_log_interval=100,
     )
@@ -294,7 +301,7 @@ LSTM_SCALING_LAYER1 = (
         256,
         label="256d",
         folder_name="x1_lstm_layer1",
-        learning_rate=0.01115756,
+        learning_rate=0.00972073,
         token_to_param_ratio=40,
         csv_log_interval=100,
     )
@@ -302,7 +309,7 @@ LSTM_SCALING_LAYER1 = (
         320,
         label="320d",
         folder_name="x1_lstm_layer1",
-        learning_rate=0.00987730,
+        learning_rate=0.00725464,
         token_to_param_ratio=40,
         num_layers=1,
         csv_log_interval=100,
@@ -311,7 +318,7 @@ LSTM_SCALING_LAYER1 = (
         384,
         label="384d",
         folder_name="x1_lstm_layer1",
-        learning_rate=0.00894110,
+        learning_rate=0.00567829,
         token_to_param_ratio=40,
         num_layers=1,
         csv_log_interval=200,
@@ -320,7 +327,7 @@ LSTM_SCALING_LAYER1 = (
         448,
         label="448d",
         folder_name="x1_lstm_layer1",
-        learning_rate=0.00821913,
+        learning_rate=0.00460229,
         token_to_param_ratio=40,
         num_layers=1,
         csv_log_interval=200,
@@ -329,7 +336,7 @@ LSTM_SCALING_LAYER1 = (
         512,
         label="512d",
         folder_name="x1_lstm_layer1",
-        learning_rate=0.00764102,
+        learning_rate=0.00383021,
         token_to_param_ratio=40,
         num_layers=1,
         csv_log_interval=200,
@@ -337,15 +344,15 @@ LSTM_SCALING_LAYER1 = (
 )
 
 
-# lstm_layer2_large: parabolic-vertex fit -- eta* = 0.291135 * hidden_dim^(-0.5886), R^2=0.9745
-# (standard per Bjorck et al. ICLR 2025 / VaultGemma: quadratic in ln(lr), vertex = eta*)
+# lstm_fair_layer2_iter9: parabolic+argmin vs non-embedding N
+# eta* = 4.899486e+00 * N^(-0.4156), R^2=0.6281
 #change the validateion interval
 LSTM_SCALING_LAYER2 = (
     gen_lstm_experim(
         32,
         label="32d",
         folder_name="x2_lstm_layer2",
-        learning_rate=0.03785491,
+        learning_rate=0.04840321,
         token_to_param_ratio=40,
         num_layers=2,
 
@@ -354,7 +361,7 @@ LSTM_SCALING_LAYER2 = (
         48,
         label="48d",
         folder_name="x2_lstm_layer2",
-        learning_rate=0.02981743,
+        learning_rate=0.04329205,
         token_to_param_ratio=40,
         num_layers=2,
     )
@@ -362,7 +369,7 @@ LSTM_SCALING_LAYER2 = (
         64,
         label="64d",
         folder_name="x2_lstm_layer2",
-        learning_rate=0.02517259,
+        learning_rate=0.03846436,
         token_to_param_ratio=40,
         num_layers=2,
     )
@@ -370,7 +377,7 @@ LSTM_SCALING_LAYER2 = (
         80,
         label="80d",
         folder_name="x2_lstm_layer2",
-        learning_rate=0.02207415,
+        learning_rate=0.03429395,
         token_to_param_ratio=40,
         num_layers=2,
     )
@@ -378,7 +385,15 @@ LSTM_SCALING_LAYER2 = (
         96,
         label="96d",
         folder_name="x2_lstm_layer2",
-        learning_rate=0.01982786,
+        learning_rate=0.03080329,
+        token_to_param_ratio=40,
+        num_layers=2,
+    )
+    + gen_lstm_experim(
+        112,
+        label="112d",
+        folder_name="x2_lstm_layer2",
+        learning_rate=0.02790056,
         token_to_param_ratio=40,
         num_layers=2,
     )
@@ -386,7 +401,7 @@ LSTM_SCALING_LAYER2 = (
         128,
         label="128d",
         folder_name="x2_lstm_layer2",
-        learning_rate=0.01673916,
+        learning_rate=0.02547667,
         token_to_param_ratio=40,
         num_layers=2,
     )
@@ -394,7 +409,7 @@ LSTM_SCALING_LAYER2 = (
         160,
         label="160d",
         folder_name="x2_lstm_layer2",
-        learning_rate=0.01467877,
+        learning_rate=0.02169970,
         token_to_param_ratio=40,
         num_layers=2,
     )
@@ -402,7 +417,7 @@ LSTM_SCALING_LAYER2 = (
         192,
         label="192d",
         folder_name="x2_lstm_layer2",
-        learning_rate=0.01318504,
+        learning_rate=0.01891657,
         token_to_param_ratio=40,
         num_layers=2,
     )
@@ -410,7 +425,7 @@ LSTM_SCALING_LAYER2 = (
         224,
         label="224d",
         folder_name="x2_lstm_layer2",
-        learning_rate=0.01204134,
+        learning_rate=0.01679012,
         token_to_param_ratio=40,
         num_layers=2,
         csv_log_interval=100,
@@ -419,7 +434,7 @@ LSTM_SCALING_LAYER2 = (
         256,
         label="256d",
         folder_name="x2_lstm_layer2",
-        learning_rate=0.01113113,
+        learning_rate=0.01511495,
         token_to_param_ratio=40,
         num_layers=2,
         csv_log_interval=100,
@@ -428,7 +443,7 @@ LSTM_SCALING_LAYER2 = (
         384,
         label="384d",
         folder_name="x2_lstm_layer2",
-        learning_rate=0.00876773,
+        learning_rate=0.01090945,
         token_to_param_ratio=40,
         num_layers=2,
         csv_log_interval=200,
@@ -437,7 +452,7 @@ LSTM_SCALING_LAYER2 = (
         448,
         label="448d",
         folder_name="x2_lstm_layer2",
-        learning_rate=0.00800720,
+        learning_rate=0.00962043,
         token_to_param_ratio=40,
         num_layers=2,
         csv_log_interval=200,
@@ -446,7 +461,7 @@ LSTM_SCALING_LAYER2 = (
         512,
         label="512d",
         folder_name="x2_lstm_layer2",
-        learning_rate=0.00740193,
+        learning_rate=0.00862328,
         token_to_param_ratio=40,
         num_layers=2,
         csv_log_interval=200,
@@ -581,7 +596,315 @@ NO_DROPOUT_COMPARISON_LR = create_multi_lr_experiments(
     [10**-2.5, 10**-2.25, 10**-2, 10**-1.75, 10**-1.5, 10**-1.25, 10**-1],
 )
 
-GRAND_EXPERIMENT = LSTM_SCALING_LAYER2+LSTM_SCALING_LAYER1
+########################################################
+# LSTM LR TREND EXPERIMENTS
+# Layer 1 LRs from lstm_1_layer_all parabolic trend fit:
+# log10(eta*) = -0.4223 * log10(N) + 0.6587
+########################################################
+LSTM_LR_TREND_LAYER1 = (
+    gen_lstm_experim(
+        16,
+        label="16d",
+        folder_name="x1_lstm_layer1_lr_trend",
+        learning_rate=0.04632708,
+        token_to_param_ratio=40,
+    )
+    + gen_lstm_experim(
+        32,
+        label="32d",
+        folder_name="x1_lstm_layer1_lr_trend",
+        learning_rate=0.04419776,
+        token_to_param_ratio=40,
+    )
+    + gen_lstm_experim(
+        48,
+        label="48d",
+        folder_name="x1_lstm_layer1_lr_trend",
+        learning_rate=0.04127470,
+        token_to_param_ratio=40,
+    )
+    + gen_lstm_experim(
+        64,
+        label="64d",
+        folder_name="x1_lstm_layer1_lr_trend",
+        learning_rate=0.03809509,
+        token_to_param_ratio=40,
+    )
+    + gen_lstm_experim(
+        80,
+        label="80d",
+        folder_name="x1_lstm_layer1_lr_trend",
+        learning_rate=0.03500156,
+        token_to_param_ratio=40,
+    )
+    + gen_lstm_experim(
+        96,
+        label="96d",
+        folder_name="x1_lstm_layer1_lr_trend",
+        learning_rate=0.03216054,
+        token_to_param_ratio=40,
+    )
+    + gen_lstm_experim(
+        112,
+        label="112d",
+        folder_name="x1_lstm_layer1_lr_trend",
+        learning_rate=0.02962589,
+        token_to_param_ratio=40,
+    )
+    + gen_lstm_experim(
+        128,
+        label="128d",
+        folder_name="x1_lstm_layer1_lr_trend",
+        learning_rate=0.02739409,
+        token_to_param_ratio=40,
+    )
+    + gen_lstm_experim(
+        160,
+        label="160d",
+        folder_name="x1_lstm_layer1_lr_trend",
+        learning_rate=0.02372172,
+        token_to_param_ratio=40,
+    )
+    + gen_lstm_experim(
+        192,
+        label="192d",
+        folder_name="x1_lstm_layer1_lr_trend",
+        learning_rate=0.02087920,
+        token_to_param_ratio=40,
+        csv_log_interval=100,
+    )
+    + gen_lstm_experim(
+        224,
+        label="224d",
+        folder_name="x1_lstm_layer1_lr_trend",
+        learning_rate=0.01863988,
+        token_to_param_ratio=40,
+        csv_log_interval=100,
+    )
+    + gen_lstm_experim(
+        256,
+        label="256d",
+        folder_name="x1_lstm_layer1_lr_trend",
+        learning_rate=0.01684028,
+        token_to_param_ratio=40,
+        csv_log_interval=100,
+    )
+    + gen_lstm_experim(
+        288,
+        label="288d",
+        folder_name="x1_lstm_layer1_lr_trend",
+        learning_rate=0.01536659,
+        token_to_param_ratio=40,
+        csv_log_interval=200,
+    )
+    + gen_lstm_experim(
+        320,
+        label="320d",
+        folder_name="x1_lstm_layer1_lr_trend",
+        learning_rate=0.01413933,
+        token_to_param_ratio=40,
+        num_layers=1,
+        csv_log_interval=200,
+    )
+    + gen_lstm_experim(
+        352,
+        label="352d",
+        folder_name="x1_lstm_layer1_lr_trend",
+        learning_rate=0.01310213,
+        token_to_param_ratio=40,
+        num_layers=1,
+        csv_log_interval=200,
+    )
+    + gen_lstm_experim(
+        384,
+        label="384d",
+        folder_name="x1_lstm_layer1_lr_trend",
+        learning_rate=0.01221422,
+        token_to_param_ratio=40,
+        num_layers=1,
+        csv_log_interval=200,
+    )
+    + gen_lstm_experim(
+        448,
+        label="448d",
+        folder_name="x1_lstm_layer1_lr_trend",
+        learning_rate=0.01077347,
+        token_to_param_ratio=40,
+        num_layers=1,
+        csv_log_interval=200,
+    )
+    + gen_lstm_experim(
+        416,
+        label="416d",
+        folder_name="x1_lstm_layer1_lr_trend",
+        learning_rate=0.01144552,
+        token_to_param_ratio=40,
+        num_layers=1,
+        csv_log_interval=200,
+    )
+)
+
+########################################################
+# Layer 2 LRs from lstm_2_layer_all parabolic trend fit:
+# log10(eta*) = -0.2793 * log10(N) + 0.0312
+########################################################
+LSTM_LR_TREND_LAYER2 = (
+    gen_lstm_experim(
+        16,
+        label="16d",
+        folder_name="x2_lstm_layer2_lr_trend",
+        learning_rate=0.05109363,
+        token_to_param_ratio=40,
+        num_layers=2,
+    )
+    + gen_lstm_experim(
+        32,
+        label="32d",
+        folder_name="x2_lstm_layer2_lr_trend",
+        learning_rate=0.04822875,
+        token_to_param_ratio=40,
+        num_layers=2,
+    )
+    + gen_lstm_experim(
+        48,
+        label="48d",
+        folder_name="x2_lstm_layer2_lr_trend",
+        learning_rate=0.04474346,
+        token_to_param_ratio=40,
+        num_layers=2,
+    )
+    + gen_lstm_experim(
+        64,
+        label="64d",
+        folder_name="x2_lstm_layer2_lr_trend",
+        learning_rate=0.04132520,
+        token_to_param_ratio=40,
+        num_layers=2,
+    )
+    + gen_lstm_experim(
+        80,
+        label="80d",
+        folder_name="x2_lstm_layer2_lr_trend",
+        learning_rate=0.03825730,
+        token_to_param_ratio=40,
+        num_layers=2,
+    )
+    + gen_lstm_experim(
+        96,
+        label="96d",
+        folder_name="x2_lstm_layer2_lr_trend",
+        learning_rate=0.03559413,
+        token_to_param_ratio=40,
+        num_layers=2,
+    )
+    + gen_lstm_experim(
+        112,
+        label="112d",
+        folder_name="x2_lstm_layer2_lr_trend",
+        learning_rate=0.03330325,
+        token_to_param_ratio=40,
+        num_layers=2,
+    )
+    + gen_lstm_experim(
+        128,
+        label="128d",
+        folder_name="x2_lstm_layer2_lr_trend",
+        learning_rate=0.03132972,
+        token_to_param_ratio=40,
+        num_layers=2,
+    )
+    + gen_lstm_experim(
+        160,
+        label="160d",
+        folder_name="x2_lstm_layer2_lr_trend",
+        learning_rate=0.02812647,
+        token_to_param_ratio=40,
+        num_layers=2,
+    )
+    + gen_lstm_experim(
+        192,
+        label="192d",
+        folder_name="x2_lstm_layer2_lr_trend",
+        learning_rate=0.02564764,
+        token_to_param_ratio=40,
+        num_layers=2,
+        csv_log_interval=100,
+    )
+    + gen_lstm_experim(
+        224,
+        label="224d",
+        folder_name="x2_lstm_layer2_lr_trend",
+        learning_rate=0.02367215,
+        token_to_param_ratio=40,
+        num_layers=2,
+        csv_log_interval=100,
+    )
+    + gen_lstm_experim(
+        256,
+        label="256d",
+        folder_name="x2_lstm_layer2_lr_trend",
+        learning_rate=0.02205749,
+        token_to_param_ratio=40,
+        num_layers=2,
+        csv_log_interval=100,
+    )
+    + gen_lstm_experim(
+        288,
+        label="288d",
+        folder_name="x2_lstm_layer2_lr_trend",
+        learning_rate=0.02070967,
+        token_to_param_ratio=40,
+        num_layers=2,
+        csv_log_interval=200,
+    )
+    + gen_lstm_experim(
+        320,
+        label="320d",
+        folder_name="x2_lstm_layer2_lr_trend",
+        learning_rate=0.01956473,
+        token_to_param_ratio=40,
+        num_layers=2,
+        csv_log_interval=200,
+    )
+    + gen_lstm_experim(
+        352,
+        label="352d",
+        folder_name="x2_lstm_layer2_lr_trend",
+        learning_rate=0.01857779,
+        token_to_param_ratio=40,
+        num_layers=2,
+        csv_log_interval=200,
+    )
+    + gen_lstm_experim(
+        384,
+        label="384d",
+        folder_name="x2_lstm_layer2_lr_trend",
+        learning_rate=0.01771646,
+        token_to_param_ratio=40,
+        num_layers=2,
+        csv_log_interval=200,
+    )
+    + gen_lstm_experim(
+        448,
+        label="448d",
+        folder_name="x2_lstm_layer2_lr_trend",
+        learning_rate=0.01628066,
+        token_to_param_ratio=40,
+        num_layers=2,
+        csv_log_interval=200,
+    )
+    + gen_lstm_experim(
+        416,
+        label="416d",
+        folder_name="x2_lstm_layer2_lr_trend",
+        learning_rate=0.01695679,
+        token_to_param_ratio=40,
+        num_layers=2,
+        csv_log_interval=200,
+    )
+)
+
+GRAND_EXPERIMENT = LSTM_LR_TREND_LAYER2 + LSTM_LR_TREND_LAYER1
 # =================================================== LR SWEEPS ===================================================
 
 # GRAND_EXPERIMENT = NO_DROPOUT_COMPARISON_LR
@@ -609,5 +932,4 @@ GRAND_EXPERIMENT = LSTM_SCALING_LAYER2+LSTM_SCALING_LAYER1
 
 
 # 48 experimetns
-
 

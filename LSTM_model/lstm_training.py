@@ -1066,6 +1066,7 @@ def train_model(
                 f"Warning: Could not open {csv_log_path} for writing. CSV logging disabled. Error: {e}"
             )
             csv_writer = None
+    last_csv_logged_step = None
 
     # Calculate effective batch size
     gradient_accumulation_steps = config.get("gradient_accumulation_steps", 1)
@@ -1475,7 +1476,7 @@ def train_model(
 
             # Log to CSV if enabled
             if csv_writer and (batch_idx + 1) % csv_log_interval == 0:
-                current_step = batch_idx + 1
+                current_step = epoch * len(train_loader) + batch_idx + 1
                 current_train_loss = loss.item() * gradient_accumulation_steps
 
                 # Temporarily switch to eval mode for validation
@@ -1536,6 +1537,7 @@ def train_model(
 
                 csv_writer.writerow(data_row)
                 csv_file.flush()  # Immediately write row to disk
+                last_csv_logged_step = current_step
 
                 # ALSO: log validation loss and cumulative FLOPs to W&B
                 wandb_log_dict = {
@@ -1656,6 +1658,45 @@ def train_model(
             )
 
         wandb.log(log_dict)
+
+        # Guarantee at least one CSV row for LR-sweep analysis even when
+        # csv_log_interval is larger than the number of training batches.
+        final_csv_step = (epoch + 1) * len(train_loader)
+        if csv_writer and last_csv_logged_step != final_csv_step:
+            total_model_params = sum(
+                p.numel() for p in model.parameters() if p.requires_grad
+            )
+            total_flops = flop_counter.total_flops
+            tokens_processed = (
+                final_csv_step
+                * config["batch_size"]
+                * gradient_accumulation_steps
+                * config["sequence_length"]
+            )
+            theoretical_flops_chinchilla = 6 * total_model_params * tokens_processed
+
+            data_row = [
+                final_csv_step,
+                f"{avg_train_loss:.4f}",
+                f"{val_loss:.4f}",
+            ]
+            if joint_evaluations:
+                non_streaming_val = (
+                    f"{val_loss_non_streaming:.4f}"
+                    if val_loss_non_streaming is not None
+                    else "N/A"
+                )
+                data_row.append(non_streaming_val)
+            data_row.extend(
+                [
+                    f"{total_flops:.2e}",
+                    f"{theoretical_flops_chinchilla:.2e}",
+                    f"{tokens_processed}",
+                ]
+            )
+            csv_writer.writerow(data_row)
+            csv_file.flush()
+            last_csv_logged_step = final_csv_step
 
         # Step scheduler once per epoch (only for epoch-based schedulers)
         if scheduler is not None and scheduler_type == "epoch":

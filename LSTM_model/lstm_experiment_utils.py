@@ -318,7 +318,12 @@ def get_lstm_base_config():
     Returns:
         Dictionary containing base configuration parameters
     """
-    import torch  # lazy: avoids ~60s torch import during auto-count
+    import os
+    # Skip torch import if LSTM_NO_TORCH is set (e.g. on login nodes where
+    # torch.cuda.is_available() hangs waiting for CUDA driver initialisation).
+    _skip_torch = os.environ.get("LSTM_NO_TORCH", "")
+    if not _skip_torch:
+        import torch  # lazy: avoids ~60s torch import during auto-count
 
     return {
         "data_path": "../Datasets/c4_subset_6billion_char.npy",
@@ -328,8 +333,8 @@ def get_lstm_base_config():
             5 * 1e7 / 4
         ),  # Maximum tokens for training (converted from characters using 4:1 ratio)
         "sequence_length": 128,
-        "target_effective_batch_size": 64,  # Target effective batch size for optimization
-        "batch_size": 64,  # Default per-step batch size (will be overridden by gen_lstm_experim)
+        "target_effective_batch_size": 128,  # Target effective batch size for optimization
+        "batch_size": 128,  # Default per-step batch size (will be overridden by gen_lstm_experim)
         "hidden_size": 16,  # Base hidden dimension
         "num_layers": 1,  # Base number of layers
         "dropout": 0.0,
@@ -363,7 +368,7 @@ def get_lstm_base_config():
         "fixed_val_tokens": 5
         * 1e5,  # Fixed number of tokens for validation set (optional)
         "char_to_token_ratio": 5,  # Character-to-token ratio for dataset loading (e.g., 4.0 = load 4 chars per expected token)
-        "device": "cuda" if torch.cuda.is_available() else "cpu",
+        "device": ("cuda" if (not _skip_torch and torch.cuda.is_available()) else "cpu"),
         "wandb_project": "lstm-language-modeling",
         "wandb_offline": True,
         # print_every vs csv_log_interval:
