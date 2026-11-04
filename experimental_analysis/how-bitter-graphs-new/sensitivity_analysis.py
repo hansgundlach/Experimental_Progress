@@ -17,6 +17,15 @@ So deviation = +0.05  -> exponent difference 5% larger
    deviation = -0.05  -> exponent difference 5% smaller
 """
 
+import os
+import tempfile
+from pathlib import Path
+
+_cache_dir = Path(tempfile.gettempdir()) / "how-bitter-graph-cache"
+_cache_dir.mkdir(parents=True, exist_ok=True)
+os.environ.setdefault("MPLCONFIGDIR", str(_cache_dir / "matplotlib"))
+os.environ.setdefault("XDG_CACHE_HOME", str(_cache_dir / "xdg"))
+
 import numpy as np
 import matplotlib.pyplot as plt
 
@@ -58,6 +67,39 @@ def sweep(deviations, growth_year_min, growth_year_max):
         shares.append(scale_dependent_share(growth_year_min, growth_year_max))
     reset_alpha_L()
     return np.array(shares)
+
+
+def exponent_gap_sensitivity_rows(
+    growth_year_min=2012,
+    growth_year_max=2023,
+    deviations=(-0.25, 0.0, 0.25),
+):
+    rows = []
+    for d in deviations:
+        new_alpha_l = set_exponent_deviation(d)
+        share = scale_dependent_share(growth_year_min, growth_year_max)
+        rows.append(
+            {
+                "deviation": d,
+                "new_alpha_l": new_alpha_l,
+                "new_gap": ORIG_ALPHA_TM - new_alpha_l,
+                "share": share,
+            }
+        )
+    reset_alpha_L()
+    return rows
+
+
+def print_exponent_gap_sensitivity_summary(growth_year_min=2012, growth_year_max=2023):
+    print(f"Exponent-gap sensitivity summary ({growth_year_min} to {growth_year_max}):")
+    for row in exponent_gap_sensitivity_rows(growth_year_min, growth_year_max):
+        if row["deviation"] < 0:
+            label = "gap decreases by 25%"
+        elif row["deviation"] > 0:
+            label = "gap increases by 25%"
+        else:
+            label = "baseline gap"
+        print(f"  {label:22s}: {row['share']:.2f}% scale-dependent")
 
 
 ICML_RC_PARAMS = {
@@ -148,13 +190,15 @@ if __name__ == "__main__":
     print(f"--- {y0} to {y1} ---")
     print(f"{'deviation':>10}  {'new alpha_L':>12}  {'new gap':>10}  "
           f"{'share (%)':>10}")
-    for d in [-0.20, -0.10, -0.05, 0.0, 0.05, 0.10, 0.20]:
+    for d in [-0.25, -0.20, -0.10, -0.05, 0.0, 0.05, 0.10, 0.20, 0.25]:
         new_a = set_exponent_deviation(d)
         share = scale_dependent_share(y0, y1)
         new_gap = ORIG_ALPHA_TM - new_a
         print(f"{d*100:>+9.1f}%  {new_a:>12.5f}  "
               f"{new_gap:>+10.4f}  {share:>10.2f}")
     reset_alpha_L()
+    print()
+    print_exponent_gap_sensitivity_summary(y0, y1)
     print()
 
     plot_sensitivity(deviations, y0, y1)

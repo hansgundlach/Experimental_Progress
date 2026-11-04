@@ -1,21 +1,35 @@
 import numpy as np
 
-LEARNED_TO_ROTARY_MULTIPLIER = 1.26
-POST_TO_PRE_NORM_MULTIPLIER = 1.87 
-SQRT_COSINE_SCHEDULER_MULTIPLIER = 1.04 
-PRE_TO_RMS_MULTIPLIER = 1.09 
-SINUSOIDAL_TO_ROTARY = 1.44
-SINUSOIDAL_TO_LEARNED_MULTIPLIER = SINUSOIDAL_TO_ROTARY/LEARNED_TO_ROTARY_MULTIPLIER 
-GELU_TO_SWIGLU_MULTIPLIER = 1.17
-MIXTURE_OF_EXPERTS_MULTIPLIER = 2.0
+from parameter_loader import load_parameters, parameter_path
 
-INTERACTION_TOTAL = 1.33
+PARAMETER_PATH = parameter_path()
+PARAMETERS = load_parameters(PARAMETER_PATH)
 
-SENSITIVITY_DEVIATION = None #0.25
+_multipliers = PARAMETERS["innovation_multipliers"]
+LEARNED_TO_ROTARY_MULTIPLIER = _multipliers["learned_to_rotary"]
+POST_TO_PRE_NORM_MULTIPLIER = _multipliers["post_to_pre_norm"]
+SQRT_COSINE_SCHEDULER_MULTIPLIER = _multipliers["sqrt_to_cosine_scheduler"]
+PRE_TO_RMS_MULTIPLIER = _multipliers["pre_to_rms"]
+SINUSOIDAL_TO_ROTARY = _multipliers["sinusoidal_to_rotary"]
+SINUSOIDAL_TO_LEARNED_MULTIPLIER = SINUSOIDAL_TO_ROTARY / LEARNED_TO_ROTARY_MULTIPLIER
+GELU_TO_SWIGLU_MULTIPLIER = _multipliers["gelu_to_swiglu"]
+MIXTURE_OF_EXPERTS_MULTIPLIER = _multipliers["mixture_of_experts"]
 
-A_L, alpha_L = 3.63e1, -0.065 # LSTM scaling constants
-A_T17, alpha_T17 = 8.17e1, -0.091 # Retro Transformer scaling constants
-A_TM, alpha_TM = 8.80e1, -0.094 # Modern Transformer scaling constants
+_interaction = PARAMETERS["interaction_normalization"]
+INTERACTION_TOTAL = _interaction["total"]
+
+SENSITIVITY_DEVIATION = PARAMETERS.get("sensitivity", {}).get("deviation", 0.0)
+
+_scaling_laws = PARAMETERS["scaling_laws"]
+A_L, alpha_L = _scaling_laws["lstm"]["A"], _scaling_laws["lstm"]["alpha"]
+A_T17, alpha_T17 = (
+    _scaling_laws["transformer_2017"]["A"],
+    _scaling_laws["transformer_2017"]["alpha"],
+)
+A_TM, alpha_TM = (
+    _scaling_laws["modern_transformer"]["A"],
+    _scaling_laws["modern_transformer"]["alpha"],
+)
 
 
 if SENSITIVITY_DEVIATION:
@@ -24,7 +38,16 @@ if SENSITIVITY_DEVIATION:
     alpha_L = alpha_L_
 
 def chinchilla_rebalancing_multiplier(C):
-    return (1.85e-20) * C * (28737.9 * C**(-0.2482) + 20.337 * C**(-0.0756))**6.512
+    chinchilla = PARAMETERS["chinchilla_rebalancing"]
+    return (
+        chinchilla["coefficient"]
+        * C
+        * (
+            chinchilla["term1_coefficient"] * C ** chinchilla["term1_exponent"]
+            + chinchilla["term2_coefficient"] * C ** chinchilla["term2_exponent"]
+        )
+        ** chinchilla["outer_exponent"]
+    )
 
 
 TRANSFORMER_INNOVATIONS = [LEARNED_TO_ROTARY_MULTIPLIER, 
@@ -38,7 +61,7 @@ MULTIPLICATIVE_TRANSFORMER_PRODUCT = np.prod(TRANSFORMER_INNOVATIONS)
 
 
 
-INTERACTION_NORMALIZATION = True
+INTERACTION_NORMALIZATION = _interaction["enabled"]
 if INTERACTION_NORMALIZATION:
     (LEARNED_TO_ROTARY_MULTIPLIER, 
         POST_TO_PRE_NORM_MULTIPLIER,
@@ -61,5 +84,4 @@ if INTERACTION_NORMALIZATION:
                     PRE_TO_RMS_MULTIPLIER, 
                     SINUSOIDAL_TO_LEARNED_MULTIPLIER,
                     GELU_TO_SWIGLU_MULTIPLIER])))
-
 

@@ -63,14 +63,34 @@ def lstm_to_2017_transformer_multiplier(C, kaplan_divide = False):
     else:
         return lstm_to_transformer_m
 
-YEARLY_SCALING_MULTIPLIER = 4.1
+_compute_frontier = PARAMETERS["compute_frontier"]
+YEARLY_SCALING_MULTIPLIER = _compute_frontier["yearly_scaling_multiplier"]
+COMPUTE_FRONTIER_Y0 = _compute_frontier["y0"]
+COMPUTE_FRONTIER_C0 = _compute_frontier["C0"]
+
+
 # TODO not so sure this is exact enough
-def ytc(year, y0=2013, C0=1e16, k=np.log(YEARLY_SCALING_MULTIPLIER)):
+def ytc(
+    year,
+    y0=COMPUTE_FRONTIER_Y0,
+    C0=COMPUTE_FRONTIER_C0,
+    k=None,
+):
     # ytc = Year -> Compute   
+    if k is None:
+        k = np.log(YEARLY_SCALING_MULTIPLIER)
     return C0 * np.exp(k * (year - y0))
 
-def cty(C, y0=2013, C0=1e16, k=np.log(YEARLY_SCALING_MULTIPLIER)):
+
+def cty(
+    C,
+    y0=COMPUTE_FRONTIER_Y0,
+    C0=COMPUTE_FRONTIER_C0,
+    k=None,
+):
     # cty = Compute -> Year
+    if k is None:
+        k = np.log(YEARLY_SCALING_MULTIPLIER)
     return y0 + np.log(C / C0) / k
 
 
@@ -237,4 +257,3 @@ for innovation, color in zip(INNOVATIONS, colors):
 
 for innovation, color in zip(INNOVATIONS, colors):
     INNOVATIONS[innovation]['color'] = color
-

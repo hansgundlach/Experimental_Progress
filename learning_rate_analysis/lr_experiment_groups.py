@@ -26,20 +26,20 @@ SMALL_DIMS = [32, 64, 128]
 # Experiment group definitions
 # ============================================================================
 LR_EXPERIMENT_GROUPS = {
-    # "modern_transformer": {
-    #     "description": "Modern transformer (SwiGLU, rotary, AdamW, cosine LR)",
-    #     "hidden_dims": STANDARD_DIMS,
-    #     "learning_rates": STANDARD_LR_SWEEP,
-    #     "model_overrides": {
-    #         "activation": "swiglu",
-    #         "pos_encoding": "rotary",
-    #         "optimizer": "adamw",
-    #         "norm_type": "rms",
-    #     },
-    #     # Fraction of full Chinchilla token budget used for each LR trial
-    #     "token_budget_fraction": 0.05,
-    #     "csv_log_interval": 100,
-    # },
+    "modern_transformer": {
+        "description": "Modern transformer (SwiGLU, rotary, AdamW, cosine LR)",
+        "hidden_dims": STANDARD_DIMS,
+        "learning_rates": STANDARD_LR_SWEEP,
+        "model_overrides": {
+            "activation": "swiglu",
+            "pos_encoding": "rotary",
+            "optimizer": "adamw",
+            "norm_type": "rms",
+        },
+        # Fraction of full Chinchilla token budget used for each LR trial
+        "token_budget_fraction": 0.05,
+        "csv_log_interval": 100,
+    },
     # "sgd_transformer": {
     #     "description": "Transformer with SGD + heavy-ball momentum",
     #     "hidden_dims": STANDARD_DIMS,
@@ -54,19 +54,19 @@ LR_EXPERIMENT_GROUPS = {
     #     "token_budget_fraction": 0.05,
     #     "csv_log_interval": 100,
     # },
-    # "historical_transformer": {
-    #     "description": "2017-era transformer (sinusoidal pos, GELU, no RMSNorm)",
-    #     "hidden_dims": STANDARD_DIMS,
-    #     "learning_rates": STANDARD_LR_SWEEP,
-    #     "model_overrides": {
-    #         "activation": "gelu",
-    #         "pos_encoding": "sinusoidal",
-    #         "optimizer": "adamw",
-    #         "norm_type": "layer",
-    #     },
-    #     "token_budget_fraction": 0.05,
-    #     "csv_log_interval": 100,
-    # },
+    "historical_transformer": {
+        "description": "2017-era transformer (sinusoidal pos, GELU, no RMSNorm)",
+        "hidden_dims": STANDARD_DIMS,
+        "learning_rates": STANDARD_LR_SWEEP,
+        "model_overrides": {
+            "activation": "gelu",
+            "pos_encoding": "sinusoidal",
+            "optimizer": "adamw",
+            "norm_type": "layer",
+        },
+        "token_budget_fraction": 0.05,
+        "csv_log_interval": 100,
+    },
     "lstm_layer2_large": {
         "description": "LSTM with AdamW optimizer and cosine LR schedule",
         "architecture": "lstm",
