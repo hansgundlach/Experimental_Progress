@@ -2,10 +2,10 @@
 #SBATCH --job-name=lr_analyze
 #SBATCH --output=learning_rate_analysis/logs/slurm-lr-analyze-%j.out
 #SBATCH --error=learning_rate_analysis/logs/slurm-lr-analyze-%j.err
-#SBATCH --partition=xeon-g6-volta
+#SBATCH --partition=xeon-p8
 #SBATCH --nodes=1
 #SBATCH --mem=8G
-# No GPU needed for analysis
+# No GPU needed for analysis — runs on the CPU-only partition.
 
 GROUP_NAME="${1:?Error: GROUP_NAME not provided}"
 

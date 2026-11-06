@@ -12,11 +12,13 @@ Optimized for NeurIPS two-column format.
 import matplotlib.pyplot as plt
 import matplotlib.gridspec as gridspec
 import numpy as np
+from pathlib import Path
 
 from graphing_utils import TrainingCurveAnalyzer, FONT_CONFIG, ALPHA_CONFIG
-from experiments_config import experiments_config
 
 IRREDUCIBLE_LOSS = 1.9
+ROOT = Path(__file__).resolve().parents[1]
+DATA_ROOT = ROOT / "new_experiments_folder_1"
 
 # NeurIPS-optimized font configuration
 NEURIPS_FONT_CONFIG = {
@@ -35,12 +37,10 @@ USE_THEORETICAL_FLOPS = False
 
 # Define class-to-legend-label mapping for cleaner legend
 class_legend_mapping = {
-    "lstm": "LSTM",
-    "lstm_sgd": "LSTM SGD",
-    "transformer": "Transformer",
-    "sgd": "SGD",
-    "2017 Transformer": "2017 Transformer",
-    "sin transformer": "2017 Transformer",
+    "lstm_layer1": "LSTM (1 layer, x1)",
+    "lstm_layer2": "LSTM (2 layers, x2)",
+    "historical_transformer": "Historical Transformer",
+    "modern_transformer": "Modern Transformer",
 }
 
 # Initialize analyzer
@@ -50,7 +50,73 @@ analyzer = TrainingCurveAnalyzer(
     class_legend_mapping=class_legend_mapping,
 )
 
-# experiments_config is imported from plain_single_panel
+def add_dim_sweep(configs, *, class_name, label, folder, dims, filename_for_dim, color):
+    for dim in dims:
+        csv_path = DATA_ROOT / folder / filename_for_dim(dim)
+        if not csv_path.exists():
+            print(f"Skipping missing CSV: {csv_path}")
+            continue
+        configs.append(
+            {
+                "name": f"{dim}d {label}",
+                "csv_path": str(csv_path),
+                "marker": "o",
+                "include_in_frontier": True,
+                "class": class_name,
+                "hidden_dim": dim,
+                "color": color,
+            }
+        )
+
+
+experiments_config = []
+add_dim_sweep(
+    experiments_config,
+    class_name="lstm_layer1",
+    label="LSTM layer 1",
+    folder="x1_lstm_layer1",
+    dims=[32, 48, 64, 128, 160, 192, 224, 256, 320, 384, 448, 512],
+    filename_for_dim=lambda dim: f"{dim}d.csv",
+    color="viridis[0.80]",
+)
+add_dim_sweep(
+    experiments_config,
+    class_name="lstm_layer1",
+    label="LSTM layer 1",
+    folder="lstm_layer1",
+    dims=[80, 96, 112],
+    filename_for_dim=lambda dim: f"{dim}d.csv",
+    color="viridis[0.80]",
+)
+add_dim_sweep(
+    experiments_config,
+    class_name="lstm_layer2",
+    label="LSTM layer 2",
+    folder="x2_lstm_layer2",
+    dims=[32, 48, 64, 80, 96, 112, 128, 160, 192, 224, 256, 384, 448, 512],
+    filename_for_dim=lambda dim: f"{dim}d.csv",
+    color="cividis[0.65]",
+)
+add_dim_sweep(
+    experiments_config,
+    class_name="historical_transformer",
+    label="Historical Transformer",
+    folder="x1_historical",
+    dims=[32, 48, 64, 80, 96, 112, 128, 160, 192, 224, 256, 288, 320],
+    filename_for_dim=lambda dim: f"{dim}_all_reset.csv",
+    color="plasma[0.70]",
+)
+add_dim_sweep(
+    experiments_config,
+    class_name="modern_transformer",
+    label="Modern Transformer",
+    folder="x2_modern",
+    dims=[32, 48, 64, 80, 96, 112, 128, 160, 192, 224, 256],
+    filename_for_dim=lambda dim: (
+        f"{dim}_modern.csv" if dim in (48, 112) else f"{dim}_modern_40.csv"
+    ),
+    color="viridis[0.15]",
+)
 
 # Fix any typos in the config
 if experiments_config:
@@ -62,11 +128,10 @@ else:
 
 # Override include_in_frontier for classes we need
 classes_that_need_fits = [
-    "transformer",
-    "lstm",
-    "sin transformer",
-    "sgd",
-    "2017 Transformer",
+    "lstm_layer1",
+    "lstm_layer2",
+    "historical_transformer",
+    "modern_transformer",
 ]
 
 if experiments_config:
@@ -180,6 +245,7 @@ def plot_panel_to_axis(
             )
 
     # Plot power law fits
+    fit_summaries = []
     if show_power_law_fit:
         fit_results = analyzer.fit_power_law_by_class(
             class_names=classes_to_plot, use_all_points=True
@@ -207,13 +273,16 @@ def plot_panel_to_axis(
             else:
                 legend_label = cls
 
+            fit_summaries.append(
+                f"{legend_label}: A={a:.2e}, alpha={b:.3f}, R^2={r2:.3f}"
+            )
             ax.plot(
                 x_fit,
                 y_fit,
                 "--",
                 linewidth=3,
                 alpha=ALPHA_CONFIG["power_law_fit_alpha"],
-                label=f"{legend_label} fit:\n{a:.2e} × C^({b:.3f})",
+                label=f"{legend_label} fit:\n{a:.2e} * C^({b:.3f}), R^2={r2:.3f}",
                 color=analyzer.get_class_color(cls),
             )
 
@@ -268,6 +337,23 @@ def plot_panel_to_axis(
         axis="both", which="minor", labelsize=NEURIPS_FONT_CONFIG["minor_tick_size"]
     )
 
+    if fit_summaries:
+        ax.text(
+            0.03,
+            0.04,
+            "\n".join(fit_summaries),
+            transform=ax.transAxes,
+            fontsize=9,
+            va="bottom",
+            ha="left",
+            bbox={
+                "boxstyle": "round,pad=0.35",
+                "facecolor": "white",
+                "edgecolor": "0.75",
+                "alpha": 0.88,
+            },
+        )
+
     # Add panel label if provided
     if panel_label:
         ax.text(
@@ -319,15 +405,16 @@ fig = plt.figure(figsize=(14, 5.5))
 # Create grid for two panels
 gs = gridspec.GridSpec(1, 2, figure=fig, wspace=0.3)
 
-# Panel 1: Transformer vs LSTM
+# Panel 1: LSTM layer 1/layer 2 vs historical transformer
 ax1 = fig.add_subplot(gs[0, 0])
 plot_panel_to_axis(
     analyzer=analyzer,
     ax=ax1,
-    classes_to_plot=["transformer", "lstm"],
+    classes_to_plot=["lstm_layer1", "lstm_layer2", "historical_transformer"],
     flop_range_by_class={
-        "transformer": (1e16, 5 * 1e17),
-        "lstm": (1e16, 1e17 * 5),
+        "lstm_layer1": (1e14, 5 * 1e17),
+        "lstm_layer2": (1e14, 5 * 1e17),
+        "historical_transformer": (1e14, 5 * 1e17),
     },
     extrapolation_range=(10 ** (14.0), 1e18),
     show_power_law_fit=True,
@@ -335,36 +422,24 @@ plot_panel_to_axis(
     panel_label="(a)",
 )
 
-# Panel 2: Sin transformer with theoretical comparison
+# Panel 2: modern transformer
 ax2 = fig.add_subplot(gs[0, 1])
 plot_panel_to_axis(
     analyzer=analyzer,
     ax=ax2,
-    classes_to_plot=["sin transformer"],
+    classes_to_plot=["modern_transformer"],
     flop_range_by_class={
-        "sin transformer": (1e16, 1e17 * 5),
+        "modern_transformer": (1e14, 5 * 1e17),
     },
     extrapolation_range=(10 ** (14.0), 1e18),
     show_power_law_fit=True,
-    theoretical_scaling_laws=[
-        {
-            "E": 1.9,
-            "A": 88.0,
-            "gamma": -0.094,
-            "label": "Modern Transformer",
-            "color": "purple",
-            "linestyle": "--",
-            "linewidth": 3,
-            "alpha": 0.8,
-            "show_constant": False,  # Set to False to hide E term, True to show it
-        },
-    ],
+    theoretical_scaling_laws=None,
     panel_label="(b)",
 )
 
 # Overall title (optional - comment out if not needed for paper)
 fig.suptitle(
-    "Scaling Analysis: Architecture Comparison",
+    "Scaling Analysis: LSTMs, Historical Transformer, and Modern Transformer",
     fontsize=NEURIPS_FONT_CONFIG["title_size"] + 2,
     fontweight=NEURIPS_FONT_CONFIG["title_weight"],
     y=0.98,
@@ -373,14 +448,15 @@ fig.suptitle(
 plt.tight_layout()
 
 # Save the figure
-save_path = "Figures/neurips_two_panel_scaling.png"
+save_path = ROOT / "Figures" / "two_panel_lstm_historical_modern_scaling.png"
+save_path.parent.mkdir(exist_ok=True)
 plt.savefig(save_path, dpi=300, bbox_inches="tight")
-print(f"NeurIPS two-panel figure saved to {save_path}")
+print(f"NeurIPS two-panel figure saved to {save_path.resolve()}")
 
 # Also save as PDF for publication
-save_path_pdf = "Figures/neurips_two_panel_scaling.pdf"
+save_path_pdf = ROOT / "Figures" / "two_panel_lstm_historical_modern_scaling.pdf"
 plt.savefig(save_path_pdf, dpi=300, bbox_inches="tight")
-print(f"NeurIPS two-panel figure saved to {save_path_pdf}")
+print(f"NeurIPS two-panel figure saved to {save_path_pdf.resolve()}")
 
 plt.show()
 

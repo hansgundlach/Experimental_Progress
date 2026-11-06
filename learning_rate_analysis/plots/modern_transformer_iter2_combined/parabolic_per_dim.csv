@@ -1,0 +1,6 @@
+hidden_dim,estimator,eta_used,reason,eta_star_parabolic,best_grid_lr,r_squared,a,b,c,window_used,unstable,vertex_in_swept_range,n_dropped,n_dropped_plateau,warnings
+32,vertex,0.010840237,"",0.010840237,0.01,0.997062,0.0944783,0.854932,7.68973,6,False,True,0,0,""
+64,vertex,0.0065173508,"",0.0065173508,0.01,0.994424,0.101872,1.0255,8.03224,6,False,True,0,0,""
+128,vertex,0.0040937791,"",0.0040937791,0.0056234133,0.999706,0.111373,1.22472,8.61011,6,False,True,0,3,"dropped 3 divergence-plateau point(s)"
+256,vertex,0.0010229426,"",0.0010229426,0.0017782794,0.923769,0.182183,2.50868,13.5342,8,False,True,0,1,"dropped 1 divergence-plateau point(s)"
+320,vertex,0.00080083715,"",0.00080083715,0.001,0.980322,0.1763,2.51398,13.6137,7,False,True,0,2,"dropped 2 divergence-plateau point(s)"

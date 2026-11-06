@@ -33,7 +33,7 @@ from lstm_experiment_utils import (
     gen_lstm_experim,
     get_lstm_base_config,
 )
-from lr_experiment_groups import LR_EXPERIMENT_GROUPS
+from lr_experiment_groups import LR_EXPERIMENT_GROUPS, is_combined_group
 
 
 def build_lr_str(lr):
@@ -169,6 +169,12 @@ def main():
     if args.group not in LR_EXPERIMENT_GROUPS:
         print(f"Error: Unknown group '{args.group}'")
         print(f"Available groups: {list(LR_EXPERIMENT_GROUPS.keys())}")
+        sys.exit(1)
+
+    if is_combined_group(args.group):
+        print(f"Error: '{args.group}' is a combined (analyze-only) group.")
+        print(f"  Submit each of its subgroups individually, e.g. via "
+              f"`bash submit_lr.sh <subgroup>`.")
         sys.exit(1)
 
     group = LR_EXPERIMENT_GROUPS[args.group]

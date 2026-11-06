@@ -1,0 +1,4 @@
+step,training_loss,validation_loss,total_flops_profiler,theoretical_flops,tokens
+500,7.7597,7.6885,4.01e+13,4.14e+13,4096000
+1000,7.5757,7.6711,8.03e+13,8.28e+13,8192000
+1500,7.6410,7.6689,1.20e+14,1.24e+14,12288000

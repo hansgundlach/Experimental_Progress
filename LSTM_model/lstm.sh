@@ -40,6 +40,18 @@ echo "Contents: $(ls -la)"
 cd LSTM_model || { echo "Failed to cd into LSTM_model"; exit 1; }
 echo "Changed to LSTM_model directory: $PWD"
 echo "LSTM_model contents: $(ls -la)"
-python lstm_experiments.py --job_id ${SLURM_ARRAY_TASK_ID} --total_jobs ${TOTAL_JOBS} 2>&1 | tee "logs/job_${SLURM_ARRAY_JOB_ID}_task_${SLURM_ARRAY_TASK_ID}.log"
+DEFS_ARG=""
+if [[ -n "${LSTM_DEFS_FILE}" ]]; then
+    # Resolve to absolute path (lstm.sh cds into LSTM_model, so relative paths from
+    # the project root need to be converted before the cd happens)
+    DEFS_ABS="$(cd "$(dirname "${LSTM_DEFS_FILE}")" 2>/dev/null && pwd)/$(basename "${LSTM_DEFS_FILE}")"
+    if [[ -f "${DEFS_ABS}" ]]; then
+        DEFS_ARG="--defs-file ${DEFS_ABS}"
+    else
+        # Already absolute or file not found — pass as-is and let Python report the error
+        DEFS_ARG="--defs-file ${LSTM_DEFS_FILE}"
+    fi
+fi
+python lstm_experiments.py --job_id ${SLURM_ARRAY_TASK_ID} --total_jobs ${TOTAL_JOBS} ${DEFS_ARG} 2>&1 | tee "logs/job_${SLURM_ARRAY_JOB_ID}_task_${SLURM_ARRAY_TASK_ID}.log"
 
 echo "Job task ${SLURM_ARRAY_TASK_ID} ended at $(date)" 

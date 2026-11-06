@@ -8,9 +8,7 @@ import sys
 # Ensure local directory is on sys.path for relative imports when launched by Slurm
 sys.path.append(os.path.dirname(os.path.abspath(__file__)))
 from lstm_training import train_model
-from lstm_experiment_definitions import (
-    GRAND_EXPERIMENT,
-)
+import importlib.util
 import argparse
 from typing import List, Union, Sequence
 from lstm_experiment_utils import (
@@ -27,14 +25,6 @@ from experiment_utils import generate_lr_sweep_summary
 CONFIG = get_lstm_base_config()
 
 
-# ====================================================================
-# EXPERIMENT SELECTION
-# ====================================================================
-
-
-EXPERIMENTS = GRAND_EXPERIMENT
-
-
 if __name__ == "__main__":
     print("Starting LSTM experiments...")
     parser = argparse.ArgumentParser(description="Run LSTM Experiments")
@@ -42,8 +32,24 @@ if __name__ == "__main__":
     parser.add_argument(
         "--total_jobs", type=int, default=1, help="Total SLURM jobs in array"
     )
+    parser.add_argument(
+        "--defs-file", type=str, default=None,
+        help="Path to an alternative experiment definitions file. "
+             "The file must define GRAND_EXPERIMENT. "
+             "If omitted, uses lstm_experiment_definitions.py."
+    )
     args = parser.parse_args()
     print(f"Arguments parsed: job_id={args.job_id}, total_jobs={args.total_jobs}")
+
+    # Load GRAND_EXPERIMENT from the specified definitions file (or default)
+    defs_path = args.defs_file if args.defs_file else os.path.join(
+        os.path.dirname(os.path.abspath(__file__)), "lstm_experiment_definitions.py"
+    )
+    print(f"Loading experiment definitions from: {defs_path}")
+    _spec = importlib.util.spec_from_file_location("_lstm_defs", defs_path)
+    _mod = importlib.util.module_from_spec(_spec)
+    _spec.loader.exec_module(_mod)
+    EXPERIMENTS = _mod.GRAND_EXPERIMENT
 
     # Fallback: derive array info from SLURM env if not provided via CLI
     if args.total_jobs == 1 and os.environ.get("SLURM_ARRAY_TASK_ID") is not None:
@@ -145,7 +151,7 @@ if __name__ == "__main__":
         try:
             # Check if any experiment has summary info (indicates lr sweep with generate_summary=True)
             summary_info = None
-            for exp in GRAND_EXPERIMENT:
+            for exp in EXPERIMENTS:
                 if hasattr(exp, '_summary_info') or '_summary_info' in exp:
                     summary_info = exp.get('_summary_info')
                     break
@@ -168,7 +174,7 @@ if __name__ == "__main__":
                     print("⚠️  LR sweep summary generation failed or no valid results found")
             else:
                 # Check if experiment name suggests it's an LR sweep (fallback detection)
-                for exp in GRAND_EXPERIMENT:
+                for exp in EXPERIMENTS:
                     if "_lr_sweep" in exp["name"]:
                         print(f"Note: Detected LR sweep experiment '{exp['name']}' but generate_summary was not enabled.")
                         print("To enable automatic summary generation, use generate_summary=True in create_multi_lr_experiments()")
