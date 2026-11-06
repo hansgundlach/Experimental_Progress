@@ -12,6 +12,7 @@
 ARRAY_SIZE=""
 CONCURRENT_JOBS=8  # Default to use all 8 GPUs since each job needs only 1 GPU
 SCRIPT_PATH="LSTM_model/lstm.sh"
+DEFS_FILE=""        # Optional: path to alternative experiment definitions file
 
 # Parse arguments
 while [[ $# -gt 0 ]]; do
@@ -28,6 +29,10 @@ while [[ $# -gt 0 ]]; do
             SCRIPT_PATH="$2"
             shift 2
             ;;
+        -d|--defs-file)
+            DEFS_FILE="$2"
+            shift 2
+            ;;
         -h|--help)
             echo "Usage: $0 [OPTIONS]"
             echo ""
@@ -38,13 +43,18 @@ while [[ $# -gt 0 ]]; do
             echo "  -c, --concurrent N    Max concurrent jobs (default: 8)"
             echo "                        Note: Each job uses 1 GPU, so concurrent = total GPU usage"
             echo "  -s, --script PATH     Script to submit (default: lstm.sh)"
+            echo "  -d, --defs-file PATH  Path to alternative experiment definitions file."
+            echo "                        The file must define GRAND_EXPERIMENT."
+            echo "                        Use this to submit one-off experiments WITHOUT touching"
+            echo "                        lstm_experiment_definitions.py. ALWAYS prefer this over"
+            echo "                        temporarily modifying the main definitions file."
             echo "  -50                   Shorthand for --array-size 50"
             echo "  -h, --help           Show this help"
             echo ""
             echo "Examples:"
             echo "  $0 -50                # 50 experiments, 8 concurrent (8 GPUs total)"
             echo "  $0 -n 100 -c 8       # 100 experiments, 8 concurrent (8 GPUs total)"
-            echo "  $0 -24 -c 4          # 24 experiments, 4 concurrent (4 GPUs total)"
+            echo "  $0 -2 -d LSTM_model/my_416d.py   # 2 experiments from custom file"
             exit 0
             ;;
         -*)
@@ -127,7 +137,12 @@ fi
 # Submit the job with the array specification
 echo "Submitting with command: sbatch --array=\"${ARRAY_SPEC}\" \"${SCRIPT_PATH}\""
 echo "Checking if script exists: $(ls -la "${SCRIPT_PATH}" 2>/dev/null || echo "SCRIPT NOT FOUND")"
-sbatch --array="${ARRAY_SPEC}" "${SCRIPT_PATH}"
+if [[ -n "$DEFS_FILE" ]]; then
+    echo "Using definitions file: ${DEFS_FILE}"
+    sbatch --array="${ARRAY_SPEC}" --export=ALL,LSTM_DEFS_FILE="${DEFS_FILE}" "${SCRIPT_PATH}"
+else
+    sbatch --array="${ARRAY_SPEC}" "${SCRIPT_PATH}"
+fi
 
 if [ $? -eq 0 ]; then
     echo "✅ LSTM single-GPU job array submitted successfully!"

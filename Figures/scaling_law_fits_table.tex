@@ -1,0 +1,14 @@
+\begin{table}[h]
+\centering
+\begin{tabular}{lccc}
+\toprule
+Architecture & Exponent $\alpha$ (95\% CI) & Coefficient $A$ & $R^2$ \\
+\midrule
+Modern Transformer & $-0.094 \pm 0.000$ & $86.2$ & $0.999$ \\
+LSTM (1 layer) & $-0.067 \pm 0.001$ & $39.7$ & $0.980$ \\
+Historical Transformer & $-0.089 \pm 0.000$ & $74.9$ & $0.998$ \\
+\bottomrule
+\end{tabular}
+\caption{Power-law scaling fits $L - \hat{L} = A \cdot C^{\alpha}$ for each architecture, where $\hat{L} = 1.9$ is the assumed irreducible loss and $C$ is total training compute (FLOPs). Fits use the Pareto frontier of training curves over $C \in [10^{16}, 10^{17}]$ FLOPs. Confidence intervals are 95\% from OLS on the log-log frontier.}
+\label{tab:scaling_fits}
+\end{table}

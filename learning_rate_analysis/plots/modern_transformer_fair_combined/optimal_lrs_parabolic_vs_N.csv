@@ -4,6 +4,7 @@
 # N is computed per hidden_dim via experiment_utils.calculate_non_embedding_params
 # (Kaplan et al. 2020 definition; matches Bjorck 2025 / Chinchilla protocol).
 hidden_dim,N_non_embedding,learning_rate,log10_lr
+16,54353,0.01988653,-1.7014
 32,83025,0.01607213,-1.7939
 48,160849,0.01153599,-1.9379
 64,312401,0.00826975,-2.0825

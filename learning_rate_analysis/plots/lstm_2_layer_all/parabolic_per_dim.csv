@@ -1,0 +1,12 @@
+hidden_dim,estimator,eta_used,reason,eta_star_parabolic,best_grid_lr,r_squared,a,b,c,window_used,unstable,vertex_in_swept_range,n_dropped,n_dropped_plateau,warnings
+32,vertex,0.054978637,"",0.054978637,0.031622777,0.987386,0.140025,0.812374,7.50276,6,False,True,0,2,"dropped 2 divergence-plateau point(s)"
+48,vertex,0.039970663,"",0.039970663,0.031622777,0.976509,0.187615,1.20809,8.18513,6,False,True,0,2,"dropped 2 divergence-plateau point(s)"
+64,argmin,0.031622777,"vertex_at_boundary",0.046233671,0.031622777,0.983184,0.126893,0.780147,7.37211,6,False,True,0,2,"dropped 2 divergence-plateau point(s)"
+80,vertex,0.038745395,"",0.038745395,0.031622777,0.979378,0.144247,0.937818,7.69529,7,False,True,0,1,"dropped 1 divergence-plateau point(s)"
+96,argmin,0.031622777,"vertex_at_boundary",0.056649737,0.031622777,0.986941,0.105111,0.603517,6.90071,6,False,False,0,2,"vertex eta*=5.665e-02 outside swept range [3.162e-03; 5.623e-02]; dropped 2 divergence-plateau point(s)"
+112,vertex,0.029079782,"",0.029079782,0.031622777,0.928961,0.163762,1.15868,8.13629,7,False,True,0,1,"dropped 1 divergence-plateau point(s)"
+128,argmin,0.056234133,"r2<0.9",0.02969543,0.056234133,0.750511,0.126187,0.887537,7.68854,7,False,True,0,1,"dropped 1 divergence-plateau point(s)"
+160,argmin,0.031622777,"r2<0.9",0.024532563,0.031622777,0.612796,0.142616,1.05757,8.04559,7,False,True,0,1,"dropped 1 divergence-plateau point(s)"
+192,argmin,0.031622777,"r2<0.9",0.01727197,0.031622777,0.868825,0.262418,2.13014,10.28,6,False,True,0,2,"dropped 2 divergence-plateau point(s)"
+224,vertex,0.01927508,"",0.01927508,0.017782794,0.970145,0.217004,1.71387,9.22958,7,False,True,0,1,"dropped 1 divergence-plateau point(s)"
+256,argmin,0.017782794,"vertex_at_boundary",0.33663498,0.017782794,0.996357,0.0479181,0.104342,5.50354,5,False,False,0,3,"vertex eta*=3.366e-01 outside swept range [1.778e-03; 1.778e-02]; dropped 3 divergence-plateau point(s)"

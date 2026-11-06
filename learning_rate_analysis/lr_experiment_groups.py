@@ -84,23 +84,23 @@ LR_EXPERIMENT_GROUPS = {
     # ========================================================================
 
     # ---------- Modern transformer (smooth basin) ----------
-    # "modern_transformer_fair_small": {
-    #     "description": "Modern transformer (small dims, fair-protocol)",
-    #     "hidden_dims": [32, 48, 64, 96],
-    #     # 9 LRs at 0.25-dec spacing covering the small-dim basin.
-    #     "learning_rates": [
-    #         10**-3.25, 10**-3.0, 10**-2.75, 10**-2.5, 10**-2.25,
-    #         10**-2.0, 10**-1.75, 10**-1.5, 10**-1.25,
-    #     ],
-    #     "model_overrides": {
-    #         "activation": "swiglu",
-    #         "pos_encoding": "rotary",
-    #         "optimizer": "adamw",
-    #         "norm_type": "rms",
-    #     },
-    #     "token_budget_fraction": 0.05,
-    #     "csv_log_interval": 100,
-    # },
+    "modern_transformer_all": {
+        "description": "Modern transformer (small dims, fair-protocol)",
+        "hidden_dims": [32, 48,  64, 80, 96, 112, 128, 160,192,224,256],
+        # 9 LRs at 0.25-dec spacing covering the small-dim basin.
+        "learning_rates": [
+            10**-3.25, 10**-3.0, 10**-2.75, 10**-2.5, 10**-2.25,
+            10**-2.0, 10**-1.75, 10**-1.5, 
+        ],
+        "model_overrides": {
+            "activation": "swiglu",
+            "pos_encoding": "rotary",
+            "optimizer": "adamw",
+            "norm_type": "rms",
+        },
+        "token_budget_fraction": 0.05,
+        "csv_log_interval": 999999,
+    },
     # "modern_transformer_fair_large": {
     #     "description": "Modern transformer (large dims, fair-protocol)",
     #     "hidden_dims": [128, 192, 256],
@@ -129,12 +129,12 @@ LR_EXPERIMENT_GROUPS = {
     # Same grid as modern for the small dims; large dims have 0.1-dec infill
     # across the cliff zone so the analyzer can localize where the model
     # diverges instead of just hitting the plateau.
-    "historical_transformer_fair_small_iter4": {
+    "historical_all_sweep": {
         "description": "Historical (post-LN, sinusoidal, inv-sqrt) small dims, fair-protocol",
-        "hidden_dims": [32, 48, 64, 80, 96],
+        "hidden_dims": [32, 48,  64, 80, 96, 112, 128, 160,192,224,256],
         "learning_rates": [
-            10**-3.25, 10**-3.0, 10**-2.75, 10**-2.5, 10**-2.25,
-            10**-2.0, 10**-1.75, 10**-1.5, 10**-1.25,
+            10**-3.5, 10**-3.25, 10**-3.0, 10**-2.75, 10**-2.5, 10**-2.25,
+            10**-2.0, 10**-1.75, 10**-1.5,
         ],
         "model_overrides": {
             "activation": "gelu",
@@ -146,12 +146,35 @@ LR_EXPERIMENT_GROUPS = {
             "modern_bias_0": False,
             "weight_decay": 0.01,
             "dropout": 0.0,
-            "modern_bias_0": False,
             "ff_ratio": 4,
         },
-        "token_budget_fraction": 1.0,
-        "csv_log_interval": 500,
+        "token_budget_fraction": 0.05,
+        "csv_log_interval": 999999,
     },
+    # "historical_transformer_rms_iter8": {
+    #     "description": "Historical (post-LN, sinusoidal, inv-sqrt) small dims, fair-protocol",
+    #     "hidden_dims": [32, 48, 64, 80, 96],
+    #     "learning_rates": [
+    #         10**-3.25, 10**-3.0, 10**-2.75, 10**-2.5, 10**-2.25,
+    #         10**-2.0, 10**-1.75, 10**-1.5, 
+    #     ],
+    #     "model_overrides": {
+    #         "activation": "gelu",
+    #         "pos_encoding": "sinusoidal",
+    #         "norm_placement": "post",
+    #         "lr_schedule": "inverse_sqrt",
+    #         "optimizer": "adam",
+    #         "norm_type": "rms",
+    #         "modern_bias_0": False,
+    #         "weight_decay": 0.01,
+    #         "dropout": 0.0,
+    #         "modern_bias_0": False,
+    #         "ff_ratio": 4,
+    #     },
+    #     "token_budget_fraction": 0.05,
+    #     "csv_log_interval": 999999,
+    # },
+    
     # "historical_transformer_fair_large_iter4": {
     #     "description": "Historical (post-LN) large dims with cliff-zone infill, fair-protocol",
     #     "hidden_dims": [128, 192, 256],
@@ -186,34 +209,38 @@ LR_EXPERIMENT_GROUPS = {
     # ---------- LSTM (smooth basin, single sweep grid suffices) ----------
     # LSTM optimum sits ~1 decade above transformer optimum; basin is shallow
     # enough that a single grid covers all dims. 8 LRs at 0.25-dec spacing.
-    "lstm_fair_layer2": {
+    "lstm_2_layer_all": {
         "description": "LSTM 2-layer (fair-protocol, single grid covers all dims)",
         "architecture": "lstm",
-        "hidden_dims": [32, 48, 64, 96, 128],
+        "hidden_dims": [32, 48,  64, 80, 96, 112, 128, 160,192,224,256],
         "learning_rates": [
-            10**-2.75, 10**-2.5, 10**-2.25, 10**-2.0,
+             10**-2.75, 10**-2.5, 10**-2.25, 10**-2.0,
             10**-1.75, 10**-1.5, 10**-1.25, 10**-1.0,
         ],
         "model_overrides": {
             "num_layers": 2,
         },
-        "token_budget_fraction": 1.0,
-        "csv_log_interval": 100,
+        "token_budget_fraction": 0.05,
+        "csv_log_interval": 999999,
     },
-    "lstm_fair_layer1": {
+    "lstm_1_layer_all": {
         "description": "LSTM 1-layer (fair-protocol, single grid covers all dims)",
         "architecture": "lstm",
-        "hidden_dims": [32, 48, 64, 96, 128],
+        "hidden_dims": [32, 48,  64, 80, 96, 112, 128, 160,192,224,256],
         "learning_rates": [
-            10**-2.75, 10**-2.5, 10**-2.25, 10**-2.0,
+           10**-2.75, 10**-2.5, 10**-2.25, 10**-2.0,
             10**-1.75, 10**-1.5, 10**-1.25, 10**-1.0,
         ],
         "model_overrides": {
             "num_layers": 1,
         },
-        "token_budget_fraction": 1.0,
-        "csv_log_interval": 100,
+        "token_budget_fraction": 0.05,
+        "csv_log_interval": 999999,
     },
+
+
+
+
     # "historical_transformer_iter3": {
     #     "description": "Historical transformer (sinusoidal pos, GELU, no RMSNorm)",
     #     "hidden_dims": [32, 48, 64, 96, 128, 256],

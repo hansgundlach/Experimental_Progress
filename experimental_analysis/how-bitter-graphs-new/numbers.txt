@@ -1,0 +1,36 @@
+     3361.71x  Final cumulative multiplier (from 2012 to 2023)
+        6.54x  Gap from Ho et al. (from 2012 to 2023)
+       88.39%  Proportion from scale-dependent (from 2012 to 2023)
+      352.44x  Total multiplier from from transformer (from 2012 to 2023)
+       72.23%  Proportion from from transformer (from 2012 to 2023)
+        3.71x  Total multiplier from from Chinchilla (from 2012 to 2023)
+       16.16%  Proportion from from Chinchilla (from 2012 to 2023)
+     1309.04x  Scale-dependent multiplier (from 2012 to 2023)
+       11.61%  Proportion from scale-invariant (from 2012 to 2023)
+        2.57x  Scale-invariant multiplier (from 2012 to 2023)
+      2.0922x  Rate of growth (from 2012 to 2023)
+               Compute range for analysis: 2.44e+15, 1.34e+22
+        2.83x  Ho et al annual growth rate (from 2012 to 2023)
+
+     8635.91x  Final cumulative multiplier (from 2013 to 2025)
+        2.55x  Gap from Ho et al. (from 2013 to 2025)
+       89.59%  Proportion from scale-dependent (from 2013 to 2025)
+      341.88x  Total multiplier from from transformer (from 2013 to 2025)
+       64.37%  Proportion from from transformer (from 2013 to 2025)
+        9.84x  Total multiplier from from Chinchilla (from 2013 to 2025)
+       25.22%  Proportion from from Chinchilla (from 2013 to 2025)
+     3362.80x  Scale-dependent multiplier (from 2013 to 2025)
+       10.41%  Proportion from scale-invariant (from 2013 to 2025)
+        2.57x  Scale-invariant multiplier (from 2013 to 2025)
+      2.1283x  Rate of growth (from 2013 to 2025)
+               Compute range for analysis: 1e+16, 2.26e+23
+
+       76.82x  Total transformer growth (from 2013 to 2017.01)
+       77.22x  LSTM to Kaplan Transformer efficiency gain at 2017 compute (2.83e+18 FLOPs)
+
+        6.54x  Gap to Ho et al. = 22,000 / total CEG in 2023 (3361.71x)
+
+Exponent-gap sensitivity (2012 to 2023):
+       66.70%  Scale-dependent proportion with exponent gap 25% smaller
+       88.39%  Scale-dependent proportion with baseline exponent gap
+       93.53%  Scale-dependent proportion with exponent gap 25% larger

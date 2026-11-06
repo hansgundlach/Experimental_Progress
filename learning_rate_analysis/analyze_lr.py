@@ -181,12 +181,9 @@ def make_parabolic_scaling_vs_N_plot(group_name, parabolic_fit, fit_N, group_con
     ax.grid(True, alpha=0.3, which="both")
     plt.tight_layout()
     png_path = os.path.join(plots_dir, f"{group_name}_parabolic_scaling_vs_N.png")
-    pdf_path = os.path.join(plots_dir, f"{group_name}_parabolic_scaling_vs_N.pdf")
     plt.savefig(png_path, dpi=200, bbox_inches="tight")
-    plt.savefig(pdf_path, bbox_inches="tight")
     plt.close()
     print(f"  Plot saved: {png_path}")
-    print(f"  Plot saved: {pdf_path}")
 
 
 def make_d_vs_N_comparison_plot(group_name, parabolic_fit, fit_N, group_config, plots_dir):
@@ -240,12 +237,9 @@ def make_d_vs_N_comparison_plot(group_name, parabolic_fit, fit_N, group_config, 
     fig.suptitle(f"{group_name}: d-axis vs N-axis fit", fontsize=14, fontweight="bold")
     plt.tight_layout()
     png_path = os.path.join(plots_dir, f"{group_name}_d_vs_N_comparison.png")
-    pdf_path = os.path.join(plots_dir, f"{group_name}_d_vs_N_comparison.pdf")
     plt.savefig(png_path, dpi=200, bbox_inches="tight")
-    plt.savefig(pdf_path, bbox_inches="tight")
     plt.close()
     print(f"  Plot saved: {png_path}")
-    print(f"  Plot saved: {pdf_path}")
 
 
 def write_parabolic_vs_N_csv(group_name, fit_N, group_config, target_dims, plots_dir):
@@ -494,13 +488,10 @@ def make_plot(group_name, best_per_dim, fit_params, extrapolated, plots_dir):
     plt.tight_layout()
 
     png_path = os.path.join(plots_dir, f"{group_name}_lr_scaling.png")
-    pdf_path = os.path.join(plots_dir, f"{group_name}_lr_scaling.pdf")
     plt.savefig(png_path, dpi=200, bbox_inches="tight")
-    plt.savefig(pdf_path, bbox_inches="tight")
     plt.close()
 
     print(f"  Plot saved: {png_path}")
-    print(f"  Plot saved: {pdf_path}")
 
 
 def print_results(group_name, best_per_dim, fit_params, extrapolated):
@@ -615,6 +606,8 @@ def fit_quadratic_in_log_lr(lrs, losses, window=None, delta_cut=1.0):
     n_dropped = int((~finite_mask).sum())
     lrs = lrs[finite_mask]
     losses = losses[finite_mask]
+    sampled_lrs = lrs.copy()
+    sampled_losses = losses.copy()
 
     if len(lrs) < 3:
         return None
@@ -688,6 +681,8 @@ def fit_quadratic_in_log_lr(lrs, losses, window=None, delta_cut=1.0):
         "window_used": window_used,
         "window_lrs": sel_lrs.tolist(),
         "window_losses": sel_losses.tolist(),
+        "sampled_lrs": sampled_lrs.tolist(),
+        "sampled_losses": sampled_losses.tolist(),
         "all_lrs": lrs.tolist(),
         "all_losses": losses.tolist(),
         "best_grid_lr": float(lrs[int(np.argmin(losses))]),
@@ -831,12 +826,19 @@ def make_parabolic_per_dim_plot(group_name, parabolic_per_dim, plots_dir):
 
     for ax, dim in zip(axes.flatten(), dims):
         fit = parabolic_per_dim[dim]
+        sampled_lrs = np.array(fit.get("sampled_lrs", fit["all_lrs"]))
+        sampled_losses = np.array(fit.get("sampled_losses", fit["all_losses"]))
         all_lrs = np.array(fit["all_lrs"])
         all_losses = np.array(fit["all_losses"])
         win_lrs = np.array(fit["window_lrs"])
         win_losses = np.array(fit["window_losses"])
-        # Faded background = full sweep; highlighted = window actually fit
-        ax.scatter(all_lrs, all_losses, c="lightgray", s=40, label="swept")
+        # Faded background = every finite LR sampled; highlighted = points
+        # retained for basin fitting after the plateau cut/windowing.
+        ax.scatter(sampled_lrs, sampled_losses, c="lightgray", s=40,
+                   label="sampled")
+        if len(all_lrs) != len(sampled_lrs):
+            ax.scatter(all_lrs, all_losses, c="tab:orange", s=48,
+                       edgecolors="black", linewidth=0.5, label="basin kept")
         if len(win_lrs) != len(all_lrs):
             ax.scatter(win_lrs, win_losses, c="tab:blue", s=60,
                        edgecolors="black", linewidth=0.8, label="fit window")
@@ -874,12 +876,9 @@ def make_parabolic_per_dim_plot(group_name, parabolic_per_dim, plots_dir):
     )
     fig.tight_layout(rect=[0, 0, 1, 0.96])
     png_path = os.path.join(plots_dir, f"{group_name}_parabolic_per_dim.png")
-    pdf_path = os.path.join(plots_dir, f"{group_name}_parabolic_per_dim.pdf")
     fig.savefig(png_path, dpi=200, bbox_inches="tight")
-    fig.savefig(pdf_path, bbox_inches="tight")
     plt.close(fig)
     print(f"  Plot saved: {png_path}")
-    print(f"  Plot saved: {pdf_path}")
 
 
 def make_parabolic_scaling_plot(group_name, parabolic_per_dim, parabolic_fit, plots_dir):
@@ -928,12 +927,9 @@ def make_parabolic_scaling_plot(group_name, parabolic_per_dim, parabolic_fit, pl
 
     plt.tight_layout()
     png_path = os.path.join(plots_dir, f"{group_name}_parabolic_scaling.png")
-    pdf_path = os.path.join(plots_dir, f"{group_name}_parabolic_scaling.pdf")
     plt.savefig(png_path, dpi=200, bbox_inches="tight")
-    plt.savefig(pdf_path, bbox_inches="tight")
     plt.close()
     print(f"  Plot saved: {png_path}")
-    print(f"  Plot saved: {pdf_path}")
 
 
 def write_parabolic_csvs(group_name, parabolic_per_dim, parabolic_fit, target_dims, plots_dir):
@@ -1070,8 +1066,8 @@ def analyze_group(group_name, include_parabolic=True, parabolic_window=None):
     # Step 2: Fit power law
     fit_params = fit_lr_scaling(best_per_dim)
 
-    # Step 3: Extrapolate/interpolate to all target dims (32 to 512, step 16)
-    target_dims = list(range(32, 513, 16))
+    # Step 3: Extrapolate/interpolate to all target dims (16 to 512, step 16)
+    target_dims = list(range(16, 513, 16))
     extrapolated = extrapolate_lrs(fit_params[0], fit_params[1], target_dims) if fit_params else {}
 
     # Step 4: Plot (without the extrapolated table overlaid)
