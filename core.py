@@ -1379,6 +1379,24 @@ def train(gpu_id=None, csv_log_path=None):
         )
         if val_loss < best_val_loss:
             best_val_loss = val_loss
+
+        # Guarantee at least one CSV row at the final optimizer step so that
+        # LR-tuning analysis always has a terminal val_loss reading regardless
+        # of csv_log_interval. Only fires when the last step wasn't already
+        # captured by the periodic logger above.
+        if csv_writer and last_csv_logged_step != optimizer_step_counter:
+            effective_batch_size = config.batch_size * config.gradient_accumulation_steps
+            tokens_processed = optimizer_step_counter * effective_batch_size * config.seq_length
+            csv_writer.writerow([
+                optimizer_step_counter,
+                f"{avg_train_loss:.4f}",
+                f"{val_loss:.4f}",
+                f"{flops_per_step * optimizer_step_counter:.2e}",
+                f"{6 * num_params * tokens_processed:.2e}",
+                f"{tokens_processed}",
+            ])
+            csv_file.flush()
+            last_csv_logged_step = optimizer_step_counter
             # don't need to save the model state dict, because we don't use it for anything
             # best_model_state = copy.deepcopy(model.state_dict())
 

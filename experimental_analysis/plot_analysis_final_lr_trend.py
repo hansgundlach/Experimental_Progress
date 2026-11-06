@@ -13,6 +13,7 @@ import matplotlib.gridspec as gridspec
 import numpy as np
 import matplotlib.ticker as ticker
 from pathlib import Path
+from scipy import stats as _scipy_stats
 
 from graphing_utils import TrainingCurveAnalyzer, ALPHA_CONFIG
 
@@ -42,12 +43,12 @@ class_legend_mapping = {
 }
 
 # ── Experiment dims ────────────────────────────────────────────────────────────
-MODERN_DIMS   = [16, 32, 48, 64, 80, 96, 112, 128, 160, 192, 224, 256]
-HIST_DIMS     = [16, 32, 48, 64, 80, 96, 112, 160, 192, 224, 256]   # 128d diverged
-LSTM1_DIMS    = [16, 32, 48, 64, 80, 96, 112, 128, 160, 192, 224, 256,
-                 288, 320, 352, 384, 416, 448]
+MODERN_DIMS   = [32, 48, 64, 80, 96, 112, 128, 160, 192, 224, 256]
+HIST_DIMS     = [32, 48, 64, 80, 96, 112, 160, 192, 224, 256]   # 128d diverged
+LSTM1_DIMS    = [32, 48, 64, 80, 96, 112, 128, 160, 192, 224, 256, 288, 320, 352, 384]
+                 
 
-STOP, END = 1e16, 5*1e17
+STOP, END = 1e16, 1e17
 
 # ── Build analyzer ─────────────────────────────────────────────────────────────
 analyzer = TrainingCurveAnalyzer(
@@ -333,4 +334,258 @@ fig.savefig(save_path, dpi=300, bbox_inches="tight")
 fig.savefig(save_path.with_suffix(".pdf"), bbox_inches="tight")
 print(f"\nSaved: {save_path}")
 plt.show()
+
+
+# ══════════════════════════════════════════════════════════════════════════════
+# SCALING LAW FIT TABLE — LaTeX output
+# Recomputes fits with scipy.stats.linregress on the Pareto frontier points
+# to obtain standard errors and 95% CIs on the exponent alpha.
+# Saved to Figures/scaling_law_fits_table.tex each run.
+# ══════════════════════════════════════════════════════════════════════════════
+def generate_fit_table():
+    """
+    Fit L-E = A * C^alpha via log-log OLS on the Pareto frontier points,
+    returning alpha, 95% CI on alpha, A, and R² for each class.
+    Uses the same frontier already identified for the two-panel figure
+    (STOP, END flop range, IRREDUCIBLE_LOSS = 1.9).
+    """
+    # Re-identify frontier with all three classes together at (STOP, END)
+    table_classes = ["modern_transformer", "lstm_layer1", "historical"]
+    analyzer.identify_frontier_by_class(
+        method="pareto", flop_range=None, use_all_points=True,
+        classes=table_classes,
+        flop_range_by_class={c: (STOP, END) for c in table_classes},
+    )
+
+    display_names = {
+        "modern_transformer": "Modern Transformer",
+        "lstm_layer1":        "LSTM (1 layer)",
+        "historical":         "Historical Transformer",
+    }
+
+    rows = []
+    for cls in table_classes:
+        pts = analyzer.frontier_points_all_by_class.get(cls, [])
+        if len(pts) < 3:
+            print(f"  WARNING: too few frontier points for {cls} ({len(pts)}), skipping table row")
+            continue
+        log_C = np.log(np.array([p[1] for p in pts]))
+        log_L = np.log(np.array([p[2] for p in pts]))
+
+        res = _scipy_stats.linregress(log_C, log_L)
+        alpha   = res.slope
+        A       = np.exp(res.intercept)
+        r2      = res.rvalue ** 2
+        se      = res.stderr          # SE on slope (alpha)
+        n       = len(pts)
+        t_crit  = _scipy_stats.t.ppf(0.975, df=n - 2)
+        ci      = t_crit * se         # half-width of 95% CI
+
+        rows.append({
+            "cls": cls,
+            "name": display_names[cls],
+            "alpha": alpha,
+            "ci": ci,
+            "A": A,
+            "r2": r2,
+            "n": n,
+        })
+        print(f"  {display_names[cls]}: alpha={alpha:.4f} ± {ci:.4f} (95% CI, n={n}), A={A:.2f}, R²={r2:.4f}")
+
+    # ── Build LaTeX table ───────────────────────────────────────────────────
+    lines = []
+    lines.append(r"\begin{table}[h]")
+    lines.append(r"\centering")
+    lines.append(r"\begin{tabular}{lccc}")
+    lines.append(r"\toprule")
+    lines.append(r"Architecture & Exponent $\alpha$ (95\% CI) & Coefficient $A$ & $R^2$ \\")
+    lines.append(r"\midrule")
+    for r in rows:
+        alpha_str = f"${r['alpha']:.3f} \\pm {r['ci']:.3f}$"
+        A_str     = f"${r['A']:.1f}$"
+        r2_str    = f"${r['r2']:.3f}$"
+        lines.append(f"{r['name']} & {alpha_str} & {A_str} & {r2_str} \\\\")
+    lines.append(r"\bottomrule")
+    lines.append(r"\end{tabular}")
+    lines.append(
+        r"\caption{Power-law scaling fits $L - \hat{L} = A \cdot C^{\alpha}$ for each architecture, "
+        r"where $\hat{L} = " + f"{IRREDUCIBLE_LOSS}" + r"$ is the assumed irreducible loss and $C$ is "
+        r"total training compute (FLOPs). "
+        r"Fits use the Pareto frontier of training curves over "
+        r"$C \in [10^{" + f"{int(np.log10(STOP))}" + r"}, 10^{" + f"{int(np.log10(END))}" + r"}]$ FLOPs. "
+        r"Confidence intervals are 95\% from OLS on the log-log frontier.}"
+    )
+    lines.append(r"\label{tab:scaling_fits}")
+    lines.append(r"\end{table}")
+
+    tex = "\n".join(lines)
+    tex_path = ROOT / "Figures" / "scaling_law_fits_table.tex"
+    tex_path.parent.mkdir(exist_ok=True)
+    tex_path.write_text(tex)
+    print(f"\nLaTeX table saved: {tex_path}")
+    print("\n" + tex)
+    return tex
+
+print("\nScaling law fit table:")
+generate_fit_table()
+
+
+# %%
+# ══════════════════════════════════════════════════════════════════════════════
+# IRREDUCIBLE LOSS SENSITIVITY ANALYSIS — PARAMETERS
+# Modify the values below to control the sweep.
+# ══════════════════════════════════════════════════════════════════════════════
+
+# Range of assumed irreducible loss values to sweep over
+SENS_L0_VALUES = [1.6, 1.7, 1.8, 1.9, 2.0, 2.1, 2.2]
+
+# Target loss levels (L - L0) at which compute ratios are computed.
+# These match the orange lines in the two-panel figure.
+SENS_TARGET_LOSSES = (3.377, 2.5)
+
+# FLOP range used for frontier identification and fitting (same as main figure).
+# Change these if you want a different fitting range for the sensitivity analysis.
+SENS_FLOP_RANGE = (STOP, END)   # currently (1e16, 1e17); set by STOP, END above
+
+# Output filenames (relative to project root / Figures/).
+SENS_FIGURE_PATH = "Figures/E_sensitivity.png"
+SENS_TABLE_PATH  = "Figures/E_sensitivity_table.csv"
+
+# Classes and their data sources.
+# Each entry: class_name -> (folder_under_new_experiments_folder_1, dims_list, color_spec)
+# Add or remove entries here to include/exclude architectures.
+SENS_CLASSES = {
+    "modern_transformer": (
+        "x1_modern_all_lr_trend",     # folder containing {dim}d.csv files
+        MODERN_DIMS,                   # dims defined at top of file
+        "viridis[0.0]",                # color (matches main figure)
+    ),
+    "lstm_layer1": (
+        "x1_lstm_layer1_lr_trend",
+        LSTM1_DIMS,
+        "viridis[0.8]",
+    ),
+    "historical": (
+        "x1_all_lr_historical_trend",
+        HIST_DIMS,
+        "viridis[0.6]",
+    ),
+}
+
+# Compute ratio comparisons: list of (reference_class, comparison_class) pairs.
+# The ratio reported is: compute(comparison) / compute(reference) at each target loss.
+SENS_RATIO_PAIRS = [
+    ("modern_transformer", "lstm_layer1"),
+    ("modern_transformer", "historical"),
+]
+
+# ── Irreducible loss sensitivity function ──────────────────────────────────────
+def run_sensitivity():
+    """
+    Sweep IRREDUCIBLE_LOSS over SENS_L0_VALUES and show how fitted exponents
+    and compute ratios change. Reads from the folders defined in SENS_CLASSES.
+    Produces:
+      - SENS_TABLE_PATH  : CSV table of alpha, A, R² and compute ratios per L0
+      - SENS_FIGURE_PATH : plot of |alpha| vs L0 for each architecture
+    """
+    classes = list(SENS_CLASSES.keys())
+
+    def parse_color(spec):
+        if "[" in spec and spec.endswith("]"):
+            cm, idx = spec[:-1].split("[", 1)
+            return plt.get_cmap(cm)(float(idx))
+        return spec
+
+    rows = []
+    alpha_by_class = {c: [] for c in classes}
+
+    for L0 in SENS_L0_VALUES:
+        an = TrainingCurveAnalyzer(
+            irreducible_loss=L0,
+            use_theoretical_flops=False,
+            class_legend_mapping=class_legend_mapping,
+        )
+        for cls, (folder, dims, color) in SENS_CLASSES.items():
+            for dim in dims:
+                path = DATA_ROOT / folder / f"{dim}d.csv"
+                if path.exists():
+                    an.add_experiment(
+                        name=f"{dim}d {cls}", csv_path=str(path),
+                        color=color, marker="o",
+                        include_in_frontier=True, class_name=cls, hidden_dim=dim,
+                    )
+
+        flop_range_by_class = {c: SENS_FLOP_RANGE for c in classes}
+        an.identify_frontier_by_class(
+            method="pareto", flop_range=None, use_all_points=True,
+            classes=classes, flop_range_by_class=flop_range_by_class,
+        )
+        fits = an.fit_power_law_by_class(class_names=classes, use_all_points=True)
+
+        row = {"L0": L0}
+        for cls in classes:
+            p = fits.get(cls)
+            if p:
+                A, alpha, r2 = p
+                row[f"{cls}_alpha"] = alpha
+                row[f"{cls}_A"]     = A
+                row[f"{cls}_r2"]    = r2
+                alpha_by_class[cls].append(alpha)
+            else:
+                row[f"{cls}_alpha"] = np.nan
+                alpha_by_class[cls].append(np.nan)
+
+        for tl in SENS_TARGET_LOSSES:
+            for ref, comp in SENS_RATIO_PAIRS:
+                ref_p  = fits.get(ref)
+                comp_p = fits.get(comp)
+                if ref_p and comp_p:
+                    A_r, b_r, _ = ref_p
+                    A_c, b_c, _ = comp_p
+                    try:
+                        c_ref  = np.power(tl / A_r, 1.0 / b_r)
+                        c_comp = np.power(tl / A_c, 1.0 / b_c)
+                        ratio  = c_comp / c_ref if c_ref > 0 else np.nan
+                    except Exception:
+                        ratio = np.nan
+                    row[f"ratio_{comp}_vs_{ref}_at_{tl:.2f}"] = ratio
+        rows.append(row)
+
+    import pandas as pd
+    df = pd.DataFrame(rows)
+    csv_path = ROOT / SENS_TABLE_PATH
+    csv_path.parent.mkdir(exist_ok=True)
+    df.to_csv(csv_path, index=False, float_format="%.5f")
+    print(f"\nSensitivity table saved: {csv_path}")
+    print(df.to_string(index=False, float_format=lambda x: f"{x:.4f}"))
+
+    # ── Figure: |alpha| vs L_0 for each class ──────────────────────────────────
+    fig_s, ax_s = plt.subplots(figsize=(7, 4.5))
+    for cls in classes:
+        _, _, color_spec = SENS_CLASSES[cls]
+        ax_s.plot(SENS_L0_VALUES, [-a for a in alpha_by_class[cls]],
+                  "o-", linewidth=2, markersize=6,
+                  color=parse_color(color_spec),
+                  label=class_legend_mapping.get(cls, cls))
+
+    ax_s.axvline(IRREDUCIBLE_LOSS, color="black", linestyle="--", linewidth=1.5,
+                 alpha=0.7, label=f"Default L₀ = {IRREDUCIBLE_LOSS}")
+    ax_s.set_xlabel("Assumed irreducible loss L₀", fontsize=13)
+    ax_s.set_ylabel("Fitted scaling exponent |α|", fontsize=13)
+    ax_s.set_title("Sensitivity to irreducible loss assumption", fontsize=14, fontweight="bold")
+    ax_s.legend(fontsize=10, framealpha=0.9)
+    ax_s.grid(True, alpha=0.3)
+    ax_s.tick_params(labelsize=11)
+    fig_s.tight_layout()
+
+    png_path = ROOT / SENS_FIGURE_PATH
+    fig_s.savefig(png_path, dpi=300, bbox_inches="tight")
+    fig_s.savefig(png_path.with_suffix(".pdf"), bbox_inches="tight")
+    plt.close(fig_s)
+    print(f"Sensitivity figure saved: {png_path}")
+    return df
+
+
+if __name__ == "__main__" or True:
+    sensitivity_df = run_sensitivity()
 # %%

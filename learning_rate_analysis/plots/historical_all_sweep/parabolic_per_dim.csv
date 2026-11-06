@@ -1,0 +1,12 @@
+hidden_dim,estimator,eta_used,reason,eta_star_parabolic,best_grid_lr,r_squared,a,b,c,window_used,unstable,vertex_in_swept_range,n_dropped,n_dropped_plateau,warnings
+32,argmin,0.0056234133,"vertex_at_boundary",0.0050432996,0.0056234133,0.994241,0.266093,2.81511,13.8726,4,False,True,0,4,"dropped 4 divergence-plateau point(s)"
+48,argmin,0.0017782794,"r2<0.9",0.0013358396,0.0017782794,0.889227,1.02016,13.5033,51.3094,4,False,True,0,4,"dropped 4 divergence-plateau point(s)"
+64,argmin,0.0017782794,"vertex_at_boundary",0.0019472173,0.0017782794,0.989421,0.284728,3.55418,17.6848,4,False,False,0,4,"vertex eta*=1.947e-03 outside swept range [3.162e-04; 1.778e-03]; dropped 4 divergence-plateau point(s)"
+80,argmin,0.0017782794,"vertex_at_boundary",0.0028966859,0.0017782794,0.998860,0.18748,2.19134,12.7051,4,False,False,0,5,"vertex eta*=2.897e-03 outside swept range [3.162e-04; 1.778e-03]; dropped 5 divergence-plateau point(s)"
+96,argmin,0.00056234133,"a<=0,nan_vertex,r2<0.9",nan,0.00056234133,0.740469,-0.0675247,-0.600234,6.3662,8,True,False,0,0,"parabola not convex (a<=0); no interior minimum"
+112,argmin,0.001,"a<=0,nan_vertex",nan,0.001,1.000000,-0.0304797,-0.99106,0.8254,3,True,False,0,5,"parabola not convex (a<=0); no interior minimum; dropped 5 divergence-plateau point(s)"
+128,argmin,0.001,"vertex_at_boundary",0.0014196129,0.001,1.000000,0.206869,2.71304,15.1847,3,False,False,0,6,"vertex eta*=1.420e-03 outside swept range [3.162e-04; 1.000e-03]; dropped 6 divergence-plateau point(s)"
+160,argmin,0.00056234133,"a<=0,nan_vertex,r2<0.9",nan,0.00056234133,0.742019,-0.119747,-1.1209,5.13941,8,True,False,0,0,"parabola not convex (a<=0); no interior minimum"
+192,argmin,0.00056234133,"a<=0,nan_vertex,r2<0.9",nan,0.00056234133,0.740406,-0.151344,-1.46164,4.2908,8,True,False,0,0,"parabola not convex (a<=0); no interior minimum"
+224,argmin,0.00056234133,"a<=0,nan_vertex,r2<0.9",nan,0.00056234133,0.758625,-0.165,-1.5519,4.15081,8,True,False,0,0,"parabola not convex (a<=0); no interior minimum"
+256,argmin,0.00056234133,"a<=0,nan_vertex,r2<0.9",nan,0.00056234133,0.667025,-0.267417,-2.61533,1.54398,8,True,False,0,0,"parabola not convex (a<=0); no interior minimum"

@@ -1,7 +1,40 @@
 from __future__ import annotations
 
 import os
-import tomllib
+try:
+    import tomllib
+except ImportError:
+    try:
+        import tomli as tomllib
+    except ImportError:
+        # Pure-Python fallback for Python < 3.11 without tomli installed
+        import re as _re, types as _types
+        def _load(f):
+            text = f.read().decode()
+            result = {}; current = result
+            section_path = []
+            for line in text.splitlines():
+                line = line.strip()
+                if not line or line.startswith('#'): continue
+                if line.startswith('[') and line.endswith(']'):
+                    keys = [k.strip() for k in line[1:-1].split('.')]
+                    current = result
+                    section_path = keys
+                    for k in keys:
+                        current = current.setdefault(k, {})
+                elif '=' in line:
+                    k, _, v = line.partition('=')
+                    k = k.strip(); v = v.strip().split('#')[0].strip()
+                    try: val = int(v)
+                    except ValueError:
+                        try: val = float(v)
+                        except ValueError:
+                            val = v.strip('"\'')
+                    if v.lower() == 'true': val = True
+                    elif v.lower() == 'false': val = False
+                    current[k] = val
+            return result
+        tomllib = _types.SimpleNamespace(load=_load)
 from pathlib import Path
 from typing import Any, Mapping
 

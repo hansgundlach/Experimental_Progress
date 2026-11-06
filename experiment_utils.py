@@ -862,8 +862,8 @@ def get_base_config():
         "max_tokens_training": int(
             5 * 1e7 / 4
         ),  # Maximum number of tokens for training (validation tokens added on top)
-        "target_effective_batch_size": 64,  # Target effective batch size for optimization
-        "batch_size": 64,  # Default per-step batch size (will be overridden by gen_experim)
+        "target_effective_batch_size": 128,  # Target effective batch size for optimization
+        "batch_size": 128,  # Default per-step batch size (will be overridden by gen_experim)
         "learning_rate": 0.001 * math.sqrt(4),
         "min_lr": 1e-5,
         "min_lr_multiplier": 0.1,

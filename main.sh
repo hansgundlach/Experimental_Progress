@@ -23,7 +23,7 @@ echo "Log directory: $LOG_DIR"
 
 # Clear modules and load required ones
 module purge
-# module load anaconda/2023a-pytorch
+source /state/partition1/llgrid/pkg/anaconda/anaconda3-2023a-pytorch/etc/profile.d/conda.sh
 conda activate llm_training
 
 # Print GPU allocation info

@@ -1,0 +1,36 @@
+Experimental Progress synchronization — 2026-11-05
+
+Sources combined:
+- Local main at 77c8948, including its analysis notebooks and how-bitter-graphs-new layout.
+- Additional local robustness_review_2026-11-04 work, preserved in a470a41.
+- GitHub main at fe9f6c9.
+- Server experiment code, analysis inputs/results and figures preserved in b5dbe52.
+
+Resolution policy:
+The server versions were retained for experiment configurations and overlapping
+how-bitter-graphs-new generated figures, numbers.txt, numbers.ipynb and
+parameter_loader.py. The server numbers.txt reports total 3361.71x and
+scale-dependent share 88.39%; the older local file reported 19453.18x and 90.45%.
+No analysis was rerun during synchronization. The separate robustness folder
+and its historical input snapshots/results were preserved unchanged. Its
+exploratory irreducible-loss refits still use the older inputs; synchronization
+does not validate or update those refits.
+
+Excluded:
+Training corpus Datasets symlink, W&B/profiler logs, caches, machine-specific
+metadata, and uncommitted server deletions. Existing tracked historical files
+may still include metadata. Prior local committed file moves/deletions remain.
+
+Recovery:
+Local full copy: ../Experimental_Progress_Backup_Nov5
+Local branch: backup/local-before-sync-nov5
+Server branch: backup/pre-sync-nov5
+Server home files:
+  Experimental_Progress_before_sync_Nov5.patch
+  Experimental_Progress_before_sync_Nov5.status
+  Experimental_Progress_selected_files_before_sync_Nov5.tar.gz
+The selected_files archive is the completed archive of 1015 selected files.
+Earlier archive attempts without selected_files in the name were interrupted
+and must not be treated as complete backups.
+Server residual tracked changes will be preserved in a named Git stash before
+fast-forwarding; excluded server-only untracked files remain on the server.
