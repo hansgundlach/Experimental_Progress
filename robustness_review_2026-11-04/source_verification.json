@@ -1,0 +1,42 @@
+[
+  {
+    "path": "/Users/hansgundlach/Documents/MITresearch/Experimental_Progress/experimental_analysis/experiments_config.py",
+    "sha256": "db21264f1257a8f6f488d72d8ab3d2037222d8c4c7095c0726efb87d5d66ded4",
+    "snapshot_matches": true
+  },
+  {
+    "path": "/Users/hansgundlach/Documents/MITresearch/Experimental_Progress/experimental_analysis/how-bitter-graphs-new/parameter_loader.py",
+    "sha256": "535ce8245739c9cce4932f20b26f121cbadb43881be94c8e20d026c4362c70e3",
+    "snapshot_matches": true
+  },
+  {
+    "path": "/Users/hansgundlach/Documents/MITresearch/Experimental_Progress/experimental_analysis/how-bitter-graphs-new/constants.py",
+    "sha256": "4ac8f629b86cc5f9b959e5c43802ef527ab285c5c345b16c0365bea997bc7e4e",
+    "snapshot_matches": true
+  },
+  {
+    "path": "/Users/hansgundlach/Documents/MITresearch/Experimental_Progress/experimental_analysis/how-bitter-graphs-new/sensitivity_analysis.py",
+    "sha256": "e51e08f4791c22622dbf843ac1fda9ef2edaa3064c27e8834bb320a6f9b2a90d",
+    "snapshot_matches": true
+  },
+  {
+    "path": "/Users/hansgundlach/Documents/MITresearch/Experimental_Progress/experimental_analysis/graphing_utils.py",
+    "sha256": "77c9271311bf7ff23eca48c56833b6c9fe75c364092a2b49353c0ae63dd80d00",
+    "snapshot_matches": true
+  },
+  {
+    "path": "/Users/hansgundlach/Documents/MITresearch/Experimental_Progress/experimental_analysis/how-bitter-graphs-new/utils.py",
+    "sha256": "ca1f5542e92a02257d68d832530c1c83ac46abbf5d95b28950f3ba962a4f24b1",
+    "snapshot_matches": true
+  },
+  {
+    "path": "/Users/hansgundlach/Documents/MITresearch/Experimental_Progress/experimental_analysis/how-bitter-graphs-new/parameters.toml",
+    "sha256": "e123112a38877bc89cec7250d3435e73c52bf6a1acf7e3835332145a9b449070",
+    "snapshot_matches": true
+  },
+  {
+    "path": "/Users/hansgundlach/Documents/MITresearch/Experimental_Progress/experimental_analysis/how-bitter-graphs-new/Irreducible_Sensitivity",
+    "sha256": "cb1fa9067e2e3ab72dc1bd4a1c628a1dfdf4babf33ddc94928327d1230e55684",
+    "snapshot_matches": true
+  }
+]

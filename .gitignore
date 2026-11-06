@@ -31,3 +31,8 @@ profiler_logs/
 
 # Auto-count cache for submit scripts (mtime-keyed)
 .auto_count_cache_*
+
+# Local metadata and generated analysis caches
+.DS_Store
+__pycache__/
+robustness_review_2026-11-04/cache/

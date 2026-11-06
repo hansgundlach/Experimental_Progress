@@ -1,0 +1,302 @@
+"""
+Irreducible loss sensitivity analysis.
+
+Sweeps IRREDUCIBLE_LOSS from E_min to E_max. For each value, subtracts it
+from the raw loss (exactly as plain_double_panel.py does), computes the
+Pareto frontier, and fits the power law  y = a * C^b  on the frontier
+points (loss - E) vs compute.
+
+Tracks how the scaling exponent b, coefficient a, and R² change.
+
+Usage:
+    python irreducible_loss_sensitivity.py
+    python irreducible_loss_sensitivity.py --save-dir ./Figures/E_sensitivity
+    python irreducible_loss_sensitivity.py --classes transformer lstm "sin transformer"
+    python irreducible_loss_sensitivity.py --E-min 1.5 --E-max 2.2 --n-points 51
+"""
+
+import sys
+from dataclasses import dataclass
+from pathlib import Path
+from typing import Dict, List, Optional, Tuple
+
+import matplotlib.pyplot as plt
+import numpy as np
+
+from graphing_utils import TrainingCurveAnalyzer, FONT_CONFIG, ALPHA_CONFIG, IRREDUCIBLE_LOSS
+from experiments_config import experiments_config
+
+
+# ---------------------------------------------------------------------------
+# Data structures
+# ---------------------------------------------------------------------------
+
+
+@dataclass
+class SweepPoint:
+    """Result for one fixed irreducible loss value, one class."""
+    E: float       # fixed irreducible loss
+    a: float       # power law coefficient
+    b: float       # power law exponent (the scaling exponent)
+    r_squared: float
+    n_points: int  # frontier points used
+
+
+# ---------------------------------------------------------------------------
+# Core: build analyzer, get frontier, fit power law — for a given E
+# ---------------------------------------------------------------------------
+
+
+def fit_for_fixed_E(
+    fixed_E: float,
+    classes: List[str],
+    flop_range_by_class: Dict[str, Tuple[float, float]],
+    use_theoretical_flops: bool = False,
+) -> Dict[str, SweepPoint]:
+    """
+    Build a TrainingCurveAnalyzer with irreducible_loss=fixed_E,
+    load all experiments, compute per-class frontiers, fit power law,
+    and return results per class.
+    """
+    analyzer = TrainingCurveAnalyzer(
+        irreducible_loss=fixed_E,
+        use_theoretical_flops=use_theoretical_flops,
+    )
+
+    # Load experiments (same as plain_double_panel.py)
+    for config in experiments_config:
+        # Fix typo key
+        cfg = dict(config)
+        if "include_in_in_frontier" in cfg:
+            cfg["include_in_frontier"] = cfg.pop("include_in_in_frontier")
+        # Force frontier inclusion for classes we care about
+        if cfg.get("class") in classes:
+            cfg["include_in_frontier"] = True
+
+        try:
+            analyzer.add_experiment(
+                name=cfg["name"],
+                csv_path=cfg["csv_path"],
+                compute_col=cfg.get("compute_col"),
+                color=cfg.get("color"),
+                marker=cfg.get("marker", "o"),
+                include_in_frontier=cfg.get("include_in_frontier", True),
+                class_name=cfg.get("class"),
+                hidden_dim=cfg.get("hidden_dim"),
+            )
+        except Exception:
+            continue
+
+    # Compute frontiers
+    analyzer.identify_frontier_by_class(
+        method="pareto",
+        use_all_points=True,
+        classes=classes,
+        flop_range_by_class=flop_range_by_class,
+    )
+
+    # Fit power law per class
+    fit_results = analyzer.fit_power_law_by_class(
+        class_names=classes, use_all_points=True
+    )
+
+    out: Dict[str, SweepPoint] = {}
+    for cls in classes:
+        params = fit_results.get(cls)
+        n_pts = len(analyzer.frontier_points_all_by_class.get(cls, []))
+        if params is None:
+            out[cls] = SweepPoint(E=fixed_E, a=np.nan, b=np.nan,
+                                  r_squared=np.nan, n_points=n_pts)
+        else:
+            a, b, r2 = params
+            out[cls] = SweepPoint(E=fixed_E, a=a, b=b,
+                                  r_squared=r2, n_points=n_pts)
+    return out
+
+
+# ---------------------------------------------------------------------------
+# Sweep
+# ---------------------------------------------------------------------------
+
+
+def run_sweep(
+    classes: List[str],
+    flop_range_by_class: Dict[str, Tuple[float, float]],
+    E_min: float = 1.7,
+    E_max: float = 2.0,
+    n_points: int = 31,
+) -> Dict[str, List[SweepPoint]]:
+    """Sweep E and collect results per class."""
+    E_values = np.linspace(E_min, E_max, n_points)
+    results: Dict[str, List[SweepPoint]] = {cls: [] for cls in classes}
+
+    for i, e_val in enumerate(E_values):
+        print(f"  E = {e_val:.4f}  ({i+1}/{len(E_values)})")
+        pts = fit_for_fixed_E(float(e_val), classes, flop_range_by_class)
+        for cls in classes:
+            results[cls].append(pts[cls])
+
+    return results
+
+
+# ---------------------------------------------------------------------------
+# Print
+# ---------------------------------------------------------------------------
+
+
+def print_table(results: Dict[str, List[SweepPoint]]):
+    for cls, points in results.items():
+        print(f"\n{'=' * 70}")
+        print(f"Class: {cls}")
+        print(f"{'=' * 70}")
+        print(f"{'E':>8}  {'b (exponent)':>14}  {'a (coeff)':>14}  {'R²':>10}  {'pts':>5}")
+        print("-" * 70)
+        for p in points:
+            print(f"{p.E:8.4f}  {p.b:14.6f}  {p.a:14.4e}  {p.r_squared:10.6f}  {p.n_points:5d}")
+
+        valid = [p for p in points if np.isfinite(p.r_squared)]
+        if valid:
+            best = max(valid, key=lambda p: p.r_squared)
+            print(f"\nBest R²: E = {best.E:.4f}  (b = {best.b:.6f}, R² = {best.r_squared:.6f})")
+
+
+# ---------------------------------------------------------------------------
+# Plot
+# ---------------------------------------------------------------------------
+
+
+def plot_sweep(
+    results: Dict[str, List[SweepPoint]],
+    save_path: Optional[str] = None,
+    save_pdf: Optional[str] = None,
+    reference_E: float = IRREDUCIBLE_LOSS,
+):
+    """
+    ICML appendix figure: scaling exponent alpha vs irreducible loss E.
+
+    Single focused panel showing how the fitted exponent in
+    (L - E) = a * C^alpha  varies with the choice of E.
+    """
+    # Use Type-1 fonts for camera-ready
+    plt.rcParams.update({
+        "text.usetex": False,
+        "font.family": "serif",
+        "font.serif": ["Times New Roman", "Times", "DejaVu Serif"],
+        "mathtext.fontset": "stix",
+        "pdf.fonttype": 42,   # TrueType — required by most venues
+        "ps.fonttype": 42,
+    })
+
+    class_colors = {
+        "transformer": "#0072B2",   # blue (colorblind-safe)
+        "lstm": "#D55E00",          # vermillion
+        "sin transformer": "#009E73",  # green
+        "sgd": "#CC79A7",           # pink
+        "2017 Transformer": "#7B3294",  # purple
+    }
+    class_labels = {
+        "transformer": "Transformer",
+        "lstm": "LSTM",
+        "sin transformer": "2017 Transformer",
+        "sgd": "SGD",
+        "2017 Transformer": "2017 Transformer",
+    }
+
+    fig, ax = plt.subplots(figsize=(4.5, 3.2))
+
+    for cls, points in results.items():
+        E_vals = [p.E for p in points]
+        alpha_vals = [p.b for p in points]
+        c = class_colors.get(cls, "tab:gray")
+        lbl = class_labels.get(cls, cls)
+
+        ax.plot(E_vals, alpha_vals, "-", color=c, linewidth=2.0, label=lbl)
+
+    # Reference line
+    ax.axvline(reference_E, ls=":", color="0.45", linewidth=1.0, zorder=0)
+    # Annotate reference
+    ylo, yhi = ax.get_ylim()
+    ax.text(reference_E + 0.005, yhi - 0.0005 * (yhi - ylo),
+            f"$E_0 = {reference_E}$", fontsize=8, color="0.35",
+            ha="left", va="top")
+
+    ax.set_xlabel(r"Irreducible loss $E$", fontsize=11)
+    ax.set_ylabel(r"Scaling exponent $\alpha$", fontsize=11)
+    ax.tick_params(labelsize=9)
+    ax.legend(fontsize=9, frameon=True, framealpha=0.9, edgecolor="0.8")
+    ax.grid(True, alpha=0.2, linewidth=0.5)
+
+    # Tight spine styling
+    for spine in ax.spines.values():
+        spine.set_linewidth(0.6)
+
+    fig.tight_layout(pad=0.4)
+
+    if save_path:
+        Path(save_path).parent.mkdir(parents=True, exist_ok=True)
+        fig.savefig(save_path, dpi=300, bbox_inches="tight")
+        print(f"Saved to {save_path}")
+    if save_pdf:
+        Path(save_pdf).parent.mkdir(parents=True, exist_ok=True)
+        fig.savefig(save_pdf, bbox_inches="tight")
+        print(f"Saved to {save_pdf}")
+    if not save_path and not save_pdf:
+        plt.show()
+
+
+# ---------------------------------------------------------------------------
+# CLI
+# ---------------------------------------------------------------------------
+
+
+def main():
+    import argparse
+
+    parser = argparse.ArgumentParser(
+        description="Irreducible loss sensitivity for power-law scaling fits"
+    )
+    parser.add_argument(
+        "--classes", nargs="+", default=["transformer", "lstm"],
+        help='Classes to analyse (default: transformer lstm)',
+    )
+    parser.add_argument("--E-min", type=float, default=1.7)
+    parser.add_argument("--E-max", type=float, default=2.0)
+    parser.add_argument("--n-points", type=int, default=31)
+    parser.add_argument("--save-dir", type=str, default=None)
+    args = parser.parse_args()
+
+    # Same FLOP ranges as plain_double_panel.py
+    flop_range_by_class = {
+        "transformer": (1e16, 5e17),
+        "lstm": (1e16, 5e17),
+        "sin transformer": (1e16, 5e17),
+        "sgd": (1e16, 5e17),
+        "2017 Transformer": (1e16, 5e17),
+    }
+    # Only keep ranges for requested classes
+    flop_range_by_class = {k: v for k, v in flop_range_by_class.items() if k in args.classes}
+
+    print(f"Sweeping E from {args.E_min} to {args.E_max} ({args.n_points} points)")
+    print(f"Classes: {args.classes}\n")
+
+    results = run_sweep(
+        classes=args.classes,
+        flop_range_by_class=flop_range_by_class,
+        E_min=args.E_min,
+        E_max=args.E_max,
+        n_points=args.n_points,
+    )
+
+    print_table(results)
+
+    save_path = None
+    save_pdf = None
+    if args.save_dir:
+        save_path = str(Path(args.save_dir) / "E_sensitivity.png")
+        save_pdf = str(Path(args.save_dir) / "E_sensitivity.pdf")
+
+    plot_sweep(results, save_path=save_path, save_pdf=save_pdf)
+
+
+if __name__ == "__main__":
+    main()

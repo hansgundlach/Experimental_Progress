@@ -1,0 +1,147 @@
+{
+  "files": [
+    {
+      "source": "/Users/hansgundlach/Documents/MITresearch/Experimental_Progress_Old/experimental_data_folder/x1_lstm_layer1/32d.csv",
+      "copy": "inputs/x1_lstm_layer1/32d.csv",
+      "sha256": "010e94e5c43f9f4a0b9c7972770bcf731cf8c01e0dbace988c22202adcdad04b",
+      "family": "lstm"
+    },
+    {
+      "source": "/Users/hansgundlach/Documents/MITresearch/Experimental_Progress_Old/experimental_data_folder/x1_lstm_layer1/128d.csv",
+      "copy": "inputs/x1_lstm_layer1/128d.csv",
+      "sha256": "e697cb1121faa26e7d73c729118e205493a8fce1f0e159674bb957b1e7fd78a4",
+      "family": "lstm"
+    },
+    {
+      "source": "/Users/hansgundlach/Documents/MITresearch/Experimental_Progress_Old/experimental_data_folder/x1_lstm_layer1/160d.csv",
+      "copy": "inputs/x1_lstm_layer1/160d.csv",
+      "sha256": "6237a54aae373b2abe3060d264ade5841c24f4ae90a48019e3a12ed3855aea4e",
+      "family": "lstm"
+    },
+    {
+      "source": "/Users/hansgundlach/Documents/MITresearch/Experimental_Progress_Old/experimental_data_folder/x1_lstm_layer1/192d.csv",
+      "copy": "inputs/x1_lstm_layer1/192d.csv",
+      "sha256": "cc803d2ad3a88a08725627b457becf974cdb4f44c34370949d887e77b9e7ed68",
+      "family": "lstm"
+    },
+    {
+      "source": "/Users/hansgundlach/Documents/MITresearch/Experimental_Progress_Old/experimental_data_folder/x1_lstm_layer1/224d.csv",
+      "copy": "inputs/x1_lstm_layer1/224d.csv",
+      "sha256": "f7669db36f47619bdcb8151292e60f5a592b772d5db15c03216c2ffc8a64ecef",
+      "family": "lstm"
+    },
+    {
+      "source": "/Users/hansgundlach/Documents/MITresearch/Experimental_Progress_Old/experimental_data_folder/lstm_layer1/25d.csv",
+      "copy": "inputs/lstm_layer1/25d.csv",
+      "sha256": "beaa8e12ff2e8981eb7834345195e755f35b7123616b3739da7a20a1cdf71aef",
+      "family": "lstm"
+    },
+    {
+      "source": "/Users/hansgundlach/Documents/MITresearch/Experimental_Progress_Old/experimental_data_folder/x1_retry_historical_experiments/32_all_reset.csv",
+      "copy": "inputs/x1_retry_historical_experiments/32_all_reset.csv",
+      "sha256": "d5c364244ffc8a62550b58bbd3bac885173b11350a2f925f4d6e240d819ae8c1",
+      "family": "sin transformer"
+    },
+    {
+      "source": "/Users/hansgundlach/Documents/MITresearch/Experimental_Progress_Old/experimental_data_folder/x1_retry_historical_experiments/64_all_reset.csv",
+      "copy": "inputs/x1_retry_historical_experiments/64_all_reset.csv",
+      "sha256": "0cd7eb531d43030b8baf8fa7c7610a2e0de2de5140aa709e9897dfabf268e16b",
+      "family": "sin transformer"
+    },
+    {
+      "source": "/Users/hansgundlach/Documents/MITresearch/Experimental_Progress_Old/experimental_data_folder/x1_retry_historical_experiments/80_all_reset.csv",
+      "copy": "inputs/x1_retry_historical_experiments/80_all_reset.csv",
+      "sha256": "8cb284c0d4c313b4d8febebc72ab5db25ba11c888a0aefcac71c6865e08eccbd",
+      "family": "sin transformer"
+    },
+    {
+      "source": "/Users/hansgundlach/Documents/MITresearch/Experimental_Progress_Old/experimental_data_folder/x1_retry_historical_experiments/96_all_reset.csv",
+      "copy": "inputs/x1_retry_historical_experiments/96_all_reset.csv",
+      "sha256": "d90d9725bdfc14198f800d1f2b1030af0bd26c3d82a9f78a909ccdd177a22319",
+      "family": "sin transformer"
+    },
+    {
+      "source": "/Users/hansgundlach/Documents/MITresearch/Experimental_Progress_Old/experimental_data_folder/x1_retry_historical_experiments/128_all_reset.csv",
+      "copy": "inputs/x1_retry_historical_experiments/128_all_reset.csv",
+      "sha256": "a784aa72dc5193936cc7f75fa46a01ba42e33bbfc635199088f1868b1d4715c6",
+      "family": "sin transformer"
+    },
+    {
+      "source": "/Users/hansgundlach/Documents/MITresearch/Experimental_Progress_Old/experimental_data_folder/x1_retry_historical_experiments/160_all_reset.csv",
+      "copy": "inputs/x1_retry_historical_experiments/160_all_reset.csv",
+      "sha256": "9c014e927e331dcc5cabeb06e1ba6c2a53b4bac3a035c6e3fad9290cc8731de7",
+      "family": "sin transformer"
+    },
+    {
+      "source": "/Users/hansgundlach/Documents/MITresearch/Experimental_Progress_Old/experimental_data_folder/x1_retry_historical_experiments/192_all_reset.csv",
+      "copy": "inputs/x1_retry_historical_experiments/192_all_reset.csv",
+      "sha256": "3a2cca6ab6f9ca8353ca8be7129d75857418af6f0b3d02d2a3606477d2333703",
+      "family": "sin transformer"
+    },
+    {
+      "source": "/Users/hansgundlach/Documents/MITresearch/Experimental_Progress_Old/experimental_data_folder/x1_retry_historical_experiments/224_all_reset.csv",
+      "copy": "inputs/x1_retry_historical_experiments/224_all_reset.csv",
+      "sha256": "a931fcc1305e1aff41272346d2310d0dd6109e9a48c6f96b9ae6f273b444021a",
+      "family": "sin transformer"
+    },
+    {
+      "source": "/Users/hansgundlach/Documents/MITresearch/Experimental_Progress_Old/experimental_data_folder/x1_retry_historical_experiments/256_all_reset.csv",
+      "copy": "inputs/x1_retry_historical_experiments/256_all_reset.csv",
+      "sha256": "fc2e492254497da4a25735c705dd4baeff5f0829da2b30fc5532e6757c28bd5e",
+      "family": "sin transformer"
+    },
+    {
+      "source": "/Users/hansgundlach/Documents/MITresearch/Experimental_Progress_Old/experimental_data_folder/x1_biased_modern/32_modern_40.csv",
+      "copy": "inputs/x1_biased_modern/32_modern_40.csv",
+      "sha256": "3d04b87d5ac671baceaf01ff107db08df92974f057f7704dc6a8ea73fa346546",
+      "family": "transformer"
+    },
+    {
+      "source": "/Users/hansgundlach/Documents/MITresearch/Experimental_Progress_Old/experimental_data_folder/x1_biased_modern/48_modern.csv",
+      "copy": "inputs/x1_biased_modern/48_modern.csv",
+      "sha256": "4775ad8319369668ae3aea3b649cc29bba575e903b78ce1b5d882a0b13ff484a",
+      "family": "transformer"
+    },
+    {
+      "source": "/Users/hansgundlach/Documents/MITresearch/Experimental_Progress_Old/experimental_data_folder/x1_biased_modern/64_modern_40.csv",
+      "copy": "inputs/x1_biased_modern/64_modern_40.csv",
+      "sha256": "cba4a4122bc70e0ab55c801ce6c80709e8583e6abbba073d8a5381e4c5b0d9b7",
+      "family": "transformer"
+    },
+    {
+      "source": "/Users/hansgundlach/Documents/MITresearch/Experimental_Progress_Old/experimental_data_folder/x1_biased_modern/128_modern_40.csv",
+      "copy": "inputs/x1_biased_modern/128_modern_40.csv",
+      "sha256": "8e780febde55ea22d0c6e2c9f325a6a9023607593e545883151e1ecb5b060526",
+      "family": "transformer"
+    },
+    {
+      "source": "/Users/hansgundlach/Documents/MITresearch/Experimental_Progress_Old/experimental_data_folder/x1_biased_modern/160_modern_40.csv",
+      "copy": "inputs/x1_biased_modern/160_modern_40.csv",
+      "sha256": "ede7362c866e974cfbee656ffed7f4b92329b483974a16ae5b0daa0e1a882a0e",
+      "family": "transformer"
+    },
+    {
+      "source": "/Users/hansgundlach/Documents/MITresearch/Experimental_Progress_Old/experimental_data_folder/x1_biased_modern/192_modern_40.csv",
+      "copy": "inputs/x1_biased_modern/192_modern_40.csv",
+      "sha256": "af7811926c8e11493c852ff09b4c2e3ff5c4182faa5430449aadc0b615903905",
+      "family": "transformer"
+    },
+    {
+      "source": "/Users/hansgundlach/Documents/MITresearch/Experimental_Progress_Old/experimental_data_folder/x1_biased_modern/224_modern_40.csv",
+      "copy": "inputs/x1_biased_modern/224_modern_40.csv",
+      "sha256": "eb80052d767e0d42e4a07b215c50647aed7ce27d0b2dfce4666ec25889b6e7bf",
+      "family": "transformer"
+    },
+    {
+      "source": "/Users/hansgundlach/Documents/MITresearch/Experimental_Progress_Old/experimental_data_folder/x1_biased_modern/256_modern_40.csv",
+      "copy": "inputs/x1_biased_modern/256_modern_40.csv",
+      "sha256": "ba5905c40398a5a06b90dafdec0aeda709522fa0edf8dc37f051dee9e49a1d50",
+      "family": "transformer"
+    }
+  ],
+  "missing": [
+    "/Users/hansgundlach/Documents/MITresearch/Experimental_Progress_Old/experimental_data_folder/lstm_layer1/x1_64d.csv",
+    "/Users/hansgundlach/Documents/MITresearch/Experimental_Progress_Old/experimental_data_folder/x1_lstm_layer1/96d.csv",
+    "/Users/hansgundlach/Documents/MITresearch/Experimental_Progress_Old/experimental_data_folder/x1_biased_modern/96_modern_40.csv"
+  ]
+}

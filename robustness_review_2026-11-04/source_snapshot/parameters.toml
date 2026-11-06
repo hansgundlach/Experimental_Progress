@@ -1,0 +1,155 @@
+# Edit this file, then run:
+#   python make_all_graphs.py
+#
+# You can also keep alternate parameter files and pass one with:
+#   python make_all_graphs.py --config path/to/other-parameters.toml
+
+# (The text below this line has been commented out, as it is log output, not valid TOML syntax)
+# lass 'lstm_layer1' frontier points with per-class ranges {'modern_transformer': (1e+16, 1e+17), 'lstm_layer1': (1e+16, 1e+17)} (all training points): 209 points
+# Class 'modern_transformer' power law fit: 8.5647e+01 * x^(-0.0934), R² = 0.9989
+# Class 'lstm_layer1' power law fit: 3.8939e+01 * x^(-0.0667), R² = 0.9807
+#   Modern Transformer: L-E = 85.647·C^(-0.0934), R²=0.9989
+#   LSTM (1 layer): L-E = 38.939·C^(-0.0667), R²=0.9807
+# Class 'modern_transformer' power law fit: 8.5647e+01 * x^(-0.0934), R² = 0.9989
+# Class 'lstm_layer1' power law fit: 3.8939e+01 * x^(-0.0667), R² = 0.9807
+#   Target 3.38: modern_transformer=1.07e+15, lstm_layer1=8.45e+15, ratio=7.91x
+#   Target 2.50: modern_transformer=2.67e+16, lstm_layer1=7.69e+17, ratio=28.79x
+# Class 'modern_transformer' frontier points with per-class ranges {'modern_transformer': (1e+16, 1e+17)} (all training points): 269 points
+# Class 'modern_transformer' power law fit: 8.5647e+01 * x^(-0.0934), R² = 0.9989
+
+# Panel 2 fits:
+# Class 'modern_transformer' frontier points with per-class ranges {'historical': (1e+16, 1e+17), 'modern_transformer': (1e+16, 1e+17)} (all training points): 269 points
+# Class 'historical' frontier points with per-class ranges {'historical': (1e+16, 1e+17), 'modern_transformer': (1e+16, 1e+17)} (all training points): 206 points
+# Class 'historical' power law fit: 7.5151e+01 * x^(-0.0890), R² = 0.9982
+#   Historical Transformer: L-E = 75.151·C^(-0.0890), R²=0.9982
+# Class 'historical' power law fit: 7.5151e+01 * x^(-0.0890), R² = 0.9982
+# Class 'modern_transformer' power law fit: 8.5647e+01 * x^(-0.0934), R² = 0.9989
+#   Target 3.38: modern_transformer=1.07e+15, historical=1.38e+15, ratio=1.29x
+#   Target 2.50: modern_transformer=2.67e+16, historical=4.04e+16, ratio=1.51x
+# /home/gridsan/hgundlach/Experimental_Progress/experimental_analysis/plot_analysis_final_lr_trend.py:320: UserWarning: This figure includes Axes that are not compatible with tight_layout, so results might be incorrect.
+#   plt.tight_layout()
+
+
+[scaling_laws.lstm]
+# L(C) = A * C^alpha
+A = 3.8939e+01
+alpha = -0.0667
+
+
+[scaling_laws.transformer_2017]
+# Retro / Kaplan-era transformer scaling constants.
+A = 7.5151e+01
+alpha = -0.0890
+
+[scaling_laws.modern_transformer]
+# Modern transformer scaling constants.
+A = 8.5647e+01
+alpha = -0.0934
+
+[compute_frontier]
+yearly_scaling_multiplier = 4.1
+y0 = 2013.0
+C0 = 1.0e16
+
+[chinchilla_rebalancing]
+coefficient = 1.85e-20
+term1_coefficient = 28737.9
+term1_exponent = -0.2482
+term2_coefficient = 20.337
+term2_exponent = -0.0756
+outer_exponent = 6.512
+
+[innovation_multipliers]
+learned_to_rotary = 1.26
+post_to_pre_norm = 1.87
+sqrt_to_cosine_scheduler = 1.04
+pre_to_rms = 1.09
+sinusoidal_to_rotary = 1.44
+gelu_to_swiglu = 1.17
+mixture_of_experts = 2.0
+
+[interaction_normalization]
+enabled = true
+total = 1.33
+
+[sensitivity]
+# Optional one-off adjustment applied when importing constants.py.
+# Keep at 0 for the baseline. A value of 0.25 makes the
+# alpha_TM - alpha_L gap 25% larger; -0.25 makes it 25% smaller.
+deviation = 0.0
+
+[algorithmic_progress_types]
+# Toy parameters for figures/algorithmic_progress_types.png.
+baseline_A = 1.0
+baseline_alpha = 0.35
+steeper_A = 1.0
+steeper_alpha = 0.55
+shift_factor = 0.6
+C_min = 1.0
+C_max = 1.0e4
+num_points = 400
+
+
+
+
+
+
+
+
+# [scaling_laws.lstm]
+# # L(C) = A * C^alpha
+# A = 3.63e1
+# alpha = -0.065
+
+# [scaling_laws.transformer_2017]
+# # Retro / Kaplan-era transformer scaling constants.
+# A = 8.17e1
+# alpha = -0.091
+
+# [scaling_laws.modern_transformer]
+# # Modern transformer scaling constants.
+# A = 8.80e1
+# alpha = -0.094
+
+# [compute_frontier]
+# yearly_scaling_multiplier = 4.1
+# y0 = 2013.0
+# C0 = 1.0e16
+
+# [chinchilla_rebalancing]
+# coefficient = 1.85e-20
+# term1_coefficient = 28737.9
+# term1_exponent = -0.2482
+# term2_coefficient = 20.337
+# term2_exponent = -0.0756
+# outer_exponent = 6.512
+
+# [innovation_multipliers]
+# learned_to_rotary = 1.26
+# post_to_pre_norm = 1.87
+# sqrt_to_cosine_scheduler = 1.04
+# pre_to_rms = 1.09
+# sinusoidal_to_rotary = 1.44
+# gelu_to_swiglu = 1.17
+# mixture_of_experts = 2.0
+
+# [interaction_normalization]
+# enabled = true
+# total = 1.33
+
+# [sensitivity]
+# # Optional one-off adjustment applied when importing constants.py.
+# # Keep at 0 for the baseline. A value of 0.25 makes the
+# # alpha_TM - alpha_L gap 25% larger; -0.25 makes it 25% smaller.
+# deviation = 0.0
+
+# [algorithmic_progress_types]
+# # Toy parameters for figures/algorithmic_progress_types.png.
+# baseline_A = 1.0
+# baseline_alpha = 0.35
+# steeper_A = 1.0
+# steeper_alpha = 0.55
+# shift_factor = 0.6
+# C_min = 1.0
+# C_max = 1.0e4
+# num_points = 400

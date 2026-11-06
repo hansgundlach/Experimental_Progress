@@ -1,0 +1,43 @@
+{
+  "compute_2023": 1.342265931015239e+22,
+  "configured_baseline": {
+    "total": 3361.7107410806425,
+    "architecture": 352.4354098706867,
+    "scale_dependent": 1309.043193420157,
+    "chinchilla": 3.7142782954200384,
+    "share": 88.38510261461633
+  },
+  "recovered_data_refit_baseline": {
+    "total": 10250.512983496574,
+    "architecture": 1074.6444364104045,
+    "scale_dependent": 3991.528505453065,
+    "chinchilla": 3.7142782954200384,
+    "share": 89.78727633772287
+  },
+  "fit_details": {
+    "lstm": {
+      "A": 36.32842055138451,
+      "alpha": -0.06513631057186253,
+      "points": 170,
+      "runs": 5,
+      "min_compute": 1e+16,
+      "max_compute": 4.14e+16
+    },
+    "transformer": {
+      "A": 82.19522691239982,
+      "alpha": -0.09233331234485169,
+      "points": 426,
+      "runs": 4,
+      "min_compute": 1e+16,
+      "max_compute": 1e+17
+    },
+    "sin transformer": {
+      "A": 88.3708452255386,
+      "alpha": -0.09318366883983364,
+      "points": 309,
+      "runs": 4,
+      "min_compute": 1e+16,
+      "max_compute": 1e+17
+    }
+  }
+}
